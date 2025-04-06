@@ -1,3 +1,4 @@
+import os
 def getVideoPaths(output_folder:str,label:str,cam_number:int,video_ext:str='.mp4'):
     # set the path for permanent storage of the current video according to the date
     savedir = output_folder + label + '_' + datetime.now().strftime('%y%m%d') # note no dashes in date string
@@ -8,7 +9,7 @@ def getVideoPaths(output_folder:str,label:str,cam_number:int,video_ext:str='.mp4
         except IOError as e:
             print(f"An IOError occurred: {e}")
             print('ERROR: Cannot create external folder',savedir)
-  
+
         if os.path.exists(savedir):
             print('Output directory ',savedir, ' created successfully.')
         else:
@@ -30,7 +31,7 @@ def getVideoPaths(output_folder:str,label:str,cam_number:int,video_ext:str='.mp4
 in deviceStream
 replace
     # set the path for permanent storage of the current video according to the date
-    # note this path will be updated within the loop to reflect date changes 
+    # note this path will be updated within the loop to reflect date changes
     savedir = output_folder + label + '_' + datetime.now().strftime('%y%m%d') # note no dashes in date string
     #print("Proposed permanent directory: ", savedir)
     if not os.path.exists(savedir):
@@ -53,5 +54,5 @@ replace
 with:
 fullpathVideoFile,out_file = getVideoPaths(output_folder,label,cam_number,video_ext)
 
-    
+
 

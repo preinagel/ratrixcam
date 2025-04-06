@@ -7,48 +7,46 @@ import subprocess
 import sys
 import time
 import tkinter as tk
-from tkinter import ttk
-from tkinter import messagebox
 import tkinter.font as font
+from tkinter import messagebox, ttk
 
 import PIL
 import PIL.ImageTk
 from PIL import Image, ImageTk
 from pydantic import BaseModel, ValidationError
 
-# path for configuration file  
-initPath = "/Users/rat_hub_01/Desktop/ratrixCameras/"
-configFile = os.path.join(initPath, "config.json")
+import ratrix_utils
+
+# path for configuration file
+configFile = "/Users/rat_hub_01/Desktop/ratrixCameras/config.json"
+
 
 class State:
     def __init__(self):
-        self.camera_process: subprocess.Popen | None = None
+        self.camera_process: subprocess.Popen[bytes] | None = None
 
 
 class Config(BaseModel):
     rack_name: str
-    recording_audio: bool
     camera_names: list[str]
     camera_rows: list[int]
     camera_cols: list[int]
     Ncameras: int
     study_label: str
-    fps: str
-    width: str
-    height: str
+    fps: int
+    width: int
+    height: int
     time_slice: float
-    cam_exposure: str   # LUT code for camera exposure setting, eg -8
-    codec: str          # cv2 video codec, eg MJPG
-    video_ext: str      # extension for video files eg .mp4
-    out_path: str       # final destination folder for video files
-    tempStreamPath: str # temporary folder for video files while streaming
-    blankImage: str     # full path to image to display when cameras offline
-    stillFolder :  str  # folder containing most recent grabbed frames
-    multicam_script:str # full path to script to launch all cameras
-    ratrix_cam_script: str # full path to script to launch one camera 
-    ttl_script: str        # full path to script to log ttl pulses
+    cam_exposure: float  # LUT code for camera exposure setting, eg -8
+    codec: str  # cv2 video codec, eg MJPG
+    video_ext: str  # extension for video files eg .mp4
+    out_path: str  # final destination folder for video files
+    tempStreamPath: str  # temporary folder for video files while streaming
+    blankImage: str  # full path to image to display when cameras offline
+    stillFolder: str  # folder containing most recent grabbed frames
     recording_audio: bool  # not currently supported
-    recording_ttl: bool   # not currently supported
+    recording_ttl: bool  # not currently supported
+
 
 # -----------------------------------------------------------
 # BEGIN FUNCTION DEFS
@@ -64,13 +62,15 @@ def load_settings(json_path: str) -> Config | None:
 
 
 def hdd_status_update_loop(
-    window: tk.Tk, hdd_used: tk.Label, hdd_status: ttk.Progressbar
+    window: tk.Tk, hdd_used: tk.Label, hdd_status: ttk.Progressbar, out_path: str
 ):
-    total, used, free = shutil.disk_usage(out_path)
+    total, used, _free = shutil.disk_usage(out_path)
     hdd_space_used = 100 * used / total  # local scope
     hdd_status.step(hdd_space_used)
-    hdd_used.config(text=f"SSD Space Used: {round(hdd_space_used)}%")
-    window.after(5000, hdd_status_update_loop, window, hdd_used, hdd_status)
+    _ = hdd_used.config(text=f"SSD Space Used: {round(hdd_space_used)}%")
+    _ = window.after(
+        5000, hdd_status_update_loop, window, hdd_used, hdd_status, out_path
+    )
 
 
 def time_recorded_update_loop(
@@ -81,15 +81,15 @@ def time_recorded_update_loop(
     start_recording_date: dt.datetime,
 ):
     date_now = dt.datetime.now()
-    time_label.config(text=f"{date_now:%H:%M:%S}")
-    date_label.config(text=f"{date_now:%A, %B %d, %Y}")
+    _ = time_label.config(text=f"{date_now:%H:%M:%S}")
+    _ = date_label.config(text=f"{date_now:%A, %B %d, %Y}")
     time_recorded = date_now - start_recording_date
     time_sec = time_recorded.total_seconds()
 
-    recorded_label.config(
+    _ = recorded_label.config(
         text=f"Total recorded: {divmod(time_sec, 86400)[0]} days, {divmod(time_sec, 3600)[0]} hours"
     )
-    window.after(
+    _ = window.after(
         1000,
         time_recorded_update_loop,
         window,
@@ -99,18 +99,24 @@ def time_recorded_update_loop(
         start_recording_date,
     )
 
+
 def update_config_file(
     config_file_path: str,
     config: Config,
 ):
     with open(config_file_path, "w") as file:
-        file.seek(0)
-        file.write(config.model_dump_json(indent=2))
-        file.truncate()
+        _ = file.seek(0)
+        _ = file.write(config.model_dump_json(indent=2))
+        _ = file.truncate()
 
 
 def get_camera_image(
-    stills_folder: str, cam_number: int, cam_x: int, cam_y: int, retries=3, delay=0.1
+    stills_folder: str,
+    cam_number: int,
+    cam_x: int,
+    cam_y: int,
+    retries: int = 3,
+    delay: float = 0.1,
 ) -> ImageTk.PhotoImage | None:
     # the temp images are simply named cam_01_status.jpg etc
     stillname = os.path.join(
@@ -132,6 +138,7 @@ def camera_image_update_loop(
     window: tk.Tk,
     cam_refresh: int,
     default_img: PIL.ImageTk.PhotoImage,
+    stillFolder: str,
     cam_image: tk.Label,
     cam_number: int,
     cam_x: int,
@@ -142,15 +149,16 @@ def camera_image_update_loop(
     # try to get current camera view still
     new_image = get_camera_image(stillFolder, cam_number, cam_x, cam_y)
     if new_image is None:
-        cam_image.config(image=default_img)
+        _ = cam_image.config(image=default_img)
     else:
-        cam_image.config(image=new_image)
-    window.after(
+        _ = cam_image.config(image=new_image)
+    _ = window.after(
         cam_refresh,
         camera_image_update_loop,
         window,
         cam_refresh,
         default_img,
+        stillFolder,
         cam_image,
         cam_number,
         cam_x,
@@ -160,7 +168,7 @@ def camera_image_update_loop(
 
 def create_config_editor(state: State, bgcolor: str, config: Config) -> tk.Tk:
     window = tk.Tk()
-    window.configure(background=bgcolor)
+    _ = window.configure(background=bgcolor)
     window.geometry("1024x600")
     window.title("Ratrix Cameras")
 
@@ -191,7 +199,7 @@ def create_config_editor(state: State, bgcolor: str, config: Config) -> tk.Tk:
         fg="#ffffff",
         font=entry_font,
     )
-    study_label_entry.configure(bg=bgcolor, insertbackground="white")
+    _ = study_label_entry.configure(bg=bgcolor, insertbackground="white")
     study_label_title.place(x=65, y=20)
     study_label_entry.place(x=240, y=20)
 
@@ -250,12 +258,21 @@ def create_config_editor(state: State, bgcolor: str, config: Config) -> tk.Tk:
     def start_recording():
         try:  # if cameras are not already on try to start them
             # spawn a separate process launch the multicam script
-            state.camera_process = subprocess.Popen(["python3", multicam_script])
+            state.camera_process = subprocess.Popen(
+                [
+                    "python3",
+                    os.path.join(
+                        os.path.dirname(os.path.abspath(__file__)), "ratrix_multicam.py"
+                    ),
+                ]
+            )
             window.destroy()
         except subprocess.CalledProcessError:
             print("Camera initialization error")
             state.camera_process = None
-            messagebox.showwarning("Error", "Unable to launch cameras", icon="warning")
+            _ = messagebox.showwarning(
+                "Error", "Unable to launch cameras", icon="warning"
+            )
 
     tk.Button(
         window,
@@ -274,7 +291,7 @@ def create_config_editor(state: State, bgcolor: str, config: Config) -> tk.Tk:
 
 def create_recording_window(state: State, bgcolor: str, config: Config) -> tk.Tk:
     window = tk.Tk()
-    window.configure(background=bgcolor)
+    _ = window.configure(background=bgcolor)
     window.geometry("1424x1200")
     right_row = 1150
     window.title("Ratrix Camera System")
@@ -310,7 +327,7 @@ def create_recording_window(state: State, bgcolor: str, config: Config) -> tk.Tk
     time_label.place(x=right_row + 165, y=10)
 
     # HDD status progressbar
-    total, used, free = shutil.disk_usage(out_path)
+    total, used, _free = shutil.disk_usage(config.out_path)
     hdd_used_label = tk.Label(
         window,
         text=f"SSD Drive Space Used: {round(100 * used / total, 1)}%",
@@ -344,6 +361,7 @@ def create_recording_window(state: State, bgcolor: str, config: Config) -> tk.Tk
         window,
         hdd_used_label,
         hdd_status_progress_bar,
+        config.out_path,
     )
 
     # Showing recording duration
@@ -409,7 +427,7 @@ def create_recording_window(state: State, bgcolor: str, config: Config) -> tk.Tk
 
     # Set up camera display
     # initialize to blank images
-    no_signal = Image.open(blankImage)
+    no_signal = Image.open(config.blankImage)
     no_signal_r = no_signal.resize((cam_x, cam_y), resample=2)
     resized_no_signal = ImageTk.PhotoImage(no_signal_r)
 
@@ -421,8 +439,15 @@ def create_recording_window(state: State, bgcolor: str, config: Config) -> tk.Tk
         )
         image_label.grid(row=camRows[i], column=camCols[i])
         camera_image_update_loop(
-            window, cam_refresh, resized_no_signal, image_label, i + 1, cam_x, cam_y
-        )  # camera numbers start at 1
+            window,
+            cam_refresh,
+            resized_no_signal,
+            config.stillFolder,
+            image_label,
+            i + 1,  # camera numbers start at 1
+            cam_x,
+            cam_y,
+        )
 
     def stop_recording():
         # state is modified and also updated in json file
@@ -458,6 +483,7 @@ def create_recording_window(state: State, bgcolor: str, config: Config) -> tk.Tk
 
     return window
 
+
 def graceful_shutdown(state: State):
     if state.camera_process is None:
         print("No camera process to stop")
@@ -479,44 +505,19 @@ def graceful_shutdown(state: State):
     print("Session Ended")
     sys.exit(0)
 
+
 # END FUNCTION DEFS
 # ------------------------------------------------------------------------
 def main():
-
     if os.environ.get("DISPLAY", "") == "":
         os.environ.__setitem__("DISPLAY", ":0.0")
 
-    # check the paths
-    if not os.path.exists(initPath):
-        print("Fatal Error: No init folder found.")
-        return
-
-    if not os.path.exists(out_path):
-        print("Fatal Error: No storage disk found")
-        return
-
-    # Check if json settings file present
-    if not os.path.isfile(configFile):
-        try:
-            shutil.copy(default_init, configFile)
-        except Exception as e:
-            print("Fatal Error: failed to find settings file " + configFile)
-            print(type(e), e)
-            return
-
-    # check if folder exists for still image status files, or try to create it
-    if not os.path.exists(stillFolder):
-        try:
-            os.mkdir(stillFolder)
-        except IOError as e:
-            print(f"An IOError occurred: {e}")
-            print("Can neither find nor create folder for update images")
-            return
-
-    # Recording status override - is false regardless of how it is set in the json file
     application_state = State()
+    ratrix_utils.check_for_config_file(configFile)
 
-    signal.signal(signal.SIGINT, lambda _sig, _frame: graceful_shutdown(application_state))
+    _ = signal.signal(
+        signal.SIGINT, lambda _sig, _frame: graceful_shutdown(application_state)
+    )
 
     application_config = load_settings(configFile)
     if application_config is None:
@@ -536,7 +537,7 @@ def main():
     window = create_recording_window(application_state, bgcolor, application_config)
     window.mainloop()
 
-    graceful_shutdown(application_state)
+    os.kill(os.getpid(), signal.SIGINT)
 
 
 if __name__ == "__main__":
