@@ -1,0 +1,50 @@
+QUESTIONS 
+in my revised ratrix_multicam.py file:
+	~line 66 (stdout=...) where I need to edit to copy the terminal output to a file?
+
+around line 100 can the lines above change the recording status? is this how the gui talks to this script?
+
+in my revised ratrix_cam_server.py file
+	is the commented out line on line12 something useful?
+
+	is it ok to move constants to top outside the def of  device_stream (video_temp_folder used to be hardwired within)
+
+exposureCode= -8 # TO DO this should be read from json file and passed in from multicam
+
+in device_stream: putting the deviceID into the filename, but not entirely sure if device_id is an int, or if it is 0 or 1 indexed
+
+
+in the creation of command strings how do the dash-options get processed? can I leave out -b, time_break or is this a required input? how does the script that is called know what these inputs are?
+
+in ratrixcamIO stop_recording function is window_record.destroy() sufficient or should we work wtih the process handle?
+
+in ratrixcamIO checkDriveUsage function is this circular ok?
+
+in ratrixcamIO - get_cam_img:  will the blank image show up when cameras drop or should I check age of the old image and switch to blank if more than say 15sec old?
+
+
+# ISSUE - commands associated with buttons cannot have returned variables
+# one solution is to have a global
+# here instead I have ignored the returned variables and hand-set recordintState
+# however this fails to pass back the pointer for the camera process if I need it
+
+
+
+
+If I understand the refactoring, ratrix_cam_server used to be called again after every time_break (daily at midnight) for each camera, and created a new folder for output within the device_stream call at that time. But now we are going to call it only once, so we need handling to update the folder for new dates 
+
+
+TO DO
+- in ratrix_cam_server around ine 35 I have moved the creation of new save directories here but what would happen if it cannot create the directory?? seems like more robust handling needed
+
+copyfile function: error checking? keep trying to copy if it fails?
+if the failure mode would be to never copy the file, then what happens - lots of processes never close, and all the files will still be on the hard drive?  should we implement a file cleanup procedure when the whole system is stopped to find and move any unmoved files?  would the new files on the new date overwrite the old ones?  seems like including date in the filenames would be smarter to prevent any ambiguity. (this must be why he wants to do a cleanup operation at midnight)
+
+-in ratrix_cam_server at line 49-50 better error code handling for mkdir (distinguish exists from no access)
+
+-at end of multicam,implement code to terminate nicely before kill
+
+-Handle log file so new file is created for each calendar day
+  see code in ratrix_cam_server around line 203 now
+
+-eliminate time_break throughout (or support setting to nan)

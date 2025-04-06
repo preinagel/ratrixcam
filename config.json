@@ -1,0 +1,30 @@
+{
+  "rack_name": "RatrixCam_Stations_09_10",
+  "rack_cam_list": [
+    "01_Stn09_Face",
+    "02_Stn09_Lid",
+    "03_Stn09_Home",
+    "04_Stn09_Buddy",
+    "05_Stn10_Face",
+    "06_Stn10_Lid",
+    "07_Stn10_Home",
+    "08_Stn10_Buddy"
+  ],
+  "study_label": "Longitudinal",
+  "fps": "30",
+  "width": "640",
+  "height": "480",
+  "time_slice": "600",
+  "cam_exposure": "-8",
+  "codec": "MJPG",
+  "video_ext":  ".mp4",
+  "out_path": "/Volumes/Rack_01",  
+  "tempStreamPath": "/Users/rat_hub_01/Desktop/ratrixCameras/temp/",   
+  "blankImage":     "/Users/rat_hub_01/Desktop/ratrixCameras/blanks/offline_status.png",
+  "stillFolder":    "/Users/rat_hub_01/Desktop/ratrixCameras/status/",
+  "multicam_script":"/Users/rat_hub_01/Desktop/ratrixCameras/ratrix_multicam.py",
+  "ratrix_cam_script": "/Users/rat_hub_01/Desktop/ratrixCameras/ratrix_cam_server.py",
+  "ttl_script": "",
+  "recording_audio": false,
+  "recording_ttl": false
+}
