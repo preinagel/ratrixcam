@@ -23,10 +23,11 @@ configFile = "/Users/rat_hub_01/Desktop/ratrixCameras/config.json"
 
 class State:
     def __init__(self):
-        self.camera_process: subprocess.Popen[bytes] | None = None
+        self.is_in_recording_mode: bool = False # true if application is in recording mode PR 250410
+        self.camera_process: subprocess.Popen[bytes] | None = None # holds processes of each camera
 
 
-class Config(BaseModel):
+class Config(BaseModel): # config file settings
     rack_name: str
     camera_names: list[str]
     camera_rows: list[int]
@@ -225,12 +226,13 @@ def create_config_editor(state: State, bgcolor: str, config: Config) -> tk.Tk:
     x2 = [200, 675]
     columns = 2
     rows = config.Ncameras // 2
-    for cl in range(columns):  # left vs right columns
+    for cl in range(columns):  # left vs right columns 
         for rw in range(0, rows):  # rows
-            ind = columns * cl + rw
+            ind = rows * cl + rw
+            id_label_str=f"Cam {ind + 1} ID:"
             cameraID_label = tk.Label(
                 window,
-                text=f"Cam {ind + 1} ID:",
+                text=id_label_str,
                 bg=bgcolor,
                 fg="#ffffff",
                 font=entry_font,
@@ -255,24 +257,26 @@ def create_config_editor(state: State, bgcolor: str, config: Config) -> tk.Tk:
         command=submit,
     ).place(x=205, y=pivot_point + (rows + 1) * row_step)
 
-    def start_recording():
+    def enter_recording_mode(): #PR changed this, was start_recording which I moved outside?
+        if state.is_in_recording_mode is True:  #PR 250410 change
+            print('Recording is already on. Stop first if you want to restart')
+            messagebox.showinfo('Cameras are already on', 'Stop first if you want to restart') 
+            return
         try:  # if cameras are not already on try to start them
-            # spawn a separate process launch the multicam script
-            state.camera_process = subprocess.Popen(
-                [
-                    "python3",
-                    os.path.join(
-                        os.path.dirname(os.path.abspath(__file__)), "ratrix_multicam.py"
-                    ),
-                ]
-            )
-            window.destroy()
+            start_recording() # this will 
+            state.is_in_recording_mode= True
+            time.sleep(2) # not sure if needed
+            window.destroy() #  destroys the initial config editor window?
         except subprocess.CalledProcessError:
             print("Camera initialization error")
             state.camera_process = None
             _ = messagebox.showwarning(
                 "Error", "Unable to launch cameras", icon="warning"
             )
+        #if we get this far we succeeded in launching multicam?
+        state.is_in_recording_mode= True
+        time.sleep(2)  
+        window.destroy() #  destroys the initial config editor window?
 
     tk.Button(
         window,
@@ -283,11 +287,35 @@ def create_config_editor(state: State, bgcolor: str, config: Config) -> tk.Tk:
         height=3,
         width=19,
         font=button_font,
-        command=start_recording,
+        command=enter_recording_mode, #start_recording,
     ).place(x=100, y=500)
 
-    return window
+    return window  # return the config editor window to main
 
+
+def start_recording(): #PR pulled this out from inside the config window function
+    # if start button is pressed, first the camera recording window must be created and
+    # then we can call this from main to try to launch the multicam script  
+    if state.camera_process is not None: # the cameras themselves are already launched
+        print('Cameras are already running. Stop first if you want to restart')
+        messagebox.showinfo('Cameras are already on', 'Stop first if you want to restart') 
+        return
+    try:  # if cameras are not already on try to start them
+        # spawn a separate process launch the multicam script
+        state.camera_process = subprocess.Popen(
+            [
+                "python3",
+                os.path.join(
+                    os.path.dirname(os.path.abspath(__file__)), "ratrix_multicam.py"
+                ),
+            ]
+        )
+    except subprocess.CalledProcessError:
+        print("Camera initialization error")
+        state.camera_process = None
+        _ = messagebox.showwarning(
+            "Error", "Unable to launch cameras", icon="warning"
+        )
 
 def create_recording_window(state: State, bgcolor: str, config: Config) -> tk.Tk:
     window = tk.Tk()
@@ -296,7 +324,7 @@ def create_recording_window(state: State, bgcolor: str, config: Config) -> tk.Tk
     right_row = 1150
     window.title("Ratrix Camera System")
 
-    cam_refresh = 1500
+    cam_refresh = 30
     cam_x, cam_y = 280, 215
 
     small_font = font.Font(family="Helvitica", size=12)
@@ -448,9 +476,9 @@ def create_recording_window(state: State, bgcolor: str, config: Config) -> tk.Tk
             cam_x,
             cam_y,
         )
+    return window # added PR not sure why window is not being launched 250410
 
     def stop_recording():
-        # state is modified and also updated in json file
         if state.camera_process is None or state.camera_process.returncode is not None:
             # should indicate already off. could check process handle?
             confirmation = messagebox.askquestion(
@@ -481,7 +509,7 @@ def create_recording_window(state: State, bgcolor: str, config: Config) -> tk.Tk
     # Realtime updates
     # time_refresh_record(start_recording_date,recorded_label,window_record) # passing params causes crashes?
 
-    return window
+    return window #PR 250410 this returns the cam view window to the calling function which then returns to main?
 
 
 def graceful_shutdown(state: State):
@@ -529,13 +557,21 @@ def main():
 
     window = create_config_editor(application_state, bgcolor, application_config)
     window.mainloop()
+    # PR I think when we drop out of the config window we should launch the recording window
+    # and then launch multicam script?
+    cam_live_window = create_recording_window(application_state,bgcolor,application_config)
+    start_recording(application_state)
+    cam_live_window.mainloop()
+    
 
+    # drop through here when recording is stopped from recording window?
     if application_state.camera_process is None:
         print("Session Ended, cameras not started")
         return
 
-    window = create_recording_window(application_state, bgcolor, application_config)
-    window.mainloop()
+    #why is this code here? shouldn't it be launched within the create_config_editor window?
+    #window = create_recording_window(application_state, bgcolor, application_config)
+    #window.mainloop()
 
     os.kill(os.getpid(), signal.SIGINT)
 

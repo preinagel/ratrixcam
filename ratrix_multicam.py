@@ -63,7 +63,7 @@ def initializeTempFolder(config: Config) -> bool:
 def initializeOutFolder(config: Config):
     if os.path.exists(config.out_path):
         print(config.out_path, "already exists")
-        return
+        return True
     try:
         os.mkdir(config.out_path)
     except PermissionError:
@@ -72,7 +72,7 @@ def initializeOutFolder(config: Config):
         print(f"OS Error: {e}")
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
-    return
+    return True
 
 
 def graceful_shutdown(
@@ -127,11 +127,13 @@ def main():
     print("Settings for ", config.study_label, " successfully loaded")
 
     # check the paths
+    #print('checking output path')
     if not os.path.exists(config.out_path):
         print("Fatal Error: No storage disk found")
         return
 
     # check if folder exists for still image status files, or try to create it
+    #print('checking stills path')
     if not os.path.exists(config.stillFolder):
         print("Still folder does not exist, creating now.")
         try:
@@ -141,15 +143,21 @@ def main():
             print("Can neither find nor create folder for update images")
             return
 
+    #print('checking temp path')
     ok = initializeTempFolder(
         config
     )  # STILL NOT WRITTEN: IF temp directory is not empty must clean up NOT delete!
     if not ok:
+        print('issue with temp folder, try cleanup?')
         return
+
+    print('attemping to initialize output folder')
     ok = initializeOutFolder(config)
     if not ok:
+        print('something went wrong setting up output folder!')
         return
         # RESUME EDITING CODE HERE PR 250306
+    
     print("Multicam: Starting cameras...")
     # try to start all the cameras
     command = [
@@ -198,7 +206,7 @@ def main():
             try:
                 camera_processes[camera_idx] = subprocess.Popen(command[camera_idx])
                 print(
-                    f"Started camera {config.camera_names[camera_idx]}: {command[camera_idx]}"
+                    f"Started camera {config.camera_names[camera_idx]}"
                 )
             except Exception as _:
                 pass

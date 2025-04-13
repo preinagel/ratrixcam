@@ -1,0 +1,1 @@
+Blank images to display when camera is offline
