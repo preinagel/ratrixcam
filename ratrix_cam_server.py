@@ -68,8 +68,9 @@ class CamServer:
         self.current_file_name: str = ""
         self.current_save_dir: str = ""
         self.temp_dir: str = ""
-        # TODO: a string used as part of the video filename 
+        # TODO: a string used as part of the video filename
         self.label: str = "_"
+        self.cam_num_str: str = str(self.device_id + 1).zfill(2)
 
     def graceful_shutdown(self):
         print("Multicam attempting to shut down nicely")
@@ -99,12 +100,14 @@ class CamServer:
 
     def save_frame_to_writer(self, current_time: datetime) -> MatLike | None:
         if self.capture is None:
-            print('hmmm... something is wrong here')
+            print("hmmm... something is wrong here")
             return
 
         ret, frame = self.capture.read()
         if not ret:  # same as if frame is None:  ?
-            print(f"WARNING! failed to capture a frame from camera {cam_num_str} at {datetime.now().strftime('%H:%M:%S.%f')}")
+            print(
+                f"WARNING! failed to capture a frame from camera {self.cam_num_str} at {datetime.now().strftime('%H:%M:%S.%f')}"
+            )
             return
 
         # annotate the video frame
@@ -153,18 +156,17 @@ class CamServer:
 
     # Function to stream video to drive in slices
     def device_stream(self):
-        cam_num_str = str(self.device_id + 1).zfill(2)
         # check for, or create, temporary folder for streaming to (internal drive)
         # this does not change with recording date or video time
         # camera numbers 01-08
-        temp_dir = os.path.join(self.config.tempStreamPath, cam_num_str)
+        temp_dir = os.path.join(self.config.tempStreamPath, self.cam_num_str)
         if not os.path.exists(temp_dir) and not create_directory(temp_dir):
             print("ERROR: Cannot create temporary streaming folder")
             return
 
         # create full path filename for updating still images (used for GUI display)
         camera_still_path = os.path.join(
-            self.config.stillFolder, f"cam_{cam_num_str}_status.png"
+            self.config.stillFolder, f"cam_{self.cam_num_str}_status.png"
         )
 
         # set the path for permanent storage of the current video according to the date
@@ -175,11 +177,13 @@ class CamServer:
         _ = self.capture.set(cv2.CAP_PROP_FRAME_WIDTH, self.config.width)
         _ = self.capture.set(cv2.CAP_PROP_FRAME_HEIGHT, self.config.height)
         _ = self.capture.set(cv2.CAP_PROP_FPS, self.config.fps)
-        _ = self.capture.set(cv2.CAP_PROP_EXPOSURE, self.config.cam_exposure)  # limits exposure duration
-        
+        _ = self.capture.set(
+            cv2.CAP_PROP_EXPOSURE, self.config.cam_exposure
+        )  # limits exposure duration
+
         if not self.capture.isOpened():
             print(
-                f"Failed to initialize device {self.device_id} camera {cam_num_str}: Camera not found",
+                f"Failed to initialize device {self.device_id} camera {self.cam_num_str}: Camera not found",
             )
             return
 
@@ -192,14 +196,14 @@ class CamServer:
             current_time = datetime.now()
             if self.video_writer is None:
                 # create a new video filename for the temporary streaming location
-                #print('creating new video file')
-                self.current_file_name = f"cam{cam_num_str}_{str(current_time.strftime('%y%m%d_%H-%M-%S'))}{self.config.video_ext}"
+                # print('creating new video file')
+                self.current_file_name = f"cam{self.cam_num_str}_{str(current_time.strftime('%y%m%d_%H-%M-%S'))}{self.config.video_ext}"
                 self.current_save_dir = os.path.join(
                     self.config.out_path,
                     f"{self.label}_{current_time.strftime('%y%m%d')}",
                 )
                 # open the video writer
-                #print('opening video writer')
+                # print('opening video writer')
                 self.video_writer = cv2.VideoWriter(
                     os.path.join(temp_dir, self.current_file_name),
                     video_codec,
@@ -208,9 +212,8 @@ class CamServer:
                 )
                 self.filecount += 1
                 print(
-                    f"Camera {cam_num_str} will now stream to {self.current_file_name}"
+                    f"Camera {self.cam_num_str} will now stream to {self.current_file_name}"
                 )
-
 
             # get one frame from the camera and write it to the video writer
             frame = self.save_frame_to_writer(current_time)
