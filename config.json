@@ -21,7 +21,7 @@
   "cam_exposure": "-8",
   "codec": "MJPG",
   "video_ext":  ".mp4",
-  "out_path": "/Volumes/Rack_01",  
+  "out_path": "/Volumes/Rack_01/out/",  
   "tempStreamPath": "/Users/rat_hub_01/Desktop/ratrixCameras/temp/",   
   "blankImage":     "/Users/rat_hub_01/Desktop/ratrixCameras/blanks/offline_status.png",
   "stillFolder":    "/Users/rat_hub_01/Desktop/ratrixCameras/status/",

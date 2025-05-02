@@ -19,7 +19,7 @@ def removeCamStill(blankImage: str, stillFolder: str, cam_idx: int):
     shutil.copy(
         blankImage, os.path.join(stillFolder, f"cam_{camID}_status.png")
     )  # NB this will force overwrite by default
-    print("Updated still to show camera", camID, "is offline")
+    #print("Updated still to show camera", camID, "is offline")
 
 
 def moveTempVideos(config: Config) -> bool:
@@ -156,7 +156,11 @@ def main():
     if not ok:
         print("something went wrong setting up output folder!")
         return
-        # RESUME EDITING CODE HERE PR 250306
+    
+    # get rid of any old still images
+    print('Removing any old still images')
+    for camera_idx in range(config.Ncameras):
+        removeCamStill(config.blankImage, config.stillFolder, camera_idx)
 
     print("Multicam: Starting cameras...")
     # try to start all the cameras

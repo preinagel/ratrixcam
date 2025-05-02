@@ -6,6 +6,7 @@ import signal
 import subprocess
 import sys
 import time
+import cv2
 import tkinter as tk
 import tkinter.font as font
 from tkinter import messagebox, ttk
@@ -109,30 +110,35 @@ def update_config_file(
         _ = file.write(config.model_dump_json(indent=2))
         _ = file.truncate()
 
-
-def get_camera_image(
+def get_camera_still_from_file(
     stills_folder: str,
     cam_number: int,
     cam_x: int,
     cam_y: int,
-    retries: int = 3,
-    delay: float = 0.1,
 ) -> ImageTk.PhotoImage | None:
-    # the temp images are simply named cam_01_status.jpg etc
+    # the still images are named cam_01_status.jpg etc
     stillname = os.path.join(
         stills_folder, f"cam_{str(cam_number).zfill(2)}_status.png"
     )
-
-    for attempt in range(retries):
+    if not os.path.exists(stillname):
+        #file not created yet
+        #print('cannot find file',stillname)
+        return
+    # file is frequently updated, so could be truncated if mid-write
+    for attempt in range(10): # try for one sec
         try:
-            im = Image.open(stillname, mode="r")
-            resized = im.resize((cam_x, cam_y), resample=2)
-            return ImageTk.PhotoImage(resized)
+            im: ImageFile = Image.open(stillname, mode='r')
+            if im is None:
+                print(f"Error: Could not read image at {stillname}")
+                continue
+            #print(f"Attempt {attempt+1} to load {stillname} succeeded")
+            resized: Image = im.resize((cam_x, cam_y), resample=2)
+            tkimage: PhotoImage = ImageTk.PhotoImage(resized)
+            return tkimage
         except Exception as e:
             # If the error message indicates a truncated file, wait and retry.
-            print(f"Attempt {attempt + 1} to load {stillname} failed: {e}")
-            time.sleep(delay)
-
+            #print(f"Attempt {attempt+1} to load {stillname} failed: {e}")
+            time.sleep(0.1)
 
 def camera_image_update_loop(
     window: tk.Tk,
@@ -145,13 +151,20 @@ def camera_image_update_loop(
     cam_y: int,
 ):
     # note cam_number is numeric starting with 01
-
     # try to get current camera view still
-    new_image = get_camera_image(stillFolder, cam_number, cam_x, cam_y)
+    new_image: PhotoImage = get_camera_still_from_file(stillFolder, cam_number, cam_x, cam_y)
     if new_image is None:
-        _ = cam_image.config(image=default_img)
-    else:
-        _ = cam_image.config(image=new_image)
+        new_image=default_img
+
+    result=cam_image.config(image=new_image)
+    #print('result of update is',result)
+     
+    # this code is crashing tk for some reason:
+    #if new_image is None:
+        #     _ = cam_image.config(image=default_img)
+    #else:
+        #     _ = cam_image.config(image=new_image)
+   
     _ = window.after(
         cam_refresh,
         camera_image_update_loop,
@@ -488,6 +501,7 @@ def graceful_shutdown(state: State):
         print("No camera process to stop")
         return
 
+    print('Attempting graceful shutdown...')
     state.camera_process.terminate()
 
     print("Waiting for cameras to stop...")

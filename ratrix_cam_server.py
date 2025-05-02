@@ -82,7 +82,9 @@ class CamServer:
         if self.video_writer is not None:
             self.video_writer.release()
         temp_video_path = os.path.join(self.temp_dir, self.current_file_name)
+         
         out_path = os.path.join(self.current_save_dir, self.current_file_name)
+        print('line 87 outpath set to',out_path)
 
         # spawn a separate process to move the closed tmp file to permanent location
         p = Process(target=move_file, args=(temp_video_path, out_path))
@@ -200,8 +202,17 @@ class CamServer:
                 self.current_file_name = f"cam{self.cam_num_str}_{str(current_time.strftime('%y%m%d_%H-%M-%S'))}{self.config.video_ext}"
                 self.current_save_dir = os.path.join(
                     self.config.out_path,
-                    f"{self.label}_{current_time.strftime('%y%m%d')}",
+                    f"{self.config.study_label}_{self.config.camera_names[self.device_id]}_{current_time.strftime('%y%m%d')}",
+                    #f"{self.label}_{current_time.strftime('%y%m%d')}",
                 )
+                #print('permanent output directory set to',self.current_save_dir)
+                if not os.path.exists(self.current_save_dir):
+                    try:
+                        os.mkdir(self.current_save_dir)
+                    except Exception as e:
+                        print(f"An unexpected error occurred: {e}")
+                        print('unable to create output path',self.current_save_dir)
+
                 # open the video writer
                 # print('opening video writer')
                 self.video_writer = cv2.VideoWriter(
@@ -247,16 +258,15 @@ class CamServer:
                 # keep track of process to clean up later
                 self.file_transfer_processes.append(p)
 
-            # once per sec, try to update the still image
-            if count % self.config.fps == 0 and frame is not None:
-                # print('attempting to overwrite',CameraStillFilename)
+            # once per N sec, try to update the still image
+            N=10 # try updating less often to reduce frequency of file being truncated
+            if count % N*self.config.fps == 0 and frame is not None:
+                #print('attempting to overwrite',camera_still_path)
                 try:
-                    _ = cv2.imwrite(camera_still_path, frame)
-                    # print('success!')
+                    result = cv2.imwrite(camera_still_path, frame)
+                    #print('image saved as',camera_still_path)
                 except Exception as e:
                     print(type(e), e)
-                    # print('unable to write still frame ',CameraStillFilename)
-
             count += 1  # increment frame count whether that succeeds or fails
 
 
