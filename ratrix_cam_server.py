@@ -1,18 +1,20 @@
 # version 250306_1325
 import argparse
+import multiprocessing
 import os
 import shutil
 import signal
-import sys
 import time
 from datetime import datetime
 from multiprocessing import Process
+from multiprocessing.synchronize import Event
+from types import FrameType
+from typing import NamedTuple
 
 import cv2
 from cv2.typing import MatLike
 
-from ratrix_utils import create_directory
-from ratrixcam_IO import Config, load_settings
+from ratrix_utils import Config, ensure_dir_exists, load_settings
 
 video_codec = cv2.VideoWriter.fourcc(*"mp4v")
 
@@ -21,266 +23,256 @@ video_codec = cv2.VideoWriter.fourcc(*"mp4v")
 # BEGIN FUNCTION DEFINITIONS
 # function to move video file from temporary to permanent location
 def move_file(temp_file: str, out_file: str):
-    # utility function for moving video file from temporary to permanent location
-    # copy the file from the temporary location to the permanent one
-    # print('attempting to copy ',file_completed)
-    # print('to ',out_file)
+    """
+    Utility function for moving video file from temporary to permanent location copy
+    the file from the temporary location to the permanent one
+
+    Args:
+        temp_file:
+        out_file:
+    """
     if not os.path.exists(temp_file):
-        print("WARNING! ", temp_file, "not found!")
+        print(f"WARNING! the temp file '{temp_file}' was not found!")
         return
 
     source_file = temp_file
     destination_file = out_file
 
     try:
-        shutil.copy2(source_file, destination_file)
-        # print(f"File '{source_file}' copied successfully to '{destination_file}'.")
-    # except shutil.SameFileError:
-    #     print("Error: Source and destination files are the same.")
-    # except PermissionError:
-    #     print("Error: Permission denied. Unable to copy the file.")
-    # except FileNotFoundError:
-    #     print(f"Error: Source file '{source_file}' not found.")
-    # except OSError as e:
-    #     print(f"OS Error: {e}")
+        _ = shutil.copy2(source_file, destination_file)
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
 
     # check if this succeeded
     if os.path.exists(out_file) and os.path.isfile(out_file):
-        # print('Saved ', out_file, ' to storage drive')
         os.remove(temp_file)
         if os.path.exists(temp_file):
             print("WARNING: failed to clean up ", temp_file)
-        # else: print('Removed ', file_completed)
     else:
         print("WARNING!!! Failed to save ", temp_file, " to permanent storage")
 
 
-class CamServer:
-    def __init__(self, config: Config, device_id: int):
-        self.config: Config = config
-        self.device_id: int = device_id
-        self.filecount: int = 0
-        self.file_transfer_processes: list[Process] = []
-        self.video_writer: cv2.VideoWriter | None = None
-        self.capture: cv2.VideoCapture | None = None
-        self.current_file_name: str = ""
-        self.current_save_dir: str = ""
-        self.temp_dir: str = ""
-        # TODO: a string used as part of the video filename
-        self.label: str = "_"
-        self.cam_num_str: str = str(self.device_id + 1).zfill(2)
+def save_frame_to_writer(
+    capture: cv2.VideoCapture,
+    writer: cv2.VideoWriter,
+    config: Config,
+    current_time: datetime,
+    cam_num_str: str,
+    label: str,
+) -> MatLike | None:
+    ret, frame = capture.read()
+    if not ret:  # same as if frame is None:  ?
+        print(
+            f"WARNING! failed to capture a frame from camera {cam_num_str} at {datetime.now().strftime('%H:%M:%S.%f')}"
+        )
+        return
 
-    def graceful_shutdown(self):
-        print("Multicam attempting to shut down nicely")
-        if self.capture is not None:
-            self.capture.release()
-        # the above line clears the capture buffer, so the the below loop will not do anything
-        while self.save_frame_to_writer(datetime.now()) is not None:
-            continue
-        if self.video_writer is not None:
-            self.video_writer.release()
-        temp_video_path = os.path.join(self.temp_dir, self.current_file_name)
-         
-        out_path = os.path.join(self.current_save_dir, self.current_file_name)
-        print('line 87 outpath set to',out_path)
+    # annotate the video frame
+    video_date = current_time.strftime("%y%m%d")  # written on video frame
+    video_time_long = current_time.strftime("%H:%M:%S.%f")  # written on video frame
+
+    font = cv2.FONT_HERSHEY_PLAIN
+    _ = cv2.putText(
+        frame,
+        label,
+        (10, config.height - 10),
+        font,
+        1,
+        (255, 255, 255),
+        thickness=1,
+        lineType=cv2.LINE_AA,
+    )
+    _ = cv2.putText(
+        frame,
+        video_date,
+        (config.width - 115, config.height - 25),
+        font,
+        1,
+        (255, 255, 255),
+        thickness=1,
+        lineType=cv2.LINE_AA,
+    )
+    _ = cv2.putText(
+        frame,
+        video_time_long,
+        (config.width - 115, config.height - 10),
+        font,
+        1,
+        (255, 255, 255),
+        thickness=1,
+        lineType=cv2.LINE_AA,
+    )
+
+    writer.write(frame)  # filename determined by when video file was opened
+
+    return frame
+
+    # Function to stream video to drive in slices
+
+
+def run(config: Config, device_id: int, stop_event: Event):
+    label: str = "_"
+    cam_num_str: str = str(device_id + 1).zfill(2)
+
+    temp_dir = os.path.join(config.tempStreamPath, cam_num_str)
+    if not ensure_dir_exists(temp_dir):
+        print("ERROR: Temporary streaming folder does not exist and cannot be created")
+        return
+
+    if not ensure_dir_exists(config.stillFolder):
+        print("ERROR: Still image folder does not existand cannot be created")
+        return
+
+    # create full path filename for updating still images (used for GUI display)
+    camera_still_path = os.path.join(
+        config.stillFolder, f"cam_{cam_num_str}_status.png"
+    )
+
+    # try to connect to the camera
+    capture = cv2.VideoCapture(int(device_id * 4))  # hardware address
+    _ = capture.set(cv2.CAP_PROP_FRAME_WIDTH, config.width)
+    _ = capture.set(cv2.CAP_PROP_FRAME_HEIGHT, config.height)
+    _ = capture.set(cv2.CAP_PROP_FPS, config.fps)
+    _ = capture.set(cv2.CAP_PROP_EXPOSURE, config.cam_exposure)
+
+    if not capture.isOpened():
+        print(
+            f"Failed to initialize device {device_id} camera {cam_num_str}: Camera not found",
+        )
+        return
+
+    # Create video writer for the first video file
+    start = time.time()
+    count = 0  # tracks frames since last still image update
+
+    # this loop is executed once per video frame until camera is stcaopped
+    filecount: int = 0
+    file_transfer_processes: list[Process] = []
+
+    class WriterState(NamedTuple):
+        writer: cv2.VideoWriter
+        save_dir: str
+        file_name: str
+
+    writer_state: WriterState | None = None
+
+    def close_writer(writer_state: WriterState):
+        writer_state.writer.release()
+
+        temp_video_path = os.path.join(temp_dir, writer_state.file_name)
+        out_path = os.path.join(writer_state.save_dir, writer_state.file_name)
 
         # spawn a separate process to move the closed tmp file to permanent location
+        print(f"Starting transfer of file: {temp_video_path} to {out_path}")
         p = Process(target=move_file, args=(temp_video_path, out_path))
         p.start()
         # keep track of process to clean up later
-        self.file_transfer_processes.append(p)
-        for process in self.file_transfer_processes:
-            process.join()  # this blocks until process is complete
+        file_transfer_processes.append(p)
 
-        print(
-            f"==== STOPPING CAMERA {str(self.device_id + 1).zfill(2)} at: {datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}",
-        )
-        print("Saved ", self.filecount, " files during this run")
-        print("Shutdown complete.")
-
-    def save_frame_to_writer(self, current_time: datetime) -> MatLike | None:
-        if self.capture is None:
-            print("hmmm... something is wrong here")
-            return
-
-        ret, frame = self.capture.read()
-        if not ret:  # same as if frame is None:  ?
-            print(
-                f"WARNING! failed to capture a frame from camera {self.cam_num_str} at {datetime.now().strftime('%H:%M:%S.%f')}"
-            )
-            return
-
-        # annotate the video frame
-        video_date = current_time.strftime("%y%m%d")  # written on video frame
-        video_time_long = current_time.strftime("%H:%M:%S.%f")  # written on video frame
-
-        font = cv2.FONT_HERSHEY_PLAIN
-        _ = cv2.putText(
-            frame,
-            self.label,
-            (10, self.config.height - 10),
-            font,
-            1,
-            (255, 255, 255),
-            thickness=1,
-            lineType=cv2.LINE_AA,
-        )
-        _ = cv2.putText(
-            frame,
-            video_date,
-            (self.config.width - 115, self.config.height - 25),
-            font,
-            1,
-            (255, 255, 255),
-            thickness=1,
-            lineType=cv2.LINE_AA,
-        )
-        _ = cv2.putText(
-            frame,
-            video_time_long,
-            (self.config.width - 115, self.config.height - 10),
-            font,
-            1,
-            (255, 255, 255),
-            thickness=1,
-            lineType=cv2.LINE_AA,
-        )
-
-        # write the just-captured frame to the currently open video writer
-        if self.video_writer is not None:
-            self.video_writer.write(
-                frame
-            )  # filename determined by when video file was opened
-
-        return frame
-
-    # Function to stream video to drive in slices
-    def device_stream(self):
-        # check for, or create, temporary folder for streaming to (internal drive)
-        # this does not change with recording date or video time
-        # camera numbers 01-08
-        temp_dir = os.path.join(self.config.tempStreamPath, self.cam_num_str)
-        if not os.path.exists(temp_dir) and not create_directory(temp_dir):
-            print("ERROR: Cannot create temporary streaming folder")
-            return
-
-        # create full path filename for updating still images (used for GUI display)
-        camera_still_path = os.path.join(
-            self.config.stillFolder, f"cam_{self.cam_num_str}_status.png"
-        )
-
-        # set the path for permanent storage of the current video according to the date
-        # note this path will be updated within the loop to reflect date changes
-
-        # try to connect to the camera
-        self.capture = cv2.VideoCapture(int(self.device_id))  # hardware address
-        _ = self.capture.set(cv2.CAP_PROP_FRAME_WIDTH, self.config.width)
-        _ = self.capture.set(cv2.CAP_PROP_FRAME_HEIGHT, self.config.height)
-        _ = self.capture.set(cv2.CAP_PROP_FPS, self.config.fps)
-        _ = self.capture.set(
-            cv2.CAP_PROP_EXPOSURE, self.config.cam_exposure
-        )  # limits exposure duration
-
-        if not self.capture.isOpened():
-            print(
-                f"Failed to initialize device {self.device_id} camera {self.cam_num_str}: Camera not found",
-            )
-            return
-
-        # Create video writer for the first video file
-        start = time.time()
-        count = 0  # tracks frames since last still image update
-
-        # this loop is executed once per video frame until camera is stcaopped
-        while self.capture.isOpened():
-            current_time = datetime.now()
-            if self.video_writer is None:
-                # create a new video filename for the temporary streaming location
-                # print('creating new video file')
-                self.current_file_name = f"cam{self.cam_num_str}_{str(current_time.strftime('%y%m%d_%H-%M-%S'))}{self.config.video_ext}"
-                self.current_save_dir = os.path.join(
-                    self.config.out_path,
-                    f"{self.config.study_label}_{self.config.camera_names[self.device_id]}_{current_time.strftime('%y%m%d')}",
-                    #f"{self.label}_{current_time.strftime('%y%m%d')}",
-                )
-                #print('permanent output directory set to',self.current_save_dir)
-                if not os.path.exists(self.current_save_dir):
-                    try:
-                        os.mkdir(self.current_save_dir)
-                    except Exception as e:
-                        print(f"An unexpected error occurred: {e}")
-                        print('unable to create output path',self.current_save_dir)
-
-                # open the video writer
-                # print('opening video writer')
-                self.video_writer = cv2.VideoWriter(
-                    os.path.join(temp_dir, self.current_file_name),
-                    video_codec,
-                    self.config.fps,
-                    (self.config.width, self.config.height),
-                )
-                self.filecount += 1
+    while capture.isOpened() and not stop_event.is_set():
+        current_time = time.time()
+        current_datetime = datetime.fromtimestamp(current_time)
+        # if video slice duration has been exceeded, close video file and initialize new one
+        if writer_state is None or current_time - start > config.time_slice:
+            timer = time.time_ns()
+            file_transfer_processes = [
+                p for p in file_transfer_processes if p.is_alive()
+            ]
+            if len(file_transfer_processes) > 0:
                 print(
-                    f"Camera {self.cam_num_str} will now stream to {self.current_file_name}"
+                    f"WARNING: {len(file_transfer_processes)} previous file transfer processes are still running"
                 )
 
-            # get one frame from the camera and write it to the video writer
-            frame = self.save_frame_to_writer(current_time)
-            # if video slice duration has been exceeded, close video file and initialize new one
-            if time.time() - start > self.config.time_slice:
-                start = time.time()  # update the current video start time to now
+            if writer_state is not None:
+                close_writer(writer_state)
 
-                # clean up after any previously spawned file transfer processes
-                remaining_transfer_processes: list[Process] = []
-                for process in self.file_transfer_processes:
-                    if not process.is_alive():  # if previous write job is done
-                        process.join()  # kill previous write job
-                    else:
-                        remaining_transfer_processes.append(process)
-                        print("Not done moving last video??")
-                self.file_transfer_processes = remaining_transfer_processes
+            current_save_dir = os.path.join(
+                config.out_path,
+                f"{config.study_label}_{config.camera_names[device_id]}_{current_datetime.strftime('%Y%m%d')}",
+            )
+            if not ensure_dir_exists(current_save_dir):
+                print(f"WARNING! Unable to create output path '{current_save_dir}'")
+                continue
 
-                # release current video writer
-                self.video_writer.release()
-                # reset video_writer to intial state
-                self.video_writer = None
-                # enforce a delay after the release() command before attempting
-                time.sleep(0.1)
+            current_file_name = f"cam{cam_num_str}_{str(current_datetime.strftime('%y%m%d_%H-%M-%S'))}{config.video_ext}"
+            writer_state = WriterState(
+                cv2.VideoWriter(
+                    os.path.join(temp_dir, current_file_name),
+                    video_codec,
+                    config.fps,
+                    (config.width, config.height),
+                ),
+                current_save_dir,
+                current_file_name,
+            )
+            start = current_time
+            filecount += 1
+            print(f"Camera {cam_num_str} will now stream to {current_file_name}")
+            elapsed = time.time_ns() - timer
+            print("Took", elapsed / 1e6, "ms to open new video writer")
 
-                temp_video_path = os.path.join(temp_dir, self.current_file_name)
-                out_path = os.path.join(self.current_save_dir, self.current_file_name)
+        # get one frame from the camera and write it to the video writer
+        frame = save_frame_to_writer(
+            capture, writer_state.writer, config, current_datetime, cam_num_str, label
+        )
+        # once per N sec, try to update the still image
+        N = 10  # try updating less often to reduce frequency of file being truncated
+        if count % N * config.fps == 0 and frame is not None:
+            # print('attempting to overwrite',camera_still_path)
+            try:
+                result = cv2.imwrite(camera_still_path, frame)
+                if result is False:
+                    print(
+                        f"WARNING: Failed to write still image to {camera_still_path}"
+                    )
+                # print('image saved as',camera_still_path)
+            except Exception as e:
+                print(type(e), e)
+        count += 1  # increment frame count whether that succeeds or fails
 
-                # spawn a separate process to move the closed tmp file to permanent location
-                p = Process(target=move_file, args=(temp_video_path, out_path))
-                p.start()
-                # keep track of process to clean up later
-                self.file_transfer_processes.append(p)
+    print(f"Camera server {device_id} attempting to shut down nicely")
+    capture.release()
+    if writer_state is not None:
+        # flush remaining frames
+        while (
+            save_frame_to_writer(
+                capture, writer_state.writer, config, datetime.now(), cam_num_str, label
+            )
+            is not None
+        ):
+            pass
+        close_writer(writer_state)
 
-            # once per N sec, try to update the still image
-            N=10 # try updating less often to reduce frequency of file being truncated
-            if count % N*self.config.fps == 0 and frame is not None:
-                #print('attempting to overwrite',camera_still_path)
-                try:
-                    result = cv2.imwrite(camera_still_path, frame)
-                    #print('image saved as',camera_still_path)
-                except Exception as e:
-                    print(type(e), e)
-            count += 1  # increment frame count whether that succeeds or fails
+    file_transfer_processes = [p for p in file_transfer_processes if p.is_alive()]
+    print(
+        f"Waiting for {len(file_transfer_processes)} file transfer processes to finish"
+    )
+    for process in file_transfer_processes:
+        process.join()  # this blocks until process is complete
+
+    print(
+        f"==== STOPPING CAMERA {str(device_id + 1).zfill(2)} at: {datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}",
+    )
+    print("Saved ", filecount, " files during this run")
+    print(f"Ratrix Cam Server {device_id}: Shutdown complete")
 
 
-def graceful_shutdown(state: CamServer):
-    state.graceful_shutdown()
-    sys.exit(0)
-
-
-# ------------------------------------------------------------------------
-# Parser description
 def main():
+    stop_event = multiprocessing.Event()
+
+    def int_handler(_sig: int, _frame: FrameType | None):
+        print(
+            "Received signal to terminate, shutting down gracefully.\nTo force exit, press Ctrl+C again."
+        )
+        stop_event.set()
+        _ = signal.signal(signal.SIGINT, signal.SIG_DFL)
+
+    _ = signal.signal(signal.SIGINT, int_handler)
+    _ = signal.signal(signal.SIGTERM, lambda sig, frame: stop_event.set())
+
     parser = argparse.ArgumentParser(description="Ratrix Camera Setup", add_help=False)
-    _ = parser.add_argument("-c", "--config", type=str)
-    _ = parser.add_argument("-i", "--index", type=int)
+    _ = parser.add_argument("-c", "--config", type=str, required=True)
+    _ = parser.add_argument("-i", "--index", type=int, required=True)
     args = vars(parser.parse_args())
 
     config = load_settings(args["config"])
@@ -289,20 +281,12 @@ def main():
         return
 
     device_id = int(args["index"]) - 1
+    if device_id < 0:
+        print("ERROR: Invalid device index. Must be a positive integer.")
+        return
 
-    cam_server = CamServer(config, device_id)
-
-    _ = signal.signal(signal.SIGINT, lambda sig, frame: graceful_shutdown(cam_server))
-
-    cam_server.device_stream()
-
-    os.kill(os.getpid(), signal.SIGINT)
+    run(config, device_id, stop_event)
 
 
-# END FUNCTION DEFINITIONS
-# ----------------------------------------------------------------------
-
-# Starting stream
-# print('starting device ',device_id,' camera ',cameraNumber, ' named ',label)
 if __name__ == "__main__":
     main()

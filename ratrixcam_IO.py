@@ -1,65 +1,37 @@
 # version 2503061247
+import argparse
 import datetime as dt
+import multiprocessing
 import os
 import shutil
 import signal
-import subprocess
 import sys
 import time
-import cv2
 import tkinter as tk
 import tkinter.font as font
+from multiprocessing import Process
+from multiprocessing.synchronize import Event
 from tkinter import messagebox, ttk
+from types import FrameType
 
 import PIL
 import PIL.ImageTk
 from PIL import Image, ImageTk
-from pydantic import BaseModel, ValidationError
 
-import ratrix_utils
-
-# path for configuration file
-configFile = "/Users/rat_hub_01/Desktop/ratrixCameras/config.json"
+import ratrix_multicam
+from ratrix_utils import (
+    Config,
+    ensure_config_file_exists,
+    ensure_dir_exists,
+    load_settings,
+    set_pdeathsig,
+)
 
 
 class State:
     def __init__(self):
-        self.camera_process: subprocess.Popen[bytes] | None = None
-
-
-class Config(BaseModel):
-    rack_name: str
-    camera_names: list[str]
-    camera_rows: list[int]
-    camera_cols: list[int]
-    Ncameras: int
-    study_label: str
-    fps: int
-    width: int
-    height: int
-    time_slice: float
-    cam_exposure: float  # LUT code for camera exposure setting, eg -8
-    codec: str  # cv2 video codec, eg MJPG
-    video_ext: str  # extension for video files eg .mp4
-    out_path: str  # final destination folder for video files
-    tempStreamPath: str  # temporary folder for video files while streaming
-    blankImage: str  # full path to image to display when cameras offline
-    stillFolder: str  # folder containing most recent grabbed frames
-    recording_audio: bool  # not currently supported
-    recording_ttl: bool  # not currently supported
-
-
-# -----------------------------------------------------------
-# BEGIN FUNCTION DEFS
-def load_settings(json_path: str) -> Config | None:
-    with open(json_path, "r") as myfile:
-        json = myfile.read()
-    try:
-        config = Config.model_validate_json(json)
-    except ValidationError as e:
-        print(f"Error loading settings from {json_path}: {e}")
-        return None
-    return config
+        self.camera_process: Process | None = None
+        self.current_window: tk.Tk | None = None
 
 
 def hdd_status_update_loop(
@@ -110,6 +82,7 @@ def update_config_file(
         _ = file.write(config.model_dump_json(indent=2))
         _ = file.truncate()
 
+
 def get_camera_still_from_file(
     stills_folder: str,
     cam_number: int,
@@ -121,24 +94,24 @@ def get_camera_still_from_file(
         stills_folder, f"cam_{str(cam_number).zfill(2)}_status.png"
     )
     if not os.path.exists(stillname):
-        #file not created yet
-        #print('cannot find file',stillname)
+        # file not created yet
+        # print('cannot find file',stillname)
         return
     # file is frequently updated, so could be truncated if mid-write
-    for attempt in range(10): # try for one sec
+    for attempt in range(10):  # try for one sec
         try:
-            im: ImageFile = Image.open(stillname, mode='r')
-            if im is None:
-                print(f"Error: Could not read image at {stillname}")
-                continue
-            #print(f"Attempt {attempt+1} to load {stillname} succeeded")
-            resized: Image = im.resize((cam_x, cam_y), resample=2)
-            tkimage: PhotoImage = ImageTk.PhotoImage(resized)
+            im = Image.open(stillname, mode="r")
+            resized = im.resize((cam_x, cam_y), resample=2)
+            tkimage = ImageTk.PhotoImage(resized)
             return tkimage
         except Exception as e:
             # If the error message indicates a truncated file, wait and retry.
-            #print(f"Attempt {attempt+1} to load {stillname} failed: {e}")
+            # print(f"Attempt {attempt+1} to load {stillname} failed: {e}")
             time.sleep(0.1)
+
+
+global_images = []
+
 
 def camera_image_update_loop(
     window: tk.Tk,
@@ -150,21 +123,13 @@ def camera_image_update_loop(
     cam_x: int,
     cam_y: int,
 ):
-    # note cam_number is numeric starting with 01
-    # try to get current camera view still
-    new_image: PhotoImage = get_camera_still_from_file(stillFolder, cam_number, cam_x, cam_y)
+    new_image = get_camera_still_from_file(stillFolder, cam_number, cam_x, cam_y)
     if new_image is None:
-        new_image=default_img
+        new_image = default_img
 
-    result=cam_image.config(image=new_image)
-    #print('result of update is',result)
-     
-    # this code is crashing tk for some reason:
-    #if new_image is None:
-        #     _ = cam_image.config(image=default_img)
-    #else:
-        #     _ = cam_image.config(image=new_image)
-   
+    _ = cam_image.config(image=new_image)
+    cam_image.image = new_image
+
     _ = window.after(
         cam_refresh,
         camera_image_update_loop,
@@ -179,7 +144,9 @@ def camera_image_update_loop(
     )
 
 
-def create_config_editor(state: State, bgcolor: str, config: Config) -> tk.Tk:
+def create_config_editor(
+    state: State, bgcolor: str, config: Config, config_path: str, stop_event: Event
+) -> tk.Tk:
     window = tk.Tk()
     _ = window.configure(background=bgcolor)
     window.geometry("1024x600")
@@ -257,7 +224,7 @@ def create_config_editor(state: State, bgcolor: str, config: Config) -> tk.Tk:
         config.camera_names = [
             camera_label.get() for camera_label in camera_label_values
         ]
-        update_config_file(configFile, config)
+        update_config_file(config_path, config)
 
     tk.Button(
         window,
@@ -270,23 +237,15 @@ def create_config_editor(state: State, bgcolor: str, config: Config) -> tk.Tk:
     ).place(x=205, y=pivot_point + (rows + 1) * row_step)
 
     def start_recording():
-        try:  # if cameras are not already on try to start them
-            # spawn a separate process launch the multicam script
-            state.camera_process = subprocess.Popen(
-                [
-                    "python3",
-                    os.path.join(
-                        os.path.dirname(os.path.abspath(__file__)), "ratrix_multicam.py"
-                    ),
-                ]
-            )
-            window.destroy()
-        except subprocess.CalledProcessError:
-            print("Camera initialization error")
-            state.camera_process = None
-            _ = messagebox.showwarning(
-                "Error", "Unable to launch cameras", icon="warning"
-            )
+        def run_without_handlers():
+            _ = signal.signal(signal.SIGINT, signal.SIG_IGN)
+            _ = signal.signal(signal.SIGTERM, signal.SIG_IGN)
+            set_pdeathsig()
+            ratrix_multicam.run(config, stop_event)
+
+        state.camera_process = Process(target=run_without_handlers)
+        state.camera_process.start()
+        window.destroy()
 
     tk.Button(
         window,
@@ -445,13 +404,10 @@ def create_recording_window(state: State, bgcolor: str, config: Config) -> tk.Tk
     no_signal_r = no_signal.resize((cam_x, cam_y), resample=2)
     resized_no_signal = ImageTk.PhotoImage(no_signal_r)
 
-    camRows = [1, 1, 2, 2, 1, 1, 2, 2]  # row positions for camera images
-    camCols = [1, 2, 1, 2, 4, 5, 4, 5]  # col positions for camera images
     for i in range(config.Ncameras):
-        image_label = tk.Label(
-            window, image=resized_no_signal, borderwidth=0, bg=bgcolor
-        )
-        image_label.grid(row=camRows[i], column=camCols[i])
+        image_label = tk.Label(window, image=resized_no_signal)
+        image_label.image = resized_no_signal
+        image_label.grid(row=config.camera_rows[i], column=config.camera_cols[i])
         camera_image_update_loop(
             window,
             cam_refresh,
@@ -464,7 +420,7 @@ def create_recording_window(state: State, bgcolor: str, config: Config) -> tk.Tk
         )
 
     def stop_recording():
-        if state.camera_process is None or state.camera_process.returncode is not None:
+        if state.camera_process is None or not state.camera_process.is_alive():
             confirmation = messagebox.askquestion(
                 "Cameras appear to be off already", "Are you sure?", icon="warning"
             )
@@ -496,64 +452,93 @@ def create_recording_window(state: State, bgcolor: str, config: Config) -> tk.Tk
     return window
 
 
-def graceful_shutdown(state: State):
+def graceful_shutdown(state: State, stop_event: Event):
+    _ = signal.signal(signal.SIGINT, signal.SIG_DFL)
+    _ = signal.signal(signal.SIGTERM, signal.SIG_DFL)
+
+    if state.current_window is not None:
+        print("Ratrix IO: Closing GUI window")
+        state.current_window.destroy()
+        state.current_window = None
+
     if state.camera_process is None:
         print("No camera process to stop")
         return
 
-    print('Attempting graceful shutdown...')
-    state.camera_process.terminate()
+    print("Ratrix IO attempting graceful shutdown...")
+    stop_event.set()
 
-    print("Waiting for cameras to stop...")
-    for _ in range(110):  # check for 10 seconds
-        if state.camera_process.returncode is not None:
+    timeout = 10
+    print("Waiting for child processes to terminate...")
+    for _ in range(int(timeout / 0.1)):
+        if not state.camera_process.is_alive():
             break
         time.sleep(0.1)  # wait a bit before trying again
-    # in case termination fails, kill
-    if state.camera_process.returncode is None:
-        print("Cameras failed to stop, killing process")
-        state.camera_process.kill()
     else:
-        print("Cameras stopped successfully")
-    print("Session Ended")
+        print("RatrixCam: Timed out waiting for child processes to terminate, killing")
+        state.camera_process.kill()
+    print("Ratrix Cam GUI: Shutdown complete")
+
     sys.exit(0)
 
 
 # END FUNCTION DEFS
 # ------------------------------------------------------------------------
 def main():
+    stop_event = multiprocessing.Event()
+
+    def int_handler(_sig: int, _frame: FrameType | None):
+        print(
+            "Received signal to terminate, shutting down gracefully.\nTo force exit, press Ctrl+C again."
+        )
+        graceful_shutdown(state, stop_event)
+
+    _ = signal.signal(signal.SIGINT, int_handler)
+    _ = signal.signal(
+        signal.SIGTERM,
+        lambda sig, frame: graceful_shutdown(state, stop_event),
+    )
+
+    parser = argparse.ArgumentParser(description="Ratrix Camera Setup", add_help=False)
+    _ = parser.add_argument("-c", "--config", type=str, required=True)
+    args = vars(parser.parse_args())
+    config_path: str = args["config"]
+
+    state = State()
+    ensure_config_file_exists(config_path)
+
+    config = load_settings(config_path)
+    if config is None:
+        return
+
+    # GUI
+    bgcolor = "#3b0a0a"
     if os.environ.get("DISPLAY", "") == "":
         os.environ.__setitem__("DISPLAY", ":0.0")
 
-    application_state = State()
-    ratrix_utils.check_for_config_file(configFile)
-
-    _ = signal.signal(
-        signal.SIGINT, lambda _sig, _frame: graceful_shutdown(application_state)
+    state.current_window = create_config_editor(
+        state, bgcolor, config, config_path, stop_event
     )
+    state.current_window.mainloop()
+    state.current_window = None
 
-    application_config = load_settings(configFile)
-    if application_config is None:
-        print("Failed to load settings from json file, exiting.")
-        return
-
-    # Gui parameters
-    bgcolor = "#3b0a0a"
-
-    window = create_config_editor(application_state, bgcolor, application_config)
-    window.mainloop()
-
-    if application_state.camera_process is None:
+    if state.camera_process is None:
         print("Session Ended, cameras not started")
         return
 
-    print("attempting to create window")
-    window = create_recording_window(application_state, bgcolor, application_config)
-    print("attempting to start main loop on window")
-    window.mainloop()
-    print("mainloop exited")
+    if not ensure_dir_exists(config.out_path):
+        print("ERROR: Recording folder does not exist and could not be created")
+        return
+    else:
+        print(f"Recording folder: {config.out_path}")
 
-    os.kill(os.getpid(), signal.SIGINT)
+    print("attempting to create window")
+    state.current_window = create_recording_window(state, bgcolor, config)
+    print("attempting to start main loop on window")
+    state.current_window.mainloop()
+    state.current_window = None
+    print("mainloop exited")
+    graceful_shutdown(state, stop_event)
 
 
 if __name__ == "__main__":
