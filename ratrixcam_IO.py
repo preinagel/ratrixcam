@@ -129,10 +129,8 @@ def camera_image_update_loop(
 ):
     new_image = get_camera_still_from_file(stillFolder, cam_number, cam_x, cam_y)
     if new_image is None:
-        print(f"Camera {cam_number} not getting photo")
         new_image = default_img
     else:
-        print(f"Camera {cam_number} got photo")
         new_image = ImageTk.PhotoImage(new_image)
 
     _ = cam_image.config(image=new_image)
@@ -524,6 +522,7 @@ def main():
     state.current_window = create_config_editor(
         state, bgcolor, config, config_path, stop_event
     )
+    state.current_window.attributes("-fullscreen", True)
     # reestablish signal handlers since tkinter messes them up
     _ = signal.signal(signal.SIGINT, int_handler)
     _ = signal.signal(
@@ -545,6 +544,7 @@ def main():
         print(f"Recording folder: {config.out_path}")
 
     state.current_window = create_recording_window(state, bgcolor, config)
+    state.current_window.attributes("-fullscreen", True)
 
     _ = signal.signal(signal.SIGINT, int_handler)
     _ = signal.signal(
