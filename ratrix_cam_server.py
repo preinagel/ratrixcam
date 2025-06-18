@@ -215,8 +215,10 @@ def run(config: Config, device_id: int, stop_event: Event):
         frame = save_frame_to_writer(
             capture, writer_state.writer, config, current_datetime, cam_num_str, label
         )
+        if frame is None:
+            break
         # once per N sec, try to update the still image
-        if count % (config.preview_interval * config.fps) == 0 and frame is not None:
+        if count % (config.preview_interval * config.fps) == 0:
             # print('attempting to overwrite',camera_still_path)
             try:
                 result = cv2.imwrite(camera_still_path, frame)
