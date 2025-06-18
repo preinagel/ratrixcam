@@ -24,7 +24,6 @@ from ratrix_utils import (
     ensure_config_file_exists,
     ensure_dir_exists,
     load_settings,
-    set_pdeathsig,
 )
 
 
@@ -32,6 +31,12 @@ class State:
     def __init__(self):
         self.camera_process: Process | None = None
         self.current_window: tk.Tk | None = None
+
+
+def run_without_handlers(config: Config, stop_event: Event):
+    _ = signal.signal(signal.SIGINT, signal.SIG_IGN)
+    _ = signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    ratrix_multicam.run(config, stop_event)
 
 
 def hdd_status_update_loop(
@@ -88,7 +93,7 @@ def get_camera_still_from_file(
     cam_number: int,
     cam_x: int,
     cam_y: int,
-) -> ImageTk.PhotoImage | None:
+) -> Image.Image | None:
     # the still images are named cam_01_status.jpg etc
     stillname = os.path.join(
         stills_folder, f"cam_{str(cam_number).zfill(2)}_status.png"
@@ -102,8 +107,7 @@ def get_camera_still_from_file(
         try:
             im = Image.open(stillname, mode="r")
             resized = im.resize((cam_x, cam_y), resample=2)
-            tkimage = ImageTk.PhotoImage(resized)
-            return tkimage
+            return resized
         except Exception as e:
             # If the error message indicates a truncated file, wait and retry.
             # print(f"Attempt {attempt+1} to load {stillname} failed: {e}")
@@ -125,7 +129,11 @@ def camera_image_update_loop(
 ):
     new_image = get_camera_still_from_file(stillFolder, cam_number, cam_x, cam_y)
     if new_image is None:
+        print(f"Camera {cam_number} not getting photo")
         new_image = default_img
+    else:
+        print(f"Camera {cam_number} got photo")
+        new_image = ImageTk.PhotoImage(new_image)
 
     _ = cam_image.config(image=new_image)
     cam_image.image = new_image
@@ -237,13 +245,9 @@ def create_config_editor(
     ).place(x=205, y=pivot_point + (rows + 1) * row_step)
 
     def start_recording():
-        def run_without_handlers():
-            _ = signal.signal(signal.SIGINT, signal.SIG_IGN)
-            _ = signal.signal(signal.SIGTERM, signal.SIG_IGN)
-            set_pdeathsig()
-            ratrix_multicam.run(config, stop_event)
-
-        state.camera_process = Process(target=run_without_handlers)
+        state.camera_process = Process(
+            target=run_without_handlers, args=(config, stop_event)
+        )
         state.camera_process.start()
         window.destroy()
 
@@ -269,7 +273,7 @@ def create_recording_window(state: State, bgcolor: str, config: Config) -> tk.Tk
     right_row = 1150
     window.title("Ratrix Camera System")
 
-    cam_refresh = 30
+    cam_refresh = 1000
     cam_x, cam_y = 280, 215
 
     small_font = font.Font(family="Helvitica", size=12)
@@ -491,6 +495,7 @@ def main():
         print(
             "Received signal to terminate, shutting down gracefully.\nTo force exit, press Ctrl+C again."
         )
+        _ = signal.signal(signal.SIGINT, signal.SIG_DFL)
         graceful_shutdown(state, stop_event)
 
     _ = signal.signal(signal.SIGINT, int_handler)
@@ -519,6 +524,13 @@ def main():
     state.current_window = create_config_editor(
         state, bgcolor, config, config_path, stop_event
     )
+    # reestablish signal handlers since tkinter messes them up
+    _ = signal.signal(signal.SIGINT, int_handler)
+    _ = signal.signal(
+        signal.SIGTERM,
+        lambda sig, frame: graceful_shutdown(state, stop_event),
+    )
+
     state.current_window.mainloop()
     state.current_window = None
 
@@ -532,12 +544,16 @@ def main():
     else:
         print(f"Recording folder: {config.out_path}")
 
-    print("attempting to create window")
     state.current_window = create_recording_window(state, bgcolor, config)
-    print("attempting to start main loop on window")
+
+    _ = signal.signal(signal.SIGINT, int_handler)
+    _ = signal.signal(
+        signal.SIGTERM,
+        lambda sig, frame: graceful_shutdown(state, stop_event),
+    )
+
     state.current_window.mainloop()
     state.current_window = None
-    print("mainloop exited")
     graceful_shutdown(state, stop_event)
 
 

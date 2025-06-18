@@ -15,7 +15,6 @@ from ratrix_utils import (
     Config,
     ensure_dir_exists,
     load_settings,
-    set_pdeathsig,
 )
 
 
@@ -23,6 +22,12 @@ def removeCamStill(blankImage: str, stillFolder: str, cam_idx: int):
     # this function replaces the most recent still image of camera with the default offline image
     camID = str(cam_idx + 1).zfill(2)  # note the file names go from 01 to Ncameras
     _ = shutil.copy(blankImage, os.path.join(stillFolder, f"cam_{camID}_status.png"))
+
+
+def run_without_handlers(config: Config, camera_idx: int, stop_event: Event):
+    _ = signal.signal(signal.SIGINT, signal.SIG_IGN)
+    _ = signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    ratrix_cam_server.run(config, camera_idx, stop_event)
 
 
 # Main loop: check every second and restart any cameras or processes that are not running
@@ -73,14 +78,9 @@ def run(config: Config, stop_event: Event):
                     f"Camera {config.camera_names[camera_idx]} went offline at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}."
                 )
             try:
-
-                def run_without_handlers():
-                    _ = signal.signal(signal.SIGINT, signal.SIG_IGN)
-                    _ = signal.signal(signal.SIGTERM, signal.SIG_IGN)
-                    set_pdeathsig()
-                    ratrix_cam_server.run(config, camera_idx, stop_event)
-
-                new_proc = Process(target=run_without_handlers)
+                new_proc = Process(
+                    target=run_without_handlers, args=(config, camera_idx, stop_event)
+                )
                 new_proc.start()
                 camera_processes[camera_idx] = new_proc
                 print(f"Started camera {config.camera_names[camera_idx]}")

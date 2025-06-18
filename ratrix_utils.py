@@ -58,7 +58,8 @@ class Config(BaseModel):
     fps: int
     width: int
     height: int
-    time_slice: float
+    time_slice: int
+    preview_interval: int
     cam_exposure: float  # LUT code for camera exposure setting, eg -8
     codec: str  # cv2 video codec, eg MJPG
     video_ext: str  # extension for video files eg .mp4

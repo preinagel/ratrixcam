@@ -129,7 +129,7 @@ def run(config: Config, device_id: int, stop_event: Event):
     )
 
     # try to connect to the camera
-    capture = cv2.VideoCapture(int(device_id * 4))  # hardware address
+    capture = cv2.VideoCapture(int(device_id))  # hardware address
     _ = capture.set(cv2.CAP_PROP_FRAME_WIDTH, config.width)
     _ = capture.set(cv2.CAP_PROP_FRAME_HEIGHT, config.height)
     _ = capture.set(cv2.CAP_PROP_FPS, config.fps)
@@ -216,8 +216,7 @@ def run(config: Config, device_id: int, stop_event: Event):
             capture, writer_state.writer, config, current_datetime, cam_num_str, label
         )
         # once per N sec, try to update the still image
-        N = 10  # try updating less often to reduce frequency of file being truncated
-        if count % N * config.fps == 0 and frame is not None:
+        if count % (config.preview_interval * config.fps) == 0 and frame is not None:
             # print('attempting to overwrite',camera_still_path)
             try:
                 result = cv2.imwrite(camera_still_path, frame)
