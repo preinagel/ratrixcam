@@ -111,7 +111,7 @@ def save_frame_to_writer(
 
 
 def run(config: Config, device_id: int, stop_event: Event):
-    label: str = "_"
+    label = f"{config.study_label}_{config.camera_names[device_id]}"
     cam_num_str: str = str(device_id + 1).zfill(2)
 
     temp_dir = os.path.join(config.tempStreamPath, cam_num_str)

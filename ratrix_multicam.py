@@ -9,6 +9,7 @@ from multiprocessing import Process
 from multiprocessing.synchronize import Event
 from threading import Thread
 from types import FrameType
+import subprocess
 
 import ratrix_cam_server
 from ratrix_utils import (
@@ -16,6 +17,27 @@ from ratrix_utils import (
     ensure_dir_exists,
     load_settings,
 )
+
+
+def count_video_devices():
+    try:
+        result = subprocess.run(
+            ["system_profiler", "SPCameraDataType"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        output = result.stdout
+        video_device_count = 0
+        for line in output.splitlines():
+            if "USB Camera:" in line:
+                video_device_count += 1
+
+        return video_device_count
+
+    except Exception as e:
+        print(f"Error detecting video devices: {e}")
+        return 0
 
 
 def removeCamStill(blankImage: str, stillFolder: str, cam_idx: int):
@@ -66,7 +88,15 @@ def run(config: Config, stop_event: Event):
     camera_state: list[bool] = [False for _ in range(config.Ncameras)]
     p_TTL: Process | None = None
 
+    devices = 0
     while not stop_event.is_set():
+        prev_devices = devices
+        devices = count_video_devices()
+        if devices < config.Ncameras:
+            if prev_devices != devices:
+                print(
+                    f"Only detected {devices}/{config.Ncameras} camera(s), waiting for all to be connected"
+                )
         for camera_idx, process in enumerate(camera_processes):
             cam_up_prev = camera_state[camera_idx]
             camera_state[camera_idx] = process is not None and process.is_alive()
@@ -77,15 +107,17 @@ def run(config: Config, stop_event: Event):
                 print(
                     f"Camera {config.camera_names[camera_idx]} went offline at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}."
                 )
-            try:
-                new_proc = Process(
-                    target=run_without_handlers, args=(config, camera_idx, stop_event)
-                )
-                new_proc.start()
-                camera_processes[camera_idx] = new_proc
-                print(f"Started camera {config.camera_names[camera_idx]}")
-            except Exception as _:
-                pass
+            if devices >= config.Ncameras:
+                try:
+                    new_proc = Process(
+                        target=run_without_handlers,
+                        args=(config, camera_idx, stop_event),
+                    )
+                    new_proc.start()
+                    camera_processes[camera_idx] = new_proc
+                    print(f"Started camera {config.camera_names[camera_idx]}")
+                except Exception as _:
+                    pass
                 # print(type(e), e)  # let user know it is dead
 
         # check the TTL process and restart if applicable

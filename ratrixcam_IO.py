@@ -522,7 +522,6 @@ def main():
     state.current_window = create_config_editor(
         state, bgcolor, config, config_path, stop_event
     )
-    state.current_window.attributes("-fullscreen", True)
     # reestablish signal handlers since tkinter messes them up
     _ = signal.signal(signal.SIGINT, int_handler)
     _ = signal.signal(
@@ -543,8 +542,33 @@ def main():
     else:
         print(f"Recording folder: {config.out_path}")
 
+    if not ensure_dir_exists(config.stillFolder):
+        print("ERROR: Stills folder does not exist and could not be created")
+        return
+    else:
+        print(f"Stills folder: {config.stillFolder}")
+
+    # print('checking temp path')
+    if not ensure_dir_exists(config.tempStreamPath):
+        print("ERROR: Temp streaming folder does not exist and could not be created")
+        return
+    else:
+        print(f"Temp streaming folder: {config.tempStreamPath}")
+
+    if not ensure_dir_exists(config.out_path):
+        print("ERROR: Recording folder does not exist and could not be created")
+        return
+    else:
+        print(f"Recording folder: {config.out_path}")
+        
+    # get rid of any old still images
+    print("Removing any old still images")
+    for camera_idx in range(config.Ncameras):
+        ratrix_multicam.removeCamStill(
+            config.blankImage, config.stillFolder, camera_idx
+        )
+
     state.current_window = create_recording_window(state, bgcolor, config)
-    state.current_window.attributes("-fullscreen", True)
 
     _ = signal.signal(signal.SIGINT, int_handler)
     _ = signal.signal(
