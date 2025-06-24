@@ -83,12 +83,13 @@ def save_frame_to_writer(
     video_time_long = current_time.strftime("%H:%M:%S.%f")  # written on video frame
 
     font = cv2.FONT_HERSHEY_PLAIN
+    font_scale = params.width / 640
     _ = cv2.putText(
         frame,
         label,
         (10, params.height - 10),
         font,
-        1,
+        font_scale,
         (255, 255, 255),
         thickness=1,
         lineType=cv2.LINE_AA,
@@ -98,7 +99,7 @@ def save_frame_to_writer(
         video_date,
         (params.width - 115, params.height - 25),
         font,
-        1,
+        font_scale,
         (255, 255, 255),
         thickness=1,
         lineType=cv2.LINE_AA,
@@ -108,7 +109,7 @@ def save_frame_to_writer(
         video_time_long,
         (params.width - 115, params.height - 10),
         font,
-        1,
+        font_scale,
         (255, 255, 255),
         thickness=1,
         lineType=cv2.LINE_AA,
