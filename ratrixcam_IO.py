@@ -98,9 +98,10 @@ def get_camera_still_from_file(
         return
 
     # file is frequently updated, so could be truncated if mid-write
-    for attempt in range(10):  # try for one sec
+    for _ in range(10):  # try for one sec
         try:
-            return Image.open(still, mode="r")
+            img = Image.open(still, mode="r")
+            return img
         except Exception as _:
             # If the error message indicates a truncated file, wait and retry.
             # print(f"Attempt {attempt+1} to load {stillname} failed: {e}")

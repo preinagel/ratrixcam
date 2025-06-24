@@ -39,20 +39,18 @@ def move_file(temp_file: str, out_file: str):
     while True:
         try:
             _ = shutil.copy2(temp_file, out_file)
-            break
+            if os.path.exists(out_file) and os.path.isfile(out_file):
+                break
         except Exception as e:
-            print(f"An unexpected error occurred: {e}")
-
-        if os.path.exists(out_file) and os.path.isfile(out_file):
-            os.remove(temp_file)
-            if os.path.exists(temp_file):
-                print("WARNING: failed to clean up ", temp_file)
-            break
-        else:
             print(
-                f"WARNING: Failed to copy {temp_file} to {out_file}, retrying in 1 second"
+                f"WARNING: Failed to copy {temp_file} to {out_file}, retrying in 1 second",
+                e,
             )
-            time.sleep(1)
+        time.sleep(1)
+
+    os.remove(temp_file)
+    if os.path.exists(temp_file):
+        print("WARNING: failed to clean up ", temp_file)
 
 
 class CameraParams(BaseModel):
