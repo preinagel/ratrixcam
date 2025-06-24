@@ -24,6 +24,8 @@ from ratrix_utils import (
     ensure_config_file_exists,
     ensure_dir_exists,
     load_settings,
+    reset_stills,
+    still_path,
 )
 
 
@@ -84,31 +86,22 @@ def update_config_file(
 ):
     with open(config_file_path, "w") as file:
         _ = file.seek(0)
-        _ = file.write(config.model_dump_json(indent=2))
+        _ = file.write(config.model_dump_json(indent=2, exclude_defaults=True))
         _ = file.truncate()
 
 
 def get_camera_still_from_file(
-    stills_folder: str,
-    cam_number: int,
-    cam_x: int,
-    cam_y: int,
+    stills_folder: str, camera_name: str
 ) -> Image.Image | None:
-    # the still images are named cam_01_status.jpg etc
-    stillname = os.path.join(
-        stills_folder, f"cam_{str(cam_number).zfill(2)}_status.png"
-    )
-    if not os.path.exists(stillname):
-        # file not created yet
-        # print('cannot find file',stillname)
+    still = still_path(stills_folder, camera_name)
+    if not os.path.exists(still):
         return
+
     # file is frequently updated, so could be truncated if mid-write
     for attempt in range(10):  # try for one sec
         try:
-            im = Image.open(stillname, mode="r")
-            resized = im.resize((cam_x, cam_y), resample=2)
-            return resized
-        except Exception as e:
+            return Image.open(still, mode="r")
+        except Exception as _:
             # If the error message indicates a truncated file, wait and retry.
             # print(f"Attempt {attempt+1} to load {stillname} failed: {e}")
             time.sleep(0.1)
@@ -121,20 +114,21 @@ def camera_image_update_loop(
     window: tk.Tk,
     cam_refresh: int,
     default_img: PIL.ImageTk.PhotoImage,
-    stillFolder: str,
     cam_image: tk.Label,
-    cam_number: int,
+    stills_path: str,
+    cam_name: str,
     cam_x: int,
     cam_y: int,
 ):
-    new_image = get_camera_still_from_file(stillFolder, cam_number, cam_x, cam_y)
+    new_image = get_camera_still_from_file(stills_path, cam_name)
     if new_image is None:
-        new_image = default_img
+        photo_img = default_img
     else:
-        new_image = ImageTk.PhotoImage(new_image)
+        img = new_image.resize((cam_x, cam_y), resample=2)
+        photo_img = ImageTk.PhotoImage(img)
 
-    _ = cam_image.config(image=new_image)
-    cam_image.image = new_image
+    _ = cam_image.config(image=photo_img)
+    cam_image.image = photo_img
 
     _ = window.after(
         cam_refresh,
@@ -142,9 +136,9 @@ def camera_image_update_loop(
         window,
         cam_refresh,
         default_img,
-        stillFolder,
         cam_image,
-        cam_number,
+        stills_path,
+        cam_name,
         cam_x,
         cam_y,
     )
@@ -189,12 +183,15 @@ def create_config_editor(
     study_label_title.place(x=65, y=20)
     study_label_entry.place(x=240, y=20)
 
+    camera_label_frame = tk.Frame(window, bg=bgcolor)
+    camera_label_frame.place(x=65, y=100)
+
     camera_label_values: list[tk.StringVar] = [
-        tk.StringVar(window, value=name) for name in config.camera_names
+        tk.StringVar(camera_label_frame, value=camera.name) for camera in config.cameras
     ]
     camera_label_entrys = [
         tk.Entry(
-            window,
+            camera_label_frame,
             textvariable=camera_label_value,
             insertbackground="white",
             bg=bgcolor,
@@ -204,32 +201,22 @@ def create_config_editor(
         for camera_label_value in camera_label_values
     ]
 
-    # Layout for camera label input fields - this is a highly optional feature, it can be handled by editing json by hand
-    row_step = 60
-    pivot_point = 120
-    x1 = [65, 540]
-    x2 = [200, 675]
-    columns = 2
-    rows = config.Ncameras // 2
-    for cl in range(columns):  # left vs right columns
-        for rw in range(0, rows):  # rows
-            ind = rows * cl + rw
-            id_label_str = f"Cam {ind + 1} ID:"
-            cameraID_label = tk.Label(
-                window,
-                text=id_label_str,
-                bg=bgcolor,
-                fg="#ffffff",
-                font=entry_font,
-            )
-            cameraID_label.place(x=x1[cl], y=pivot_point + rw * row_step)
-            camera_label_entrys[ind].place(x=x2[cl], y=pivot_point + rw * row_step)
+    # use grid
+    for camera, entry in zip(config.cameras, camera_label_entrys):
+        camera_label = tk.Label(
+            camera_label_frame,
+            text=f"Cam {camera.name} ID:",
+            bg=bgcolor,
+            fg="#ffffff",
+            font=entry_font,
+        )
+        camera_label.grid(row=camera.row * 2, column=camera.col, padx=10, pady=5)
+        entry.grid(row=camera.row * 2 + 1, column=camera.col, padx=10, pady=5)
 
     def submit():
         config.study_label = study_label_input.get()
-        config.camera_names = [
-            camera_label.get() for camera_label in camera_label_values
-        ]
+        for i, camera_label in enumerate(camera_label_values):
+            config.cameras[i].name = camera_label.get()
         update_config_file(config_path, config)
 
     tk.Button(
@@ -240,7 +227,7 @@ def create_config_editor(
         width=20,
         font=button_font,
         command=submit,
-    ).place(x=205, y=pivot_point + (rows + 1) * row_step)
+    ).place(x=205, y=500)
 
     def start_recording():
         state.camera_process = Process(
@@ -302,7 +289,7 @@ def create_recording_window(state: State, bgcolor: str, config: Config) -> tk.Tk
     time_label.place(x=right_row + 165, y=10)
 
     # HDD status progressbar
-    total, used, _free = shutil.disk_usage(config.out_path)
+    total, used, _free = shutil.disk_usage(config.save_path)
     hdd_used_label = tk.Label(
         window,
         text=f"SSD Drive Space Used: {round(100 * used / total, 1)}%",
@@ -336,7 +323,7 @@ def create_recording_window(state: State, bgcolor: str, config: Config) -> tk.Tk
         window,
         hdd_used_label,
         hdd_status_progress_bar,
-        config.out_path,
+        config.save_path,
     )
 
     # Showing recording duration
@@ -394,7 +381,7 @@ def create_recording_window(state: State, bgcolor: str, config: Config) -> tk.Tk
 
     tk.Label(
         window,
-        text=f"Recording: {config.width}x{config.height} @ {config.fps}fps, {config.time_slice // 60} min",
+        text=f"Recording: {config.default_width}x{config.default_height} @ {config.default_fps}fps (default), {config.time_slice // 60} min",
         bg=bgcolor,
         fg="#ffffff",
         font=small_font,
@@ -402,21 +389,21 @@ def create_recording_window(state: State, bgcolor: str, config: Config) -> tk.Tk
 
     # Set up camera display
     # initialize to blank images
-    no_signal = Image.open(config.blankImage)
+    no_signal = Image.open(config.blank_image)
     no_signal_r = no_signal.resize((cam_x, cam_y), resample=2)
     resized_no_signal = ImageTk.PhotoImage(no_signal_r)
 
-    for i in range(config.Ncameras):
+    for camera in config.cameras:
         image_label = tk.Label(window, image=resized_no_signal)
         image_label.image = resized_no_signal
-        image_label.grid(row=config.camera_rows[i], column=config.camera_cols[i])
+        image_label.grid(row=camera.row, column=camera.col)
         camera_image_update_loop(
             window,
             cam_refresh,
             resized_no_signal,
-            config.stillFolder,
             image_label,
-            i + 1,  # camera numbers start at 1
+            config.stills_path,
+            camera.name,
             cam_x,
             cam_y,
         )
@@ -536,37 +523,34 @@ def main():
         print("Session Ended, cameras not started")
         return
 
-    if not ensure_dir_exists(config.out_path):
+    if not ensure_dir_exists(config.save_path):
         print("ERROR: Recording folder does not exist and could not be created")
         return
     else:
-        print(f"Recording folder: {config.out_path}")
+        print(f"Recording folder: {config.save_path}")
 
-    if not ensure_dir_exists(config.stillFolder):
+    if not ensure_dir_exists(config.stills_path):
         print("ERROR: Stills folder does not exist and could not be created")
         return
     else:
-        print(f"Stills folder: {config.stillFolder}")
+        print(f"Stills folder: {config.stills_path}")
 
     # print('checking temp path')
-    if not ensure_dir_exists(config.tempStreamPath):
+    if not ensure_dir_exists(config.temp_path):
         print("ERROR: Temp streaming folder does not exist and could not be created")
         return
     else:
-        print(f"Temp streaming folder: {config.tempStreamPath}")
+        print(f"Temp streaming folder: {config.temp_path}")
 
-    if not ensure_dir_exists(config.out_path):
+    if not ensure_dir_exists(config.save_path):
         print("ERROR: Recording folder does not exist and could not be created")
         return
     else:
-        print(f"Recording folder: {config.out_path}")
-        
+        print(f"Recording folder: {config.save_path}")
+
     # get rid of any old still images
     print("Removing any old still images")
-    for camera_idx in range(config.Ncameras):
-        ratrix_multicam.removeCamStill(
-            config.blankImage, config.stillFolder, camera_idx
-        )
+    reset_stills(config)
 
     state.current_window = create_recording_window(state, bgcolor, config)
 

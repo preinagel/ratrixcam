@@ -1,19 +1,37 @@
-import ctypes
-import ctypes.util
 import os
 import shutil
-import signal
 
 from pydantic import BaseModel, ValidationError
 
-# https://github.com/torvalds/linux/blob/v5.11/include/uapi/linux/prctl.h#L9
-PR_SET_PDEATHSIG = 1
+
+class CameraConfig(BaseModel):
+    name: str
+    row: int
+    col: int
+    fps: int | None = None
+    width: int | None = None
+    height: int | None = None
+    exposure: float | None = None  # LUT code for camera exposure setting, eg -8
 
 
-def set_pdeathsig():
-    libc = ctypes.CDLL(ctypes.util.find_library("c"), use_errno=True)
-    if libc.prctl(PR_SET_PDEATHSIG, signal.SIGKILL) != 0:
-        raise OSError(ctypes.get_errno(), "SET_PDEATHSIG")
+class Config(BaseModel):
+    rack_name: str
+    cameras: list[CameraConfig]
+    study_label: str
+    default_fps: int
+    default_width: int
+    default_height: int
+    default_cam_exposure: float  # LUT code for camera exposure setting, eg -8
+    time_slice: int
+    preview_interval: int
+    codec: str  # cv2 video codec, eg MJPG
+    video_ext: str  # extension for video files eg .mp4
+    save_path: str  # final destination folder for video files
+    temp_path: str  # temporary folder for video files while streaming
+    blank_image: str  # full path to image to display when cameras offline
+    stills_path: str  # folder containing most recent grabbed frames
+    recording_audio: bool  # not currently supported
+    recording_ttl: bool  # not currently supported
 
 
 def ensure_dir_exists(path: str) -> bool:
@@ -48,27 +66,22 @@ def ensure_config_file_exists(config_file: str):
             return
 
 
-class Config(BaseModel):
-    rack_name: str
-    camera_names: list[str]
-    camera_rows: list[int]
-    camera_cols: list[int]
-    Ncameras: int
-    study_label: str
-    fps: int
-    width: int
-    height: int
-    time_slice: int
-    preview_interval: int
-    cam_exposure: float  # LUT code for camera exposure setting, eg -8
-    codec: str  # cv2 video codec, eg MJPG
-    video_ext: str  # extension for video files eg .mp4
-    out_path: str  # final destination folder for video files
-    tempStreamPath: str  # temporary folder for video files while streaming
-    blankImage: str  # full path to image to display when cameras offline
-    stillFolder: str  # folder containing most recent grabbed frames
-    recording_audio: bool  # not currently supported
-    recording_ttl: bool  # not currently supported
+def still_path(stills_path: str, camera_name: str) -> str:
+    return os.path.join(stills_path, f"cam_{camera_name}_status.png")
+
+
+def reset_stills(config: Config):
+    for file in os.listdir(config.stills_path):
+        file_path = os.path.join(config.stills_path, file)
+        if os.path.isfile(file_path):
+            try:
+                os.remove(file_path)
+            except Exception as e:
+                print(f"Error deleting file {file_path}: {e}")
+
+    # copy stills blank image to stills folder
+    for camera in config.cameras:
+        _ = shutil.copy(config.blank_image, still_path(config.stills_path, camera.name))
 
 
 # -----------------------------------------------------------

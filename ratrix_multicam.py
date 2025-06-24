@@ -1,21 +1,22 @@
 import argparse
 import multiprocessing
-import os
 import shutil
 import signal
+import subprocess
 import time
 from datetime import datetime
 from multiprocessing import Process
 from multiprocessing.synchronize import Event
 from threading import Thread
 from types import FrameType
-import subprocess
 
 import ratrix_cam_server
 from ratrix_utils import (
     Config,
     ensure_dir_exists,
     load_settings,
+    reset_stills,
+    still_path,
 )
 
 
@@ -40,12 +41,6 @@ def count_video_devices():
         return 0
 
 
-def removeCamStill(blankImage: str, stillFolder: str, cam_idx: int):
-    # this function replaces the most recent still image of camera with the default offline image
-    camID = str(cam_idx + 1).zfill(2)  # note the file names go from 01 to Ncameras
-    _ = shutil.copy(blankImage, os.path.join(stillFolder, f"cam_{camID}_status.png"))
-
-
 def run_without_handlers(config: Config, camera_idx: int, stop_event: Event):
     _ = signal.signal(signal.SIGINT, signal.SIG_IGN)
     _ = signal.signal(signal.SIGTERM, signal.SIG_IGN)
@@ -56,69 +51,72 @@ def run_without_handlers(config: Config, camera_idx: int, stop_event: Event):
 def run(config: Config, stop_event: Event):
     print(f"Settings for '{config.study_label}' successfully loaded")
 
-    if not ensure_dir_exists(config.stillFolder):
+    if not ensure_dir_exists(config.stills_path):
         print("ERROR: Stills folder does not exist and could not be created")
         return
     else:
-        print(f"Stills folder: {config.stillFolder}")
+        print(f"Stills folder: {config.stills_path}")
 
     # print('checking temp path')
-    if not ensure_dir_exists(config.tempStreamPath):
+    if not ensure_dir_exists(config.temp_path):
         print("ERROR: Temp streaming folder does not exist and could not be created")
         return
     else:
-        print(f"Temp streaming folder: {config.tempStreamPath}")
+        print(f"Temp streaming folder: {config.temp_path}")
 
-    if not ensure_dir_exists(config.out_path):
+    if not ensure_dir_exists(config.save_path):
         print("ERROR: Recording folder does not exist and could not be created")
         return
     else:
-        print(f"Recording folder: {config.out_path}")
+        print(f"Recording folder: {config.save_path}")
 
-    # get rid of any old still images
     print("Removing any old still images")
-    for camera_idx in range(config.Ncameras):
-        removeCamStill(config.blankImage, config.stillFolder, camera_idx)
+    reset_stills(config)
 
     print("Multicam: Starting cameras...")
 
-    camera_processes: list[Process | None] = [
-        None for _ in range(config.Ncameras)
-    ]  # to contain a list of processes
-    camera_state: list[bool] = [False for _ in range(config.Ncameras)]
+    num_cameras = len(config.cameras)
+
+    camera_processes: list[Process | None] = [None for _ in range(num_cameras)]
+    camera_state: list[bool] = [False for _ in range(num_cameras)]
     p_TTL: Process | None = None
 
     devices = 0
     while not stop_event.is_set():
         prev_devices = devices
         devices = count_video_devices()
-        if devices < config.Ncameras:
+        have_all_cameras = devices >= num_cameras
+        if not have_all_cameras:
             if prev_devices != devices:
                 print(
-                    f"Only detected {devices}/{config.Ncameras} camera(s), waiting for all to be connected"
+                    f"Only detected {devices}/{num_cameras} camera(s), waiting for all to be connected"
                 )
-        for camera_idx, process in enumerate(camera_processes):
-            cam_up_prev = camera_state[camera_idx]
-            camera_state[camera_idx] = process is not None and process.is_alive()
-            if camera_state[camera_idx]:
+        for idx, (process, cam_up_prev, camera_config) in enumerate(
+            zip(camera_processes, camera_state, config.cameras)
+        ):
+            camera_state[idx] = process is not None and process.is_alive()
+            if camera_state[idx]:
                 continue
-            if cam_up_prev:
-                removeCamStill(config.blankImage, config.stillFolder, camera_idx)
-                print(
-                    f"Camera {config.camera_names[camera_idx]} went offline at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}."
+            elif cam_up_prev:
+                _ = shutil.copyfile(
+                    config.blank_image,
+                    still_path(config.stills_path, camera_config.name),
                 )
-            if devices >= config.Ncameras:
-                try:
-                    new_proc = Process(
-                        target=run_without_handlers,
-                        args=(config, camera_idx, stop_event),
-                    )
-                    new_proc.start()
-                    camera_processes[camera_idx] = new_proc
-                    print(f"Started camera {config.camera_names[camera_idx]}")
-                except Exception as _:
-                    pass
-                # print(type(e), e)  # let user know it is dead
+                print(
+                    f"Camera {camera_config.name} went offline at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}."
+                )
+            if not have_all_cameras:
+                continue
+            try:
+                cam_proc = Process(
+                    target=run_without_handlers,
+                    args=(config, idx, stop_event),
+                )
+                cam_proc.start()
+                camera_processes[idx] = cam_proc
+                print(f"Started camera {camera_config.name}")
+            except Exception as e:
+                print(f"Error starting camera {camera_config.name}:", e)
 
         # check the TTL process and restart if applicable
         if config.recording_ttl:
@@ -149,12 +147,10 @@ def run(config: Config, stop_event: Event):
     else:
         print("Multicam: Timed out waiting for child processes to terminate, killing")
         # in case termination fails, kill
-        for i, process in enumerate(camera_processes):
+        for process, camera_config in zip(camera_processes, config.cameras):
             if process is None or not process.is_alive():
                 continue
-            print(
-                f"Camera {config.camera_names[i]} failed to terminate, killing process"
-            )
+            print(f"Camera {camera_config.name} failed to terminate, killing process")
             process.kill()
         if p_TTL is not None:
             print("TTL logging failed to terminate, killing process")
