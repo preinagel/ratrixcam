@@ -1,10 +1,12 @@
 import os
 import shutil
 
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 
 class CameraConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     name: str
     row: int
     col: int
@@ -15,6 +17,8 @@ class CameraConfig(BaseModel):
 
 
 class Config(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     rack_name: str
     cameras: list[CameraConfig]
     study_label: str
