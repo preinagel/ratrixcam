@@ -204,8 +204,7 @@ def run(config: Config, device_id: int, stop_event: Event):
                 close_writer(writer_state, file_transfer_processes)
 
             current_save_dir = os.path.join(
-                config.save_path,
-                f"{config.study_label}_{config.camera_names[device_id]}_{current_datetime.strftime('%Y%m%d')}",
+                config.save_path, f"{label}_{current_datetime.strftime('%Y%m%d')}"
             )
             if not ensure_dir_exists(current_save_dir):
                 print(f"WARNING! Unable to create output path '{current_save_dir}'")
