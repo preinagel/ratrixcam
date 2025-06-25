@@ -101,6 +101,7 @@ def get_camera_still_from_file(
     for _ in range(10):  # try for one sec
         try:
             img = Image.open(still, mode="r")
+            img.verify()
             return img
         except Exception as _:
             # If the error message indicates a truncated file, wait and retry.
