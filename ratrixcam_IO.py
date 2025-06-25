@@ -229,7 +229,7 @@ def create_config_editor(
         width=20,
         font=button_font,
         command=submit,
-    ).place(x=205, y=500)
+    ).place(x=400, y=500)
 
     def start_recording():
         state.camera_process = Process(
