@@ -91,7 +91,7 @@ def update_config_file(
 
 
 def get_camera_still_from_file(
-    stills_folder: str, camera_name: str
+    stills_folder: str, camera_name: str, cam_x: int, cam_y: int
 ) -> Image.Image | None:
     still = still_path(stills_folder, camera_name)
     if not os.path.exists(still):
@@ -101,7 +101,7 @@ def get_camera_still_from_file(
     for _ in range(10):  # try for one sec
         try:
             img = Image.open(still, mode="r")
-            img.verify()
+            img = img.resize((cam_x, cam_y), resample=2)
             return img
         except Exception as _:
             # If the error message indicates a truncated file, wait and retry.
@@ -122,12 +122,11 @@ def camera_image_update_loop(
     cam_x: int,
     cam_y: int,
 ):
-    new_image = get_camera_still_from_file(stills_path, cam_name)
+    new_image = get_camera_still_from_file(stills_path, cam_name, cam_x, cam_y)
     if new_image is None:
         photo_img = default_img
     else:
-        img = new_image.resize((cam_x, cam_y), resample=2)
-        photo_img = ImageTk.PhotoImage(img)
+        photo_img = ImageTk.PhotoImage(new_image)
 
     _ = cam_image.config(image=photo_img)
     cam_image.image = photo_img
@@ -204,10 +203,10 @@ def create_config_editor(
     ]
 
     # use grid
-    for camera, entry in zip(config.cameras, camera_label_entrys):
+    for idx, (camera, entry) in enumerate(zip(config.cameras, camera_label_entrys)):
         camera_label = tk.Label(
             camera_label_frame,
-            text=f"Cam {camera.name} ID:",
+            text=f"Cam {idx} ID:",
             bg=bgcolor,
             fg="#ffffff",
             font=entry_font,
