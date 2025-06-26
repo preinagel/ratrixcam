@@ -206,7 +206,7 @@ def create_config_editor(
     for idx, (camera, entry) in enumerate(zip(config.cameras, camera_label_entrys)):
         camera_label = tk.Label(
             camera_label_frame,
-            text=f"Cam {idx} ID:",
+            text=f"Cam {idx+1} ID:",
             bg=bgcolor,
             fg="#ffffff",
             font=entry_font,

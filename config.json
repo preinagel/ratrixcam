@@ -4,16 +4,12 @@
     {
       "name": "01_description",
       "row": 1,
-      "col": 1,
-      "fps": 15,
-      "width": 1920,
-      "height": 1080
+      "col": 1
     },
     {
       "name": "02_description",
       "row": 1,
-      "col": 2,
-      "exposure": -1.0
+      "col": 2
     },
     {
       "name": "03_description",
@@ -55,10 +51,12 @@
   "preview_interval": 1,
   "codec": "MJPG",
   "video_ext": ".mp4",
-  "save_path": "/home/xyven/temp/out/",
-  "temp_path": "/home/xyven/temp/temp/",
-  "blank_image": "/home/xyven/code/ratrixcam/blanks/offline_status.png",
-  "stills_path": "/home/xyven/temp/stills/",
+
+  "save_path": "/Volumes/data/",
+  "temp_path": "/Users/username/Desktop/temp_videos/",
+  "blank_image": "/Users/username/Desktop/ratrixcam/blanks/offline_status.png",
+  "stills_path": "/Users/username/Desktop/temp_videos/status/",
+
   "recording_audio": false,
   "recording_ttl": false
 }

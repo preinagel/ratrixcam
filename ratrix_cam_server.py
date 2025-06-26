@@ -77,7 +77,7 @@ def save_frame_to_writer(
         return
 
     # annotate the video frame
-    video_date = current_time.strftime("%y%m%d")  # written on video frame
+    video_date = current_time.strftime("%Y%m%d")  # written on video frame
     video_time_long = current_time.strftime("%H:%M:%S.%f")  # written on video frame
 
     font = cv2.FONT_HERSHEY_PLAIN
@@ -132,7 +132,7 @@ def close_writer(writer_state: WriterState, file_transfer_processes: list[Proces
     out_path = os.path.join(writer_state.save_dir, writer_state.file_name)
 
     # spawn a separate process to move the closed tmp file to permanent location
-    print(f"Starting transfer of file: {temp_video_path} to {out_path}")
+    print(f"Starting transfer of file:{writer_state.file_name}") # {temp_video_path} to {out_path}")
     p = Process(target=move_file, args=(temp_video_path, out_path))
     p.start()
     # keep track of process to clean up later
@@ -175,16 +175,13 @@ def run(config: Config, device_id: int, stop_event: Event):
         print(f"Camera {params.name} Failed to open recording device {device_id}")
         return
 
-    # Create video writer for the first video file
-    start = time.time()
     count = 0  # tracks frames since last still image update
-
-    # this loop is executed once per video frame until camera is stcaopped
     filecount: int = 0
     file_transfer_processes: list[Process] = []
-
     writer_state: WriterState | None = None
 
+    # this loop is executed once per video frame until camera is stcaopped
+    start = time.time()
     while capture.isOpened() and not stop_event.is_set():
         current_time = time.time()
         current_datetime = datetime.fromtimestamp(current_time)
@@ -209,7 +206,8 @@ def run(config: Config, device_id: int, stop_event: Event):
                 print(f"WARNING! Unable to create output path '{current_save_dir}'")
                 continue
 
-            current_file_name = f"cam_{params.name}_{str(current_datetime.strftime('%y%m%d_%H-%M-%S'))}{config.video_ext}"
+            current_file_name = f"{params.name}_{str(current_datetime.strftime('%Y%m%d_%H-%M-%S'))}{config.video_ext}"
+            # Create video writer
             writer_state = WriterState(
                 cv2.VideoWriter(
                     os.path.join(temp_dir, current_file_name),
@@ -221,11 +219,11 @@ def run(config: Config, device_id: int, stop_event: Event):
                 temp_dir,
                 current_file_name,
             )
-            start = current_time
+            start = current_time #update start time for new video
             filecount += 1
             print(f"Camera {params.name} will now stream to {current_file_name}")
-            elapsed = time.time_ns() - timer
-            print("Took", elapsed / 1e6, "ms to open new video writer")
+            #elapsed = time.time_ns() - timer
+            #print("Took", elapsed / 1e6, "ms to open new video writer")
 
         # get one frame from the camera and write it to the video writer
         frame = save_frame_to_writer(
@@ -267,9 +265,9 @@ def run(config: Config, device_id: int, stop_event: Event):
     for process in file_transfer_processes:
         process.join()  # this blocks until process is complete
 
-    print(
-        f"==== STOPPING CAMERA {str(device_id + 1).zfill(2)} at: {datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}",
-    )
+    # print(
+    #     f"==== STOPPING CAMERA {str(device_id + 1).zfill(2)} at: {datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}",
+    # )
     print("Saved ", filecount, " files during this run")
     print(f"Ratrix Cam Server {device_id}: Shutdown complete")
 

@@ -95,9 +95,9 @@ def run(config: Config, stop_event: Event):
             zip(camera_processes, camera_state, config.cameras)
         ):
             camera_state[idx] = process is not None and process.is_alive()
-            if camera_state[idx]:
+            if camera_state[idx]: #still running
                 continue
-            elif cam_up_prev:
+            elif cam_up_prev:#not running but was previously
                 _ = shutil.copyfile(
                     config.blank_image,
                     still_path(config.stills_path, camera_config.name),
@@ -107,7 +107,7 @@ def run(config: Config, stop_event: Event):
                 )
             if not have_all_cameras:
                 continue
-            try:
+            try:# if all cameras present and this cam is off, try to launch it
                 cam_proc = Process(
                     target=run_without_handlers,
                     args=(config, idx, stop_event),
@@ -115,6 +115,7 @@ def run(config: Config, stop_event: Event):
                 cam_proc.start()
                 camera_processes[idx] = cam_proc
                 print(f"Started camera {camera_config.name}")
+                time.sleep(0.1)  # wait a bit before trying to launch another one (may make initial startup go more smoothly?)
             except Exception as e:
                 print(f"Error starting camera {camera_config.name}:", e)
 
