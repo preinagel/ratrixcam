@@ -115,7 +115,7 @@ def run(config: Config, stop_event: Event):
                 cam_proc.start()
                 camera_processes[idx] = cam_proc
                 print(f"Started camera {camera_config.name}")
-                time.sleep(0.1)  # wait a bit before trying to launch another one (may make initial startup go more smoothly?)
+                time.sleep(1)  # wait a bit before trying to launch another one (may make initial startup go more smoothly?)
             except Exception as e:
                 print(f"Error starting camera {camera_config.name}:", e)
 

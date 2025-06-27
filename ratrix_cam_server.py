@@ -66,9 +66,11 @@ def save_frame_to_writer(
     capture: cv2.VideoCapture,
     writer: cv2.VideoWriter,
     params: CameraParams,
-    current_time: datetime,
+    current_time: datetime, #should eliminate? less accurate than capturing here
     label: str,
 ) -> MatLike | None:
+
+    frame_grab_time = datetime.now() # check time immediately before frame grab attempted
     ret, frame = capture.read()
     if not ret:  # same as if frame is None:  ?
         print(
@@ -76,10 +78,11 @@ def save_frame_to_writer(
         )
         return
 
-    # annotate the video frame
-    video_date = current_time.strftime("%Y%m%d")  # written on video frame
-    video_time_long = current_time.strftime("%H:%M:%S.%f")  # written on video frame
+    # time stamp to overlay on video frame
+    video_date = frame_grab_time.strftime("%Y%m%d")  
+    video_time_long = frame_grab_time.strftime("%H:%M:%S.%f")[:-3] # Truncate to milliseconds?
 
+    # NOTE this code is hardwired for 640x480 videos, needs generalization
     font = cv2.FONT_HERSHEY_PLAIN
     font_scale = params.width / 640
     _ = cv2.putText(
@@ -116,7 +119,6 @@ def save_frame_to_writer(
     writer.write(frame)
 
     return frame
-
 
 class WriterState(NamedTuple):
     writer: cv2.VideoWriter
@@ -187,7 +189,7 @@ def run(config: Config, device_id: int, stop_event: Event):
         current_datetime = datetime.fromtimestamp(current_time)
         # if video slice duration has been exceeded, close video file and initialize new one
         if writer_state is None or current_time - start > config.time_slice:
-            timer = time.time_ns()
+            #timer = time.time_ns()
             file_transfer_processes = [
                 p for p in file_transfer_processes if p.is_alive()
             ]
