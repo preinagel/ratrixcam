@@ -91,13 +91,15 @@ def run(config: Config, stop_event: Event):
                 print(
                     f"Only detected {devices}/{num_cameras} camera(s), waiting for all to be connected"
                 )
+
+        just_started_a_cam = False
         for idx, (process, cam_up_prev, camera_config) in enumerate(
             zip(camera_processes, camera_state, config.cameras)
         ):
             camera_state[idx] = process is not None and process.is_alive()
             if camera_state[idx]: #still running
                 continue
-            elif cam_up_prev:#not running but was previously
+            elif cam_up_prev:# not running, but was previously: indicate offline in GUI and terminal
                 _ = shutil.copyfile(
                     config.blank_image,
                     still_path(config.stills_path, camera_config.name),
@@ -107,15 +109,19 @@ def run(config: Config, stop_event: Event):
                 )
             if not have_all_cameras:
                 continue
-            try:# if all cameras present and this cam is off, try to launch it
+            # only when all devices are detected, try to re-launch the ones that went offline
+            try: 
+                if just_started_a_cam: # if another camera was already launched within this loop
+                    time.sleep(1)  # wait a bit before trying to launch another one 
                 cam_proc = Process(
                     target=run_without_handlers,
                     args=(config, idx, stop_event),
                 )
                 cam_proc.start()
                 camera_processes[idx] = cam_proc
+                just_started_a_cam=True
                 print(f"Started camera {camera_config.name}")
-                time.sleep(1)  # wait a bit before trying to launch another one (may make initial startup go more smoothly?)
+                
             except Exception as e:
                 print(f"Error starting camera {camera_config.name}:", e)
 
