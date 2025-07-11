@@ -76,6 +76,7 @@ def run(config: Config, stop_event: Event):
     print("Multicam: Starting cameras...")
 
     num_cameras = len(config.cameras)
+    print('Expecting ',num_cameras,'cameras based on config file...')
 
     camera_processes: list[Process | None] = [None for _ in range(num_cameras)]
     camera_state: list[bool] = [False for _ in range(num_cameras)]
@@ -85,7 +86,10 @@ def run(config: Config, stop_event: Event):
     while not stop_event.is_set():
         prev_devices = devices
         devices = count_video_devices()
-        have_all_cameras = devices >= num_cameras
+        if devices != num_cameras:
+            print('seeing ',devices,'devices; was expecting',num_cameras)
+        
+        have_all_cameras = devices >= num_cameras #note if too many will grab the first ones
         if not have_all_cameras:
             if prev_devices != devices:
                 print(

@@ -70,6 +70,13 @@ def save_frame_to_writer(
     label: str,
 ) -> MatLike | None:
 
+    # 250708PR: debugging why camera images are cropped compared to view in other apps
+    # Adjust the webcam resolution using cap.set() before reading frames:
+    # okw=capture.set(cv2.CAP_PROP_FRAME_WIDTH, params.width)
+    # okh=capture.set(cv2.CAP_PROP_FRAME_HEIGHT, params.height) 
+    # if not (okw and okh):
+    #     print('Failed to set frame dimensions!')
+    
     frame_grab_time = datetime.now() # check time immediately before frame grab attempted
     ret, frame = capture.read()
     if not ret:  # same as if frame is None:  ?
@@ -77,12 +84,15 @@ def save_frame_to_writer(
             f"WARNING! failed to capture a frame from camera {params.name} at {datetime.now().strftime('%H:%M:%S.%f')}"
         )
         return
-
+    # else: #for debugging purposes verify the dimensions of the image
+    #     tmph, tmpw, jnk = frame.shape
+    #     print(f"Frame dimensions: Width={tmpw}, Height={tmph}")
+    
     # time stamp to overlay on video frame
     video_date = frame_grab_time.strftime("%Y%m%d")  
     video_time_long = frame_grab_time.strftime("%H:%M:%S.%f")[:-3] # Truncate to milliseconds?
 
-    # NOTE this code is hardwired for 640x480 videos, needs generalization
+    # NOTE text position is hardwired for 640x480 videos, needs generalization
     font = cv2.FONT_HERSHEY_PLAIN
     font_scale = params.width / 640
     _ = cv2.putText(
