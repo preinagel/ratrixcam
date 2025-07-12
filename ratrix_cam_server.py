@@ -23,11 +23,11 @@ video_codec = cv2.VideoWriter.fourcc(*"mp4v")
 # ----------------------------------------------------------------------
 # BEGIN FUNCTION DEFINITIONS
 # function to move video file from temporary to permanent location
+# NOTE TRY MODIFYING THIS FUNCTION TO TEST TRANSCODING INSTEAD OF COPYING?
 def move_file(temp_file: str, out_file: str):
     """
     Utility function for moving video file from temporary to permanent location copy
     the file from the temporary location to the permanent one
-
     Args:
         temp_file:
         out_file:
@@ -38,6 +38,8 @@ def move_file(temp_file: str, out_file: str):
 
     while True:
         try:
+# NOTE instead of copying the temp file we want to execute this command:
+#      ffmpeg -i input.mp4 -c:v libx265 -preset slow -crf 23 -tag:v hvc1 output.mp4
             _ = shutil.copy2(temp_file, out_file)
             if os.path.exists(out_file) and os.path.isfile(out_file):
                 break
@@ -69,24 +71,15 @@ def save_frame_to_writer(
     current_time: datetime, #should eliminate? less accurate than capturing here
     label: str,
 ) -> MatLike | None:
-
-    # 250708PR: debugging why camera images are cropped compared to view in other apps
-    # Adjust the webcam resolution using cap.set() before reading frames:
-    # okw=capture.set(cv2.CAP_PROP_FRAME_WIDTH, params.width)
-    # okh=capture.set(cv2.CAP_PROP_FRAME_HEIGHT, params.height) 
-    # if not (okw and okh):
-    #     print('Failed to set frame dimensions!')
-    
-    frame_grab_time = datetime.now() # check time immediately before frame grab attempted
+   
+    #frame_grab_time = datetime.now() # check time immediately before frame grab attempted
     ret, frame = capture.read()
+    frame_grab_time = datetime.now() # check time immediately AFTER frame grab attempted
     if not ret:  # same as if frame is None:  ?
         print(
             f"WARNING! failed to capture a frame from camera {params.name} at {datetime.now().strftime('%H:%M:%S.%f')}"
         )
         return
-    # else: #for debugging purposes verify the dimensions of the image
-    #     tmph, tmpw, jnk = frame.shape
-    #     print(f"Frame dimensions: Width={tmpw}, Height={tmph}")
     
     # time stamp to overlay on video frame
     video_date = frame_grab_time.strftime("%Y%m%d")  
@@ -199,7 +192,7 @@ def run(config: Config, device_id: int, stop_event: Event):
         current_datetime = datetime.fromtimestamp(current_time)
         # if video slice duration has been exceeded, close video file and initialize new one
         if writer_state is None or current_time - start > config.time_slice:
-            #timer = time.time_ns()
+            timer = time.time_ns()
             file_transfer_processes = [
                 p for p in file_transfer_processes if p.is_alive()
             ]
@@ -234,8 +227,8 @@ def run(config: Config, device_id: int, stop_event: Event):
             start = current_time #update start time for new video
             filecount += 1
             print(f"Camera {params.name} will now stream to {current_file_name}")
-            #elapsed = time.time_ns() - timer
-            #print("Took", elapsed / 1e6, "ms to open new video writer")
+            elapsed = time.time_ns() - timer
+            print("Took", elapsed / 1e6, "ms to open new video writer")
 
         # get one frame from the camera and write it to the video writer
         frame = save_frame_to_writer(
