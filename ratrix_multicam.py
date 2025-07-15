@@ -86,7 +86,7 @@ def run(config: Config, stop_event: Event):
     while not stop_event.is_set():
         prev_devices = devices
         devices = count_video_devices()
-        if devices != num_cameras:
+        if devices < num_cameras:#only report if not enough cameras to launch
             print('seeing ',devices,'devices; was expecting',num_cameras)
         
         have_all_cameras = devices >= num_cameras #note if too many will grab the first ones
@@ -115,8 +115,8 @@ def run(config: Config, stop_event: Event):
                 continue
             # only when all devices are detected, try to re-launch the ones that went offline
             try: 
-                if just_started_a_cam: # if another camera was already launched within this loop
-                    time.sleep(1)  # wait a bit before trying to launch another one 
+                if just_started_a_cam: # if another camera was already launched within this loop,
+                    time.sleep(0.5)  # wait a bit before trying to launch another one 0.1 insuffic, 1s is suffic
                 cam_proc = Process(
                     target=run_without_handlers,
                     args=(config, idx, stop_event),

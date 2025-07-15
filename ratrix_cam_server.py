@@ -68,22 +68,27 @@ def save_frame_to_writer(
     capture: cv2.VideoCapture,
     writer: cv2.VideoWriter,
     params: CameraParams,
-    current_time: datetime, #should eliminate? less accurate than capturing here
-    label: str,
+    current_time: datetime,  
+    label: str
 ) -> MatLike | None:
    
-    #frame_grab_time = datetime.now() # check time immediately before frame grab attempted
     ret, frame = capture.read()
-    frame_grab_time = datetime.now() # check time immediately AFTER frame grab attempted
-    if not ret:  # same as if frame is None:  ?
+    # Observation: time here is typically ~30ms after current_time (waiting for frame to arrive in buffer?)
+
+    if not ret:
         print(
-            f"WARNING! failed to capture a frame from camera {params.name} at {datetime.now().strftime('%H:%M:%S.%f')}"
+            f"Failed to capture a frame from camera {params.name} at {datetime.now().strftime('%H:%M:%S.%f')}"
         )
-        return
+        return  
     
+    #these calls return 0 every time - camera doesn't support?
+    #frame_number=capture.get(cv2.CAP_PROP_POS_FRAMES) 
+    #frame_time=capture.get(cv2.CAP_PROP_POS_MSEC)
+    #print('frame',frame_number,'time',frame_time)
+
     # time stamp to overlay on video frame
-    video_date = frame_grab_time.strftime("%Y%m%d")  
-    video_time_long = frame_grab_time.strftime("%H:%M:%S.%f")[:-3] # Truncate to milliseconds?
+    video_date = current_time.strftime("%Y%m%d")  
+    video_time_long = current_time.strftime("%H:%M:%S.%f")[:-4] # Truncate to .01s to reflect actual accuracy of timestamps
 
     # NOTE text position is hardwired for 640x480 videos, needs generalization
     font = cv2.FONT_HERSHEY_PLAIN
@@ -155,7 +160,8 @@ def run(config: Config, device_id: int, stop_event: Event):
             config.cameras[device_id].exposure or config.default_cam_exposure
         ),
     )
-    label = f"{config.study_label}_{params.name}"
+    label: str = f"{config.study_label}_{params.name}"
+    #ifi: float=1/params.fps #nominal interframe interval
 
     temp_dir = os.path.join(config.temp_path, label)
     if not ensure_dir_exists(temp_dir):
@@ -171,6 +177,8 @@ def run(config: Config, device_id: int, stop_event: Event):
 
     # try to connect to the camera
     capture = cv2.VideoCapture(int(device_id))  # hardware address
+    start = time.time() # indicates time this videocapture was opened
+
     _ = capture.set(cv2.CAP_PROP_FRAME_WIDTH, params.width)
     _ = capture.set(cv2.CAP_PROP_FRAME_HEIGHT, params.height)
     _ = capture.set(cv2.CAP_PROP_FPS, params.fps)
@@ -180,37 +188,43 @@ def run(config: Config, device_id: int, stop_event: Event):
         print(f"Camera {params.name} Failed to open recording device {device_id}")
         return
 
-    count = 0  # tracks frames since last still image update
+    count:int = 0  # tracks frames since last still image update
     filecount: int = 0
     file_transfer_processes: list[Process] = []
     writer_state: WriterState | None = None
 
     # this loop is executed once per video frame until camera is stcaopped
-    start = time.time()
     while capture.isOpened() and not stop_event.is_set():
-        current_time = time.time()
-        current_datetime = datetime.fromtimestamp(current_time)
-        # if video slice duration has been exceeded, close video file and initialize new one
-        if writer_state is None or current_time - start > config.time_slice:
-            timer = time.time_ns()
-            file_transfer_processes = [
-                p for p in file_transfer_processes if p.is_alive()
-            ]
-            if len(file_transfer_processes) > 0:
-                print(
-                    f"WARNING: {len(file_transfer_processes)} previous file transfer processes are still running"
-                )
+        current_time: float = time.time()
+        current_datetime: datetime = datetime.fromtimestamp(timestamp=current_time)
 
+        # if not started yet, open first video file
+        # or if video slice duration has been exceeded, close video file and initialize new one
+        if writer_state is None or current_time - start > config.time_slice:
+            #timer = time.time_ns() 
+            # check for unfinished file transfers
+            # file_transfer_processes = [
+            #     p for p in file_transfer_processes if p.is_alive()
+            # ]
+            # if len(file_transfer_processes) > 0:
+            #     print(
+            #         f"WARNING: {len(file_transfer_processes)} previous file transfer processes are still running"
+            #     )
+            start = current_time # update start time for first frame of new video (time.time() format)
+                                        # note that the next frame captured will be written to the new writer
+
+            # close the old writer
             if writer_state is not None:
                 close_writer(writer_state, file_transfer_processes)
+            filecount += 1
 
+            # open a new writer
             current_save_dir = os.path.join(
                 config.save_path, f"{label}_{current_datetime.strftime('%Y%m%d')}"
             )
             if not ensure_dir_exists(current_save_dir):
                 print(f"WARNING! Unable to create output path '{current_save_dir}'")
                 continue
-
             current_file_name = f"{params.name}_{str(current_datetime.strftime('%Y%m%d_%H-%M-%S'))}{config.video_ext}"
             # Create video writer
             writer_state = WriterState(
@@ -224,18 +238,26 @@ def run(config: Config, device_id: int, stop_event: Event):
                 temp_dir,
                 current_file_name,
             )
-            start = current_time #update start time for new video
-            filecount += 1
             print(f"Camera {params.name} will now stream to {current_file_name}")
-            elapsed = time.time_ns() - timer
-            print("Took", elapsed / 1e6, "ms to open new video writer")
 
-        # get one frame from the camera and write it to the video writer
+            #elapsed = time.time_ns() - timer
+            #print("Took", elapsed / 1e6, "ms to open new video writer")
+
+        # Testing whether we could compute time from frame count? Result: no, fps is not exactly the nominal fps
+        # frametime: float=start+count*ifi  #nominal time since video started
+        # frame_datetime: datetime=datetime.fromtimestamp(timestamp=frametime)
+        # frame_timestr: str=frame_datetime.strftime("%H:%M:%S.%f")[:-3] 
+        # print(label,'frame',count,'capture time',current_datetime.strftime("%H:%M:%S.%f")[:-3],'nominal time',frame_timestr)
+
+        # proceed to capture the next frame in the buffer
+        # NOTE maybe should try 2-3x before giving up?  
+        full_label: str = label + ' frame ' + str(count) #include frame# in overlay text
         frame = save_frame_to_writer(
-            capture, writer_state.writer, params, current_datetime, label
+            capture, writer_state.writer, params, current_datetime, label=full_label
         )
         if frame is None:
-            break
+            break #if you fail to capture, interpret that camera is down, fall out of loop
+        
         # once per N sec, try to update the still image
         if count % (config.preview_interval * params.fps) == 0:
             # print('attempting to overwrite',camera_still_path)
@@ -250,10 +272,11 @@ def run(config: Config, device_id: int, stop_event: Event):
                 print(type(e), e)
         count += 1  # increment frame count whether that succeeds or fails
 
-    print(f"Camera server {device_id} attempting to shut down nicely")
+    # reach this line whenever camera fails to capture a frame (camera presumed offline)
+    print(f"Camera server {device_id+1} attempting to shut down nicely")
     capture.release()
     if writer_state is not None:
-        # flush remaining frames
+        # flush remaining frames 
         while (
             save_frame_to_writer(
                 capture, writer_state.writer, params, datetime.now(), label
@@ -274,7 +297,7 @@ def run(config: Config, device_id: int, stop_event: Event):
     #     f"==== STOPPING CAMERA {str(device_id + 1).zfill(2)} at: {datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}",
     # )
     print("Saved ", filecount, " files during this run")
-    print(f"Ratrix Cam Server {device_id}: Shutdown complete")
+    print(f"Ratrix Cam Server {device_id+1}: Shutdown complete")
 
 
 def main():
