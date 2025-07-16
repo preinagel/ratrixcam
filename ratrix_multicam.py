@@ -116,7 +116,7 @@ def run(config: Config, stop_event: Event):
             # only when all devices are detected, try to re-launch the ones that went offline
             try: 
                 if just_started_a_cam: # if another camera was already launched within this loop,
-                    time.sleep(0.5)  # wait a bit before trying to launch another one 0.1 insuffic, 1s is suffic
+                    time.sleep(5)  # wait a bit before trying to launch another one (640x480 0.5 is suffic)
                 cam_proc = Process(
                     target=run_without_handlers,
                     args=(config, idx, stop_event),
@@ -124,10 +124,10 @@ def run(config: Config, stop_event: Event):
                 cam_proc.start()
                 camera_processes[idx] = cam_proc
                 just_started_a_cam=True
-                print(f"Started camera {camera_config.name}")
+                print(f"Multicam: Started camera {camera_config.name}")
                 
             except Exception as e:
-                print(f"Error starting camera {camera_config.name}:", e)
+                print(f"Multicam: error starting camera {camera_config.name}:", e)
 
         # check the TTL process and restart if applicable
         if config.recording_ttl:
@@ -145,7 +145,7 @@ def run(config: Config, stop_event: Event):
 
     print("Multicam attempting to shut down nicely")
 
-    timeout = 10
+    timeout = 600 #changed from 10 to allow time for transcoding to complete 250716
     print("Waiting for child processes to terminate...")
     for _ in range(int(timeout / 0.1)):
         all_cameras_terminated = all(

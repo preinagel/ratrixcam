@@ -1,4 +1,3 @@
-# version 2503061247
 import argparse
 import datetime as dt
 import multiprocessing
@@ -458,7 +457,8 @@ def graceful_shutdown(state: State, stop_event: Event):
     print("Ratrix IO attempting graceful shutdown...")
     stop_event.set()
 
-    timeout = 10
+    timeout = 600 #transcoding takes ~50% video duration, so wait 10min before killing unfinished processes
+                  #would be better to set this based on the slice duration but this is not available info
     print("Waiting for child processes to terminate...")
     for _ in range(int(timeout / 0.1)):
         if not state.camera_process.is_alive():

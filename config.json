@@ -12,42 +12,42 @@
   "default_height": 480,
   "cameras": [
     {
-      "name": "01_description",
+      "name": "cam1",
       "row": 1,
       "col": 1
     },
     {
-      "name": "02_description",
+      "name": "cam2",
       "row": 1,
       "col": 2
     },
     {
-      "name": "03_description",
+      "name": "cam3",
       "row": 2,
       "col": 1
     },
     {
-      "name": "04_description",
+      "name": "cam4",
       "row": 2,
       "col": 2
     },
     {
-      "name": "05_description",
+      "name": "cam5",
       "row": 1,
       "col": 4
     },
     {
-      "name": "06_description",
+      "name": "cam6",
       "row": 1,
       "col": 5
     },
     {
-      "name": "07_description",
+      "name": "cam7",
       "row": 2,
       "col": 4
     },
     {
-      "name": "08_description",
+      "name": "cam8",
       "row": 2,
       "col": 5
     }

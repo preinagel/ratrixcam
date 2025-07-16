@@ -37,18 +37,26 @@ def move_file(temp_file: str, out_file: str):
         return
 
     while True:
-        try:
-# NOTE instead of copying the temp file we want to execute this command:
-#      ffmpeg -i input.mp4 -c:v libx265 -preset slow -crf 23 -tag:v hvc1 output.mp4
-            _ = shutil.copy2(temp_file, out_file)
+        try:     
+            time.sleep(3)#move to beginning instead of end to delay first attempt
+            #_ = shutil.copy2(temp_file, out_file)
+            #note could capture error code returned by os.system for more info on failures
+            # this line uses cpu for more compression but can't keep up with 8 cams:
+            #_ = os.system(command=f"ffmpeg -i {temp_file} -c:v libx265 -preset slow -crf 23 -tag:v hvc1 -loglevel error {out_file}")
+
+            # # this line compresses using hardware video toolbox
+            conversion_failed: int = os.system(command=f"ffmpeg -i {temp_file} -c:v hevc_videotoolbox -q:v 65 -tag:v hvc1 -loglevel error {out_file}")
+            if conversion_failed:  # returns 0 for success, other outcomes
+                 print(f"fmpeg conversion of {temp_file} failed with exit code {conversion_failed}")
+
             if os.path.exists(out_file) and os.path.isfile(out_file):
                 break
         except Exception as e:
             print(
-                f"WARNING: Failed to copy {temp_file} to {out_file}, retrying in 1 second",
+                f"WARNING: Failed to copy {temp_file} to {out_file}, retrying in 3 seconds",
                 e,
             )
-        time.sleep(1)
+        
 
     os.remove(temp_file)
     if os.path.exists(temp_file):
@@ -72,8 +80,10 @@ def save_frame_to_writer(
     label: str
 ) -> MatLike | None:
    
-    ret, frame = capture.read()
-    # Observation: time here is typically ~30ms after current_time (waiting for frame to arrive in buffer?)
+    for _ in range(3):
+        ret, frame = capture.read()
+        if ret:
+            break 
 
     if not ret:
         print(
@@ -81,10 +91,6 @@ def save_frame_to_writer(
         )
         return  
     
-    #these calls return 0 every time - camera doesn't support?
-    #frame_number=capture.get(cv2.CAP_PROP_POS_FRAMES) 
-    #frame_time=capture.get(cv2.CAP_PROP_POS_MSEC)
-    #print('frame',frame_number,'time',frame_time)
 
     # time stamp to overlay on video frame
     video_date = current_time.strftime("%Y%m%d")  
