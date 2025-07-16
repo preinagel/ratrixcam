@@ -1,5 +1,15 @@
 {
+  "save_path": "/Volumes/data/",
+  "temp_path": "/Users/username/Desktop/temp_videos/",
+  "blank_image": "/Users/username/Desktop/ratrixcam/blanks/offline_status.png",
+  "stills_path": "/Users/username/Desktop/temp_videos/status/",
   "rack_name": "Camera System",
+  "study_label": "Generic Study",
+   "time_slice": 60,
+  
+  "default_fps": 30,
+  "default_width": 640,
+  "default_height": 480,
   "cameras": [
     {
       "name": "01_description",
@@ -42,20 +52,11 @@
       "col": 5
     }
   ],
-  "study_label": "Generic Study",
-  "default_fps": 30,
-  "default_width": 640,
-  "default_height": 480,
+
   "default_cam_exposure": -8.0,
-  "time_slice": 60,
   "preview_interval": 1,
   "codec": "MJPG",
   "video_ext": ".mp4",
-
-  "save_path": "/Volumes/data/",
-  "temp_path": "/Users/username/Desktop/temp_videos/",
-  "blank_image": "/Users/username/Desktop/ratrixcam/blanks/offline_status.png",
-  "stills_path": "/Users/username/Desktop/temp_videos/status/",
 
   "recording_audio": false,
   "recording_ttl": false
