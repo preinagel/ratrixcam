@@ -79,7 +79,8 @@ def save_frame_to_writer(
     current_time: datetime,  
     label: str
 ) -> MatLike | None:
-   
+
+    ret=False
     for _ in range(3):
         ret, frame = capture.read()
         if ret:
@@ -87,7 +88,7 @@ def save_frame_to_writer(
 
     if not ret:
         print(
-            f"Failed to capture a frame from camera {params.name} at {datetime.now().strftime('%H:%M:%S.%f')}"
+            f"Cam_server: Failed to capture a frame from camera {params.name} at {datetime.now().strftime('%H:%M:%S.%f')}"
         )
         return  
     
@@ -148,7 +149,7 @@ def close_writer(writer_state: WriterState, file_transfer_processes: list[Proces
     out_path = os.path.join(writer_state.save_dir, writer_state.file_name)
 
     # spawn a separate process to move the closed tmp file to permanent location
-    print(f"Starting transfer of file:{writer_state.file_name}") # {temp_video_path} to {out_path}")
+    print(f"Cam_server: Starting transfer of file:{writer_state.file_name}") # {temp_video_path} to {out_path}")
     p = Process(target=move_file, args=(temp_video_path, out_path))
     p.start()
     # keep track of process to clean up later
@@ -191,7 +192,7 @@ def run(config: Config, device_id: int, stop_event: Event):
     _ = capture.set(cv2.CAP_PROP_EXPOSURE, params.cam_exposure)
 
     if not capture.isOpened():
-        print(f"Camera {params.name} Failed to open recording device {device_id}")
+        print(f"Cam_server: Camera {params.name} Failed to open recording device {device_id}")
         return
 
     count:int = 0  # tracks frames since last still image update
@@ -244,7 +245,7 @@ def run(config: Config, device_id: int, stop_event: Event):
                 temp_dir,
                 current_file_name,
             )
-            print(f"Camera {params.name} will now stream to {current_file_name}")
+            print(f"Cam_server: Camera {params.name} will now stream to {current_file_name}")
 
             #elapsed = time.time_ns() - timer
             #print("Took", elapsed / 1e6, "ms to open new video writer")
@@ -294,7 +295,7 @@ def run(config: Config, device_id: int, stop_event: Event):
 
     file_transfer_processes = [p for p in file_transfer_processes if p.is_alive()]
     print(
-        f"Waiting for {len(file_transfer_processes)} file transfer processes to finish"
+        f"Cam_server Waiting for {len(file_transfer_processes)} file transfer processes to finish"
     )
     for process in file_transfer_processes:
         process.join()  # this blocks until process is complete
@@ -302,8 +303,8 @@ def run(config: Config, device_id: int, stop_event: Event):
     # print(
     #     f"==== STOPPING CAMERA {str(device_id + 1).zfill(2)} at: {datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}",
     # )
-    print("Saved ", filecount, " files during this run")
-    print(f"Ratrix Cam Server {device_id+1}: Shutdown complete")
+    
+    print(f"Ratrix Cam Server {device_id+1} Shutdown complete; saved {filecount} files during this run")
 
 
 def main():
