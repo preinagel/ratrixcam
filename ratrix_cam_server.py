@@ -5,6 +5,7 @@ import os
 import shutil
 import signal
 import time
+import math
 from datetime import datetime
 from multiprocessing import Process
 from multiprocessing.synchronize import Event
@@ -32,32 +33,33 @@ def move_file(temp_file: str, out_file: str):
         temp_file:
         out_file:
     """
+    xfer_mode="copy" # hardwire until compression fully supported
+    timeout:float = 3 # hand tuned to be sufficient to prevent race condition failures (fragile)
+
     if not os.path.exists(temp_file):
         print(f"WARNING: the temp file '{temp_file}' was not found!")
         return
-
+    
     while True:
         try:     
-            time.sleep(3)#move to beginning instead of end to delay first attempt
-            #_ = shutil.copy2(temp_file, out_file)
-            #note could capture error code returned by os.system for more info on failures
-            # this line uses cpu for more compression but can't keep up with 8 cams:
-            #_ = os.system(command=f"ffmpeg -i {temp_file} -c:v libx265 -preset slow -crf 23 -tag:v hvc1 -loglevel error {out_file}")
+            time.sleep(timeout)# pause before first attempt reduces failures
+            if xfer_mode == "copy":
+                _ = shutil.copy2(temp_file, out_file)
+            else: 
+                # The following works with timeout=3 but only for 640x480 on most cameras;can handle 2 780p cams
+                conversion_failed: int = os.system(command=f"ffmpeg -i {temp_file} -c:v hevc_videotoolbox -q:v 65 -tag:v hvc1 -loglevel error {out_file}")
+                if conversion_failed:  # returns 0 for success, other outcomes
+                    print(f"fmpeg conversion of {temp_file} failed with exit code {conversion_failed}")
 
-            # # this line compresses using hardware video toolbox
-            conversion_failed: int = os.system(command=f"ffmpeg -i {temp_file} -c:v hevc_videotoolbox -q:v 65 -tag:v hvc1 -loglevel error {out_file}")
-            if conversion_failed:  # returns 0 for success, other outcomes
-                 print(f"fmpeg conversion of {temp_file} failed with exit code {conversion_failed}")
-
+            # verify existence of the copied or transcoded output file
             if os.path.exists(out_file) and os.path.isfile(out_file):
                 break
         except Exception as e:
             print(
-                f"WARNING: Failed to copy {temp_file} to {out_file}, retrying in 3 seconds",
+                f"WARNING: Failed to copy {temp_file} to {out_file}, retrying in {timeout} seconds",
                 e,
             )
         
-
     os.remove(temp_file)
     if os.path.exists(temp_file):
         print("WARNING: failed to clean up ", temp_file)
@@ -99,11 +101,11 @@ def save_frame_to_writer(
 
     # NOTE text position is hardwired for 640x480 videos, needs generalization
     font = cv2.FONT_HERSHEY_PLAIN
-    font_scale = params.width / 640
+    font_scale = params.height/480 #params.width / 640
     _ = cv2.putText(
         frame,
         label,
-        (10, params.height - 10),
+        (math.ceil(0.015*params.width), math.floor(0.97*params.height )),  #(10, params.height - 10),
         font,
         font_scale,
         (255, 255, 255),
@@ -113,7 +115,7 @@ def save_frame_to_writer(
     _ = cv2.putText(
         frame,
         video_date,
-        (params.width - 115, params.height - 25),
+        (math.floor(0.8*params.width), math.floor(0.94*params.height) ), #(params.width - 115, params.height - 25),
         font,
         font_scale,
         (255, 255, 255),
@@ -123,7 +125,7 @@ def save_frame_to_writer(
     _ = cv2.putText(
         frame,
         video_time_long,
-        (params.width - 115, params.height - 10),
+        (math.floor(0.8*params.width), math.floor(0.97*params.height) ),#(params.width - 115, params.height - 10),
         font,
         font_scale,
         (255, 255, 255),
