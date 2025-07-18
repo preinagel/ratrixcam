@@ -24,7 +24,7 @@ Double click on `cam_start.scpt` to open it, and click ‘play’ to launch ratr
 First the Configuration Editor will open, displaying the name of the study and a description of each camera view, which are loaded from the `config.json` file. The labels are arranged on the screen in the position corresponding to where the camera views will appear in the video acquisition monitor. If you want to change the labels, we will discuss editing them later.
 
 When you click Start Recording, the configuration editor closes and a Monitor Window opens to monitor video acquisition status. By default, the cameras 1-8 appear in the following layout:
- ![layout diagram](layout.png)
+ ![layout diagram](img/layout.png)
 
 As each camera connects, its current view will start to update in the display; it should take 15-60 seconds for all 8 cameras to start. Note that all cameras must be present before the cameras will launch. By default, videos are recorded at 30fps but the displayed images update once per second.  To the right of the camera views, there are text fields indicating basic session information. You may have to resize the window to see everything. 
 
