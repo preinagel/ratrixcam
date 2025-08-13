@@ -16,14 +16,14 @@ This system is designed for monitoring animal behavior in a home-cage environmen
 - 1 grounded plug strip with at least 8 outlets, widely spaced to allow for cubes
 
 # Optics/Cameras
-- 2 wide-angle lenses M12 mount for home cage views (?)
-- 2 close-up lenses M12 mount for face view  (Edmund optics?) 
+- Wide-angle lenses M12 mount where needed (e.g. home cage)
+- Close-up lenses M12 mount where needed (e.g. face view) 12mm UCi Series Lens, f/2.8 (Edmund optics) 
 - 8 IR-pass filters (IR-pass acrylic sheet, cut into ~2” squares)
 - Adhesive polarizing film sufficient to cover the 8 IR-pass filters
 - 8 camera cases with GoPro mount (3-D printed); small self-tapping screws
-- 8 light-blocking hoods (plastic or 3-D printed)
-- Some mechanism to mount hood to camera case (e.g. magnets, velcro…)
-- Some mechanism to hold an IR-pass filter (e.g., slots, electrical tape)
+- 8 light-blocking camera hoods (plastic or 3-D printed)
+- Some mechanism to lightly mount hood to camera case (e.g. magnets, velcro…)
+- Some mechanism to hold an IR-pass filter in front of camera (e.g., slots in hood)
 - 8 3-inch metal gopro arms; additional arms as needed for configuration
 - 8 flat-mount adhesive GoPro quick-release helmet mounts
 - Extra gopro screws, acorn nuts
@@ -31,10 +31,10 @@ This system is designed for monitoring animal behavior in a home-cage environmen
 - Assorted zip ties for cable routing
 
 ### Notes on USB hub choice
-It may not be obvious, but the specific USB hub does matter. Other hubs may work, but would require testing. Low-end USB splitters definitelly do not work, even if they are rated for sufficient speed, and even if they are powered. The reason for this, briefly, is that Macs do not support direct addressing of video devices or USB ports. Therefore, to make sure the cameras are reliably assigned to the same identity within the ratrixcam code, we are depending on the obscure fact that when the Mac looks for video streams, it polls its thunderbolt ports in a consistent order; and some higher-end USB hubs reliably poll their ports in a specific order. Because we depend on this to define camera identities, ratrixCam will not start until the Mac reports that it sees the expected number of video streams.
+It may not be obvious, but the specific USB hub does matter. Other hubs may work, but would require testing. Many other USB splitters definitely do not work, even if they are rated for sufficient speed, and even if they are powered. The reason for this, briefly, is that Macs do not support direct addressing of video devices or USB ports. Therefore, to make sure the cameras are reliably assigned to the same identity within the ratrixcam code, we are depending on the obscure fact that when the Mac looks for video streams, it polls its thunderbolt ports in a consistent order; and some but not all USB hubs reliably poll their ports in a specific order. Because we depend on this to define camera identities, ratrixCam will not start until the Mac reports that it sees the expected number of video streams.
 
 ### Notes on camera choice
-The model B0506 Arducam is currently (6/2025) the only Arducam USB camera that has good IR-sensitive recording. (Tested several other supposedly IR-sensitive cameras, but the image through a true IR-pass filter was extremely poor, even with high IR illumination. Probably due to the CMOS chips). A camera without IR-cut technology (which we had to disable) and that runs at 60fps would have been preferred.
+The model B0506 Arducam is currently (6/2025) the only Arducam USB camera that has good IR-sensitive recording. (We tested a large number of other supposedly IR-sensitive cameras, but the image through a true IR-pass filter was extremely poor, even with high IR illumination. Probably due to the CMOS chip sensitivity spectrum). A camera without IR-cut technology (which we had to disable) and that runs at 60fps would have been preferred.
 
 Sending 24 bit color is useless as IR images are monochrome; not sure how the CMOS chip is using the 24bits when operating in IR mode. Transcoding to monochrome doesn’t seem to be widely supported.  
 
