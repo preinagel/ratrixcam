@@ -1,5 +1,19 @@
 ## Overview
-The ratrixCam system is an inexpensive, bare-bones open-source hardware and software package designed to record video 24 hours a day 7 days a week for at least 1 week continuously, with the minimum possible frame drops within videos or gaps between videos.  It is currently verified to support up to 8 cameras streaming at 30fps, 640x480p. It relies on MacMini hardware, ArduCam USB cameras, high-end USB Hubs, and high-speed, high-capacity external SSD drives. The code provides a minimal graphical user interface that allows the user to monitor the camera status and session statistics continuously during the run.
+The ratrixCam system is an inexpensive, bare-bones open-source hardware and software package designed to record video 24 hours a day 7 days a week for at least 1 week continuously, with the minimum possible frame drops within videos or gaps between videos.  It is currently verified to support up to 8 cameras streaming at 30fps, 640x480p. It has been developed on MacMini hardware, ArduCam USB cameras, high-end USB Hubs, and high-speed, high-capacity external SSD drives. The code provides a minimal graphical user interface that allows the user to monitor the camera status and session statistics continuously during the run.
+
+### Operation in Brief
+- Attach an empty SSD drive
+- Launch software
+- Click "start recording" 
+  (Camera images will be displayed while recording) 
+- Every week or so:
+  - Click "stop recording"
+  - Swap in a fresh SSD drive
+  - Click "start recording"
+  - Transfer videos off the full SSD drive
+- Repeat
+
+
 
 ### Before the first run
 The code comes with an Apple script `cam_start.scpt` and a configuration file `config.json` (both of which we recommend you move out of the ratrixcam folder and keep on the Mac’s desktop). You may rename these to anything you wish. 
@@ -18,7 +32,7 @@ If you will be running the system with 8 cameras, these are the only things that
 
 The descriptive strings for the study name and camera views can be edited in the config file, but you’ll also be able to do this in the configuration editor when you run the program (see below). The other default settings are set as recommended, but see the “Custom Settings” section for more information about available customizations. 
 
-## Operation
+## Operation Instructions
 Double click on `cam_start.scpt` to open it, and click ‘play’ to launch ratrixCam. (Alternatively, the command found within that script can be typed directly into a terminal window).
 
 First the Configuration Editor will open, displaying the name of the study and a description of each camera view, which are loaded from the `config.json` file. The labels are arranged on the screen in the position corresponding to where the camera views will appear in the video acquisition monitor. If you want to change the labels, we will discuss editing them later.
