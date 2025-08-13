@@ -1,5 +1,5 @@
 ## Overview
-The ratrixCam system is an inexpensive, bare-bones open-source hardware and software package designed to record video 24 hours a day 7 days a week for at least 1 week continuously, with the minimum possible frame drops within videos or gaps between videos.  It currently can support up to 8 cameras streaming at 30fps, 640x480p. It relies on MacMini hardware, ArduCam USB cameras, high-end USB Hubs, and high-speed, high-capacity external SSD drives. The code provides a minimal graphical user interface that allows the user to monitor the camera status and session statistics continuously during the run.
+The ratrixCam system is an inexpensive, bare-bones open-source hardware and software package designed to record video 24 hours a day 7 days a week for at least 1 week continuously, with the minimum possible frame drops within videos or gaps between videos.  It is currently verified to support up to 8 cameras streaming at 30fps, 640x480p. It relies on MacMini hardware, ArduCam USB cameras, high-end USB Hubs, and high-speed, high-capacity external SSD drives. The code provides a minimal graphical user interface that allows the user to monitor the camera status and session statistics continuously during the run.
 
 ### Before the first run
 The code comes with an Apple script `cam_start.scpt` and a configuration file `config.json` (both of which we recommend you move out of the ratrixcam folder and keep on the Mac’s desktop). You may rename these to anything you wish. 
@@ -23,7 +23,8 @@ Double click on `cam_start.scpt` to open it, and click ‘play’ to launch ratr
 
 First the Configuration Editor will open, displaying the name of the study and a description of each camera view, which are loaded from the `config.json` file. The labels are arranged on the screen in the position corresponding to where the camera views will appear in the video acquisition monitor. If you want to change the labels, we will discuss editing them later.
 
-When you click Start Recording, the configuration editor closes and a Monitor Window opens to monitor video acquisition status. By default, the cameras 1-8 appear in the following layout:
+When you click Start Recording, the configuration editor closes and a Monitor Window opens to monitor video acquisition status. By default, the cameras 1-8 appear in the following layout, which reflects the use case where the cameras are used to monitor two adjacent cages or rigs, four cameras per animal.
+
  ![layout diagram](img/layout.png)
 
 As each camera connects, its current view will start to update in the display; it should take 15-60 seconds for all 8 cameras to start. Note that all cameras must be present before the cameras will launch. By default, videos are recorded at 30fps but the displayed images update once per second.  To the right of the camera views, there are text fields indicating basic session information. You may have to resize the window to see everything. 
@@ -38,7 +39,7 @@ When setting up a new study, launch the cameras and verify which camera’s fiel
 
 Once the cameras have been launched, the system can record continuously indefinitely, until the storage media is full. During the run, the Monitor Window will update each camera’s view once per second, as well as displaying textual status information. Each video stream will be saved as many separate, short video files (“slices”), whose duration is specified in the `config.json` file. We recommend using 600s (10 min) slices for data acquisition. 
 
-We designed and tested the system for week-long continuous recording sessions from 8 cameras recording at 640x480 resolution at 30fps, for which a 4TB external SSD drive was sufficient to hold one week of video output. In our conditions a MacMini2 could run up to two of the 8 cameras at 780p resolution stably (accumulating data at 1.5x the rate).
+We designed and tested the system for week-long continuous recording sessions from 8 cameras recording at 640x480 resolution at 30fps, for which a 4TB external SSD drive was sufficient to hold one week of video output. In our conditions a MacMini2 could run at least two of the 8 cameras at 780p resolution stably (accumulating data at 1.5x the rate).
 
 To end a recording session, click the Stop Recording button. Watch the Terminal Window for messages as a graceful shutdown and cleanup is performed. When the terminal indicates shutdown is complete, you can export its contents to a text file to retain a detailed log of events and errors during the session. You can then swap the filled external drive for an empty one and start a new run. The gap in recording time can be as short as one minute. 
 
@@ -46,10 +47,13 @@ To end a recording session, click the Stop Recording button. Watch the Terminal 
 
 It should be exceedingly rare for cameras to drop out during a run. Nevertheless, if a camera should drop out during a run, the system will continue to function as well as possible. The Monitor Window will indicate that the camera is offline, save the partial video file, and then continually attempt to restart the camera. There will be a gap in the video record for the camera that went down until it restarts, but others will not be affected. All these events are logged in the Terminal Window. If more than one camera goes down at the same time, the system will wait until all cameras are detected again before any of them attempt to restart.
 
-If the output drive fills up during a session, the temporary video files will accumulate in the temporary folder on the hard drive, and can be rescued manually. The Terminal Window will show error messages for failed file transfers. If you shut down, the shutdown sequence will eventually give up and kill any unsuccessful file transfer requests. If the Stop Recording button is not responding you can close the terminal window to stop the run. You can then manually copy the un-transferred files from the temporary folder to a new external drive. If both the external output drive and internal hard drive fill up however, all video from that time on will be lost. Therefore, we recommend keeping at least 1TB free on the Mac’s internal hard disk.
+If the output drive fills up during a session, the software will continue to re-try saving the files until the session is ended. For this reason, if you hot-swap a new drive without stopping the software, all the untransferred files should then be saved normally. However, if both the external output drive and internal hard drive fill up during a run, all video from that time on will be lost. Therefore, we recommend keeping at least 1TB free on the Mac’s internal hard disk.
 
-Although not recommended, hot swapping of the external drive during a run would in fact usually work, as long as you perform the swap shortly after all 8 cameras save a file, and well before the next batch of files will start to be saved. If you unplug media in the middle of writing a file to the external drive, it will still most likely recover gracefully and re-attempt to transfer the file to the new drive when it connects. Nevertheless, we provide no guarantees.
+Until they are transferred to the output drive, temporary video files accumulate in the temporary folder on the hard drive. When you stop recording, the shutdown sequence will continue attempting to write the unsaved files, but will eventually give up and kill any unsuccessful file transfer requests. The Terminal Window will show error messages for failed file transfers. In this case, any un-transferred video files can be manually rescued from the temporary folder. 
 
+If the Stop Recording button is not responding you can close the terminal window to stop the run. You can then manually copy the un-transferred files from the temporary folder to a new external drive. 
+
+When the storage drive is not yet full, hot swapping of the external drive during a run is not recommended, because a video file could be in the middle of being saved. However, it would in fact probably be fine. If you unplug media in the middle of writing a file to the external drive, it will still most likely recover gracefully and re-attempt to transfer the file to the new drive when it connects. Nevertheless, we provide no guarantees.
 
 ## Technical Details
 
@@ -71,7 +75,6 @@ On a separate machine dedicated to this purpose, we compress videos with an inte
 
 #### Transcoding on the fly
 We did implement code for compressing the videos on the fly using ffmpeg but this feature is currently disabled. To avoid interfering with acquisition we used the Mac’s dedicated hardware for video processing, instead of the Mac’s CPU. This is fast and does not interfere with ongoing video acquisition, but it does not compress the files very efficiently, and introduces timing instability we didn’t find worth solving. If you want to try getting it working on your setup, look in the file `ratrix_cam_server.py` for the disabled code.
-
 
 ### Timing Issues
 
