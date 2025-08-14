@@ -1,5 +1,5 @@
 # Setting up a RatrixCam System
-This system is designed for monitoring animal behavior in a home-cage environment, with minimal disturbance of the animals. For this reason, we use low-wavelength IR illumination, IR-sensitive cameras, and IR-pass filters. This ensures the video images are consistent regardless of whether room lights are on or off.  We also use our own IR lamps and remove the built-in IR LEDs on the cameras because in our experience it was not possible to position the LEDs to prevent reflection glare and hotspots.  If these constraints are not relevant to your application, instructions related to those features can be ignored.
+Note: This system was designed for monitoring animal behavior in a home-cage environment, with minimal disturbance of the animals. For this reason, we use low-wavelength IR illumination, IR-sensitive cameras, and IR-pass filters. This ensures the cameras do not disturb the animal sleep cycle, and the video images are consistent regardless of whether room lights are on or off.  We also use our own IR lamps and remove the built-in IR LEDs on the cameras, because in our experience it was not possible to position the LEDs to prevent reflection glare and hotspots.  If these constraints are not relevant to your application, instructions related to those features can be ignored.
 
 ## Parts List
 # Electronics
@@ -8,7 +8,7 @@ This system is designed for monitoring animal behavior in a home-cage environmen
 - Audio cable 
 - Bluetooth Keyboard/Mouse
 - Portable LCD display, 10.5”, HDMI cable, USB-C to USB-A power cable
-- 2 Rosonway powered USB hubs with at least 4 USB-A ports (3.0 or higher) → Thunderbolt 3 compatible USB-C
+- 2 powered Rosonway USB hubs with 4+ USB-A ports (3.0 or higher) → Thunderbolt 3 USB-C
 - 2 4TB SSD external drives for fast USB-C or thunderbolt 
 - 1 fast USB-C or thunderbolt cable for SSD (or USB-C to USB-A for older macs)
 - 8 Arducam USB cameras that support IR-only image capture (model B0506 1080P)
@@ -17,7 +17,7 @@ This system is designed for monitoring animal behavior in a home-cage environmen
 
 # Optics/Cameras
 - Wide-angle lenses M12 mount where needed (e.g. home cage)
-- Close-up lenses M12 mount where needed (e.g. face view) 12mm UCi Series Lens, f/2.8 (Edmund optics) 
+- Close-up lenses M12 mount where needed (e.g. face view) 
 - 8 IR-pass filters (IR-pass acrylic sheet, cut into ~2” squares)
 - Adhesive polarizing film sufficient to cover the 8 IR-pass filters
 - 8 camera cases with GoPro mount (3-D printed); small self-tapping screws
@@ -31,14 +31,20 @@ This system is designed for monitoring animal behavior in a home-cage environmen
 - Assorted zip ties for cable routing
 
 ### Notes on USB hub choice
-It may not be obvious, but the specific USB hub does matter. Other hubs may work, but would require testing. Many other USB splitters definitely do not work, even if they are rated for sufficient speed, and even if they are powered. The reason for this, briefly, is that Macs do not support direct addressing of video devices or USB ports. Therefore, to make sure the cameras are reliably assigned to the same identity within the ratrixcam code, we are depending on the obscure fact that when the Mac looks for video streams, it polls its thunderbolt ports in a consistent order; and some but not all USB hubs reliably poll their ports in a specific order. Because we depend on this to define camera identities, ratrixCam will not start until the Mac reports that it sees the expected number of video streams.
+It may not be obvious, but the specific USB hub brand is critical.  We use Rosonway. Most USB splitters and many powered USB hubs do not work, even if they are rated for sufficient speed. Other hubs may work, but would require testing. The reason for this, briefly, is that Macs do not support direct addressing of video devices or USB ports. Therefore, to make sure the cameras are reliably assigned to the same identity within the ratrixcam code, we are depending on the obscure fact that when the Mac looks for video streams, it polls its thunderbolt ports in a consistent order; and some but not all USB hubs reliably poll their ports in a specific order. Because we depend on this to define camera identities, ratrixCam will not start until the Mac reports that it sees the expected number of video streams.
 
 ### Notes on camera choice
-The model B0506 Arducam is currently (6/2025) the only Arducam USB camera that has good IR-sensitive recording. (We tested a large number of other supposedly IR-sensitive cameras, but the image through a true IR-pass filter was extremely poor, even with high IR illumination. Probably due to the CMOS chip sensitivity spectrum). A camera without IR-cut technology (which we had to disable) and that runs at 60fps would have been preferred.
+The model B0506 Arducam is currently (6/2025) the only Arducam USB camera that has good IR-sensitive recording. (We tested a large number of other supposedly IR-sensitive cameras, but the image through a true IR-pass filter was extremely poor, even with high IR illumination. Probably due to the CMOS chip sensitivity spectrum). Focusing is manual which we consider a plus. A camera without IR-cut technology (which we had to disable) and that runs at 60fps would have been preferred. Word of warning: some secondary vendors ship this camera in a case; but these have usually glued the lens in place such that it can neither be focused nor removed.
 
 Sending 24 bit color is useless as IR images are monochrome; not sure how the CMOS chip is using the 24bits when operating in IR mode. Transcoding to monochrome doesn’t seem to be widely supported.  
 
 This camera is limited to 30fps; streaming 1080P at 24bit color mjpeg it has a raw uncompressed bit rate of ~1.5Gbps, far below the 5Gbps capacity of the USB channel. However, the cameras need to be run at lower resolution due to limitations on the total capacity of the USB bus and/or speed of the image acquisition software, at least when streaming 8 cameras at once. Using 640x480 is sufficient for applications like DeepLabCut and SLEAP, and keeps the file sizes smaller so the system can be run for longer sessions before running out of space on the drive.
+
+### Notes on lenses
+The lenses that ship with model B0506 Arducam are fine, but it's useful that the lens is easily removable so custom optics can be swapped in if needed. Wide angle or fisheye lenses are widely available in the consumer market and generally fine. Close-up lenses were more difficult to find; we tried many from the consumer market and none were acceptable. Edmund Optics has an excellent selection of scientific grade lenses and good technical sales support. We use their 12mm UCi Series Lens, f/2.8 for our application. 
+
+### Notes on mounting hardware
+We 3D printed our own GoPro mount camera cases. We found the GoPro standard useful because of the wide array of available mounting hardware options, already optimized to be lightweight, low profile, impervious to vibration and moisture. We find that once screws are tightened, GoPro mounts hold camera positions very securely and stably compared to alternatives like clip-on, tripod, or deformable camera mounts. 
 
 ## Step 1. Pre-assemble 8 cameras
 1. Disable the IR cut filters  (for model B0506 Arducam)
