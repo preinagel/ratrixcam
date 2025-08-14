@@ -1,5 +1,5 @@
 # Setting up a RatrixCam System
-Note: This system was designed for monitoring animal behavior in a home-cage environment, with minimal disturbance of the animals. For this reason, we use low-wavelength IR illumination, IR-sensitive cameras, and IR-pass filters. This ensures the cameras do not disturb the animal sleep cycle, and the video images are consistent regardless of whether room lights are on or off.  We also use our own IR lamps and remove the built-in IR LEDs on the cameras, because in our experience it was not possible to position the LEDs to prevent reflection glare and hotspots.  If these constraints are not relevant to your application, instructions related to those features can be ignored.
+Instructions for setting up an 8-camera instance for deployment in an animal housing environment.[^1]
 
 ## Parts List
 # Electronics
@@ -49,7 +49,7 @@ We found the GoPro standard useful because there is a wide array of available mo
 We 3D printed custom GoPro mount camera cases. Here are the stl files for the [front](./ratrixCamCameraCaseFront.stl) and [back](./ratrixCamCameraCaseBack.stl). We derived these from files that were provided under CC BY-NC 4.0 license [here](https://www.printables.com/model/661757-arducam-b0205-ir-case-gopro-mount/files). Specifically, we modified the depth of the box and the positions and sizes of openings for connectors and LEDs to accomodate differences in the camera card layout; and removed the photosensor opening. We printed these in PLA, high res, dense infill.
 
 ## Step 1. Pre-assemble 8 cameras
-1. Disable the IR cut filters  (for model B0506 Arducam)
+1. Disable the IR cut filters  (for model B0506 Arducam) [^2]
    - Plug camera into any computer and view image in any software
    - Turn off lights/cover the light sensor until you hear IR cut filter retract
    - Verify that image is good in dark under IR illumination through an IR pass filter
@@ -58,8 +58,7 @@ We 3D printed custom GoPro mount camera cases. Here are the stl files for the [f
 2. Use pliers to gently loosen the focus lock ring, so lens can be focused manually
 3. Remove the illuminating LEDs for any camera that would otherwise cause reflected glare 
 4. Put each camera in a 3D-printed camera case with openings for cooling
-5. Use dremel to  make/enlarge openings for connectors or LEDs, if needed
-6. Secure case closed with 2-4 screws
+6. Secure case closed with 2-4 tiny self-tapping screws
 7. Swap in alternative lenses if applicable
 8. Mount the camera case to a go-pro extender arm.
    - Large thumb-screw GoPro screws are easier to work with in the dark, but think about which way you want them to protrude
@@ -70,8 +69,7 @@ We 3D printed custom GoPro mount camera cases. Here are the stl files for the [f
 
 
 ## Step 2. Prepare the Mac 
-(These steps can be done before bringing to deployment location, using any keyboard, mouse and monitor)
-1. Set up new Mac Mini with desired user name and password
+1. Set up a Mac Mini with desired user name and password
 2. Connect to a network
 3. Download these programs from the internet and install:
 - Visual Studio (from https://visualstudio.microsoft.com/downloads/)
@@ -99,11 +97,11 @@ We 3D printed custom GoPro mount camera cases. Here are the stl files for the [f
 (if a version number is displayed, you’re good)
 
 8. Close the terminal window, turn wireless off or put in Airplane Mode
-9. Set the computer name as desired. Label computer box with name and MAC address.
-10. Connect any thumb drive or SSD drive, set its name to ‘data’ (to test video output)
+9. Label computer box with name and MAC address.
+10. Connect any USB drive, set its name to ‘data’ (to test video output)
 11. Connect the powered USB hubs into thunderbolt ports (left hub in left port, right hub in next one), connect the hubs to power sources, and power on only the ports you plan to use
 12. Connect any USB camera to each of the 4 ports on each hub
-13. Open the ratrixcam folder, and copy config.json and  cam_start.scpt to the desktop (you can rename if desired)
+13. Open the ratrixcam folder, and copy config.json and  cam_start.scpt to the desktop (rename if desired)
 14. Click the script to open it and edit the paths
   - path includes the username you are logged in as, on the mac
   - change “config.json” to the path and name of your renamed config file
@@ -185,9 +183,11 @@ The descriptive strings for the study name and camera views can be edited in the
 
 ## For additional operating instructions see the User Manual
 
+[^1]:We have developed and tested this code on specific hardware. Some details relevant to achieving robust performance were hardware-specific.  In principle this code could work on any operating system, computer platform, or USB camera type, but in practice any of these generalizations will require additional testing and likely tweaking.
 
+This system was designed for monitoring animal behavior in a home-cage environment, with minimal disturbance of the animals. For this reason, we use low-wavelength IR illumination, IR-sensitive cameras, and IR-pass filters. This ensures the cameras do not disturb the animal sleep cycle, and the video images are consistent regardless of whether room lights are on or off.  We also use our own IR lamps and remove the built-in IR LEDs on the cameras, because in our experience it was not possible to position the LEDs to prevent reflection glare and hotspots.  If these constraints are not relevant to your application, instructions related to those features can be ignored.
 
-
+[^2]: The IR cut filter exists to *exclude* IR light from reaching the camera sensor when there is sufficient visible spectrum light, because images with visible light only are crisper, which is what consumers usually prefer. However, in our application we plan to use an IR-pass filter that *excludes visible light*, so that the images of animals will be invariant to ambient illumination. Therefore we want to admit IR light to the camera, even when the room is bright. The IR cut filter itself could not be readily removed from the camera. Our choice was to put IR cut filter in the retracted (night vision) position and then remove the sensor. One could also optically block the photosensor that detects ambient light.
 
 
  
