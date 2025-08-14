@@ -1,38 +1,20 @@
 ## Overview
-The ratrixCam system is an inexpensive, bare-bones open-source hardware and software package designed to record video 24 hours a day 7 days a week for at least 1 week continuously, with the minimum possible frame drops within videos or gaps between videos.  It is currently verified to support up to 8 cameras streaming at 30fps, 640x480p. It has been developed on MacMini hardware, ArduCam USB cameras, high-end USB Hubs, and high-speed, high-capacity external SSD drives. The code provides a minimal graphical user interface that allows the user to monitor the camera status and session statistics continuously during the run.
+The ratrixCam system is an inexpensive, bare-bones open-source hardware and software package designed to record video 24 hours a day 7 days a week for at least 1 week continuously, with the minimum possible frame drops within videos or gaps between videos. It was developed for in-home-cage animal behavior monitoring, but could be used in any application requiring continuous uninterrupted video recording. The code provides a minimal graphical user interface that allows the user to monitor the camera status and session statistics during the run. The code is currently verified to support up to 8 cameras streaming at 30fps, 640x480p. 
 
-### Operation in Brief
+We have developed and tested this code on specific hardware (see Setup Instructions for full specifications). Some details relevant to achieving robust performance were hardware-specific.  In principle this code could work on any operating system, computer platform, or USB camera type, but in practice any of these generalizations will require additional testing and likely tweaking.
+
+### System Operation in Brief
 - Attach an empty SSD drive
 - Launch software
-- Click "start recording" 
+- Click "Start Recording" 
   (Camera images will be displayed while recording) 
 - Every week or so:
-  - Click "stop recording"
-  - Swap in a fresh SSD drive
-  - Click "start recording"
+  - Click "Stop Recording"
+  - Swap out full SSD drive for empty one
+  - Click "Start recording"
   - Transfer videos off the full SSD drive
-- Repeat
 
-
-
-### Before the first run
-The code comes with an Apple script `cam_start.scpt` and a configuration file `config.json` (both of which we recommend you move out of the ratrixcam folder and keep on the Mac’s desktop). You may rename these to anything you wish. 
-
-Open `cam_start.scpt` in the Apple Script Editor by double clicking on its icon.  Edit the first path in the script to reflect where the ratrixcam folder has been installed on your computer. Edit the second path in the script to reflect the full path to the configuration file. Click the hammer icon to save your changes. You will not have to do these steps again unless you change paths or configuration files. 
-
-Open the file `config.json` in a Python editor or any text editor, and edit the paths to indicate where various temporary and permanent data files should go. The setting:
-`"save_path": "/Volumes/data/" `
-determines where video output is saved. If you want to save to an external SSD drive and you name your SSD drive ‘data’, you can leave the default path as is. If you want to save files somewhere else, edit this setting. Note that the cameras won’t start if the specified path does not exist. The remaining paths are for temporary files, which we recommend putting on the desktop. If ratrixcam is installed on the desktop you only need to change “username” to the username you are logged in under on the Mac
-```
-  "temp_path": "/Users/username/Desktop/temp_videos/"
-  "blank_image":"/Users/username/Desktop/ratrixcam/blanks/offline_status.png"
-  "stills_path": "/Users/username/Desktop/temp_videos/status/" 
-```
-If you will be running the system with 8 cameras, these are the only things that must be edited for the code to run. If you have fewer than 8 cameras, you’ll need to reduce the number of cameras defined in the `config.json` file.
-
-The descriptive strings for the study name and camera views can be edited in the config file, but you’ll also be able to do this in the configuration editor when you run the program (see below). The other default settings are set as recommended, but see the “Custom Settings” section for more information about available customizations. 
-
-## Operation Instructions
+## Operation Instructions in Detail
 Double click on `cam_start.scpt` to open it, and click ‘play’ to launch ratrixCam. (Alternatively, the command found within that script can be typed directly into a terminal window).
 
 First the Configuration Editor will open, displaying the name of the study and a description of each camera view, which are loaded from the `config.json` file. The labels are arranged on the screen in the position corresponding to where the camera views will appear in the video acquisition monitor. If you want to change the labels, we will discuss editing them later.
@@ -59,17 +41,72 @@ To end a recording session, click the Stop Recording button. Watch the Terminal 
 
 ### Failure recovery
 
-It should be exceedingly rare for cameras to drop out during a run. Nevertheless, if a camera should drop out during a run, the system will continue to function as well as possible. The Monitor Window will indicate that the camera is offline, save the partial video file, and then continually attempt to restart the camera. There will be a gap in the video record for the camera that went down until it restarts, but others will not be affected. All these events are logged in the Terminal Window. If more than one camera goes down at the same time, the system will wait until all cameras are detected again before any of them attempt to restart.
+It should be exceedingly rare for cameras to drop out during a run. Nevertheless, if a camera should drop out during a run, the system will continue to function as well as possible. The Monitor Window will indicate that the camera is offline, save the partial video file, and then continually attempt to restart the camera. There will be a gap in the video record for the camera that went down until it restarts, but others will not be affected. All these events are logged in the Terminal Window. If more than one camera goes down at the same time, the system will wait until all cameras are detected again before any of them attempt to restart. This prevents them from starting up and stealing another camera's ID slot.
 
 If the output drive fills up during a session, the software will continue to re-try saving the files until the session is ended. For this reason, if you hot-swap a new drive without stopping the software, all the untransferred files should then be saved normally. However, if both the external output drive and internal hard drive fill up during a run, all video from that time on will be lost. Therefore, we recommend keeping at least 1TB free on the Mac’s internal hard disk.
 
-Until they are transferred to the output drive, temporary video files accumulate in the temporary folder on the hard drive. When you stop recording, the shutdown sequence will continue attempting to write the unsaved files, but will eventually give up and kill any unsuccessful file transfer requests. The Terminal Window will show error messages for failed file transfers. In this case, any un-transferred video files can be manually rescued from the temporary folder. 
+Temporary video files accumulate in the temporary folder on the hard drive until they are transferred to the output drive. When you stop recording, the shutdown sequence will continue attempting to write the unsaved files, but if this fails enough times it will eventually give up and kill any unsuccessful file transfer requests. The Terminal Window will show error messages for failed file transfers. In this case, any un-transferred video files can be manually rescued from the temporary folder. 
 
-If the Stop Recording button is not responding you can close the terminal window to stop the run. You can then manually copy the un-transferred files from the temporary folder to a new external drive. 
+If the program hangs (Stop Recording button is not responding) you can close the terminal window to stop the run. You can then manually copy the un-transferred files from the temporary folder.
 
-When the storage drive is not yet full, hot swapping of the external drive during a run is not recommended, because a video file could be in the middle of being saved. However, it would in fact probably be fine. If you unplug media in the middle of writing a file to the external drive, it will still most likely recover gracefully and re-attempt to transfer the file to the new drive when it connects. Nevertheless, we provide no guarantees.
+Except when the external drive is full, hot swapping of the external drive during a run is not recommended. However, it would in fact probably be fine. If you unplug media in the middle of writing a file to the external drive, it will still most likely recover gracefully and re-attempt to transfer the file to the new drive when it connects. Nevertheless, we provide no guarantees.
+
+### Settings in the config file
+#### Number of Cameras 
+The code will only start recording after it detects (at least) the expected number of cameras. The default configuration file presumes 8 cameras. Therefore, if you want to run the system with fewer than 8 cameras, you must edit the config file. Each camera is defined by a block such as:
+`
+{
+      "name": "cam1",
+      "row": 1,
+      "col": 1
+    }
+`
+
+Note that the cameras will be launched in the order listed, but you can include whichever subset you want. For example, if camera #7 is temporarily broken you can delete the cam7 block, and the other cameras will retain their usual names and display positions. But the computer must detect (at least) as many connected cameras as you have entries in the config file before the cameras will launch.  If more are connected, it will use the first N it sees.
+
+The code supports recording of up to eight cameras, and will behave strangely if you define more than eight. 
+
+#### Settings shared by all cameras in a given run 
+| Setting | Description |
+| ----------- | ----------- |
+| save_path       | folder where output videos will be saved |
+| temp_path       | folder where temporary video files will be staged |
+| blank_image     | image file to display when a camera is offline |
+| stills_path     | folder where the most recent displayed frame is kept |
+| rack_name       | string uniquely identifying the recording system instance  |
+| study_label     | string identifying the study or experiment (used in labels and filenames) |
+| time_slice      | duration in seconds of each video file |
+*Advanced settings*
+| default_fps     | frames per second, if not otherwise specified |
+| default_width   | frame width in pixels, if not otherwise specified |
+| default_height  | frame height in pixels, if not otherwise specified |
+| default_cam_exposure   | duration the "shutter" is open, if not otherwise specified  |
+| preview_interval       | interval in seconds between updates of displayed image |
+| codec                  | video codec |
+| video_ext              | video file extension |
+ 
+#### Settings for individual cameras 
+| Setting | Description |
+| ----------- | ----------- |
+| name       | string associated with the camera (used in labels, filenames) |
+| row        | row in display where camera image is shown (valid values 1 or 2) |
+| col        |  column in display where camera image is shown (valid values 1,2,4,5) |
+*Overriding defaults*
+| fps        |  frame rate  |
+| width      |  frame width in pixels |
+| height     |  frame height in pixels |
+| exposure   |  duration the "shutter" is open each frame  |
+
+There is little to no error checking on these settings. The user is responsible for not assigning two camera images to the same display location, only selecting camera settings that are supported by the camera they are using, and so forth.
+
+*Unsupported options*
+The following config settings are obligatory because these functionalities are not yet implemented
+`  "recording_audio": false,
+  "recording_ttl": false
+ ` 
 
 ## Technical Details
+Information below here is not necessary to use the system, but may be useful to users who have exacting technical requirements, for debugging system failures, or for developers wanting to modify the code.
 
 ### Temporary and final files
 
@@ -101,6 +138,7 @@ For example, if the true frame rate of a camera is 29fps, your 600s videos will 
 Timestamp inaccuracies (i.e. uneven delays in capturing frames from the buffers) are common in the first few minutes of a session due to the high load on system resources during startup, and can occur any time the Mac’s resources are stressed. Although the video is actually fine, with no missing frames, the overlaid times may be off. To minimize this, avoid using any other USB-connected devices on the Mac (use a bluetooth mouse and keyboard); avoid running any other programs on the Mac during recording; disable automatic updates, do not install security software, keep the Mac in airplane mode by default. You can connect to the network through a secure internal network server when it is necessary to go online.
 
 ### Capacity limitations
+The graphical interface presumes a maximum of 8 cameras; that code would need to be generalized to support any more than this number. However, the code for recording the videos itself has no upper limit on the number of cameras it will attempt to record simultaneously. At some point the hardware would not be able to keep up with the data stream; we have not tested this practical limit.
 
 The limits on the maximum number of cameras and maximum resolution of cameras could probably be improved further if you are willing to dig into the code. We had to add timeouts and/or multiple retries in several places to prevent failures due to race conditions. We didn’t solve this in a general way, we just found values that are sufficient for the system to be reliable within the advertised specifications.
 
