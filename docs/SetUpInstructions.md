@@ -110,8 +110,11 @@ This camera is limited to 30fps; streaming 1080P at 24bit color mjpeg it has a r
    - Label the Mac-end of the USB hub cable with this information as well
      
 17. Check if videos appear in the specified temp folder
+
 18. To the right of the camera view images the GUI displays text with session information. Stretch window if needed to see this. One fact displayed is the duration of individual video files that will be saved. 
+
 19. Allow cameras to run for at least this duration, then check if videos get transferred to the output drive when the file closes.
+
 20. Re-launch once more to confirm everything comes up in the right place again.
 
 ### Notes on how cameras are linked to IDs during setup
@@ -123,7 +126,7 @@ The cameras will not launch until all the expected cameras are detected. This en
 
 Once the cameras launch, for the duration of that session you should be able to unplug any camera without the other cameras changing their identities. If you plug the camera back in again it should resume with the correct identity. However if more than one camera has been unplugged, all of them have to be plugged in again before any of them will re-launch. This protects against cameras switching identities if they are re-connected in the wrong order.
 
-# Connecting in final deployment mode
+# Connecting in deployment location
 Once cameras are prepared and Mac is set up, you can bring to the location you want to deploy for final setup. (The intended use of the system is in-cage monitoring of animals, which is typically in a less convenient environment).
 
 1. Plug in the mac, attach the mini monitor and mount where it will be convenient
@@ -139,6 +142,7 @@ Once cameras are prepared and Mac is set up, you can bring to the location you w
    - route hub power cables to plug strip & secure with zip ties
    - plug into the thunderbolt ports of the mac as labeled during pre-setup
    - if an extender cable is needed, use a high speed/thunderbolt rated cable
+   - faulty extension cables are a common cause of system instability or failure
 6. Plug cameras into the hub ports in the positions previously labeled
 7. Turn on USB ports you will use for the cameras, turn off the others (using local power buttons)
 8. Turn on the mac and launch the camera code
@@ -154,13 +158,22 @@ Once cameras are prepared and Mac is set up, you can bring to the location you w
 
 At this point the camera assignments should be stable.  
 
-### Operating Notes
+### Before the first run
+The code comes with an Apple script `cam_start.scpt` and a configuration file `config.json` (both of which we recommend you move out of the ratrixcam folder and keep on the Mac’s desktop). You may rename these to anything you wish. 
 
-After this setup, after the system launches with all cameras it should be possible to unplug any camera and the other cameras will stay in the correct positions with the correct labels and save to the correct folders; and you should be able to plug the camera back in and it should come up in the correct position again.
+Open `cam_start.scpt` in the Apple Script Editor by double clicking on its icon.  Edit the first path in the script to reflect where the ratrixcam folder has been installed on your computer. Edit the second path in the script to reflect the full path to the configuration file. Click the hammer icon to save your changes. You will not have to do these steps again unless you change paths or configuration files. 
 
-If you unplug 2 or more cameras you can plug them back in in any order, but they won't start recording again until a full set of Ncameras cameras are detected. This prevents them from starting up and stealing another camera's ID slot.
+Open the file `config.json` in a Python editor or any text editor, and edit the paths to indicate where various temporary and permanent data files should go. The setting:
+`"save_path": "/Volumes/data/" `
+determines where video output is saved. If you want to save to an external SSD drive and you name your SSD drive ‘data’, you can leave the default path as is. If you want to save files somewhere else, edit this setting. Note that the cameras won’t start if the specified path does not exist. The remaining paths are for temporary files, which we recommend putting on the desktop. If ratrixcam is installed on the desktop you only need to change “username” to the username you are logged in under on the Mac
+```
+  "temp_path": "/Users/username/Desktop/temp_videos/"
+  "blank_image":"/Users/username/Desktop/ratrixcam/blanks/offline_status.png"
+  "stills_path": "/Users/username/Desktop/temp_videos/status/" 
+```
+If you will be running the system with 8 cameras, these are the only things that must be edited for the code to run. If you have fewer than 8 cameras, you’ll need to reduce the number of cameras defined in the `config.json` file.
 
-If you ever want to launch the system with fewer than 8 cameras there is a way to achieve this by editing the config file to indicate which cameras are active, but it will be tricky.
+The descriptive strings for the study name and camera views can be edited in the config file, but you’ll also be able to do this in the configuration editor when you run the program (see User Manual). 
 
 ## For additional operating instructions see the User Manual
 
