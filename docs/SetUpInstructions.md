@@ -1,6 +1,8 @@
 # Setting up a RatrixCam System
 Instructions for setting up an 8-camera instance for deployment in an animal housing environment.[^1]
 
+These instructions assume the user is completely unfamiliar with Python and not a programmer, and therefore includes basic setup instructions for the Python environment that Python users can safely ignore.
+
 ## Parts List
 # Electronics
  
