@@ -1,8 +1,6 @@
 # Setting up a RatrixCam System
 Instructions for setting up an 8-camera instance for deployment in an animal housing environment.[^1]
 
-These instructions assume the user is completely unfamiliar with Python and not a programmer, and therefore includes basic setup instructions for the Python environment that Python users can safely ignore.
-
 ## Parts List
 # Electronics
  
@@ -32,21 +30,7 @@ These instructions assume the user is completely unfamiliar with Python and not 
 - Wrenches and pliers for mounting and tightening go pro mounts 
 - Assorted zip ties for cable routing
 
-### Notes on USB hub choice
-It may not be obvious, but the specific USB hub brand is critical.  We use Rosonway. Most USB splitters and many powered USB hubs do not work, even if they are rated for sufficient speed. Other hubs may work, but would require testing. The reason for this, briefly, is that Macs do not support direct addressing of video devices or USB ports. Therefore, to make sure the cameras are reliably assigned to the same identity within the ratrixcam code, we are depending on the obscure fact that when the Mac looks for video streams, it polls its thunderbolt ports in a consistent order; and some but not all USB hubs reliably poll their ports in a specific order. Because we depend on this to define camera identities, ratrixCam will not start until the Mac reports that it sees the expected number of video streams.
 
-### Notes on camera choice
-The model B0506 Arducam is currently (6/2025) the only comparable USB camera we could find that has good IR-sensitive recording. (We tested a large number of other supposedly IR-sensitive cameras, but the image through a true IR-pass filter was extremely poor, even with high IR illumination). This camera has manual focus, is a plus in our application. Word of warning: some secondary vendors ship this camera in a case, but we found that these often have glued the lens in place such that it can neither be focused nor removed. We would have preferred a camera without photo-sensor controlled IR-cut technology (which we had to disable) and that runs at 60fps.  Having 24 bit color is useless, as IR images are monochrome, making files unnecessarily large. Transcoding to monochrome doesn’t seem to be widely supported.  
-
-This camera is limited to 30fps; streaming 1080P at 24bit color mjpeg it has a raw uncompressed bit rate of ~1.5Gbps, far below the 5Gbps capacity of the USB channel. However, we use them at lower resolution to avoid overwhelming the computer when streaming 8 cameras at once. Using 640x480 is sufficient for applications like DeepLabCut and SLEAP, and keeps the file sizes smaller so the system can be run for longer sessions before running out of space on the drive.  
-
-### Notes on lenses
-The lenses that ship with model B0506 Arducam are fine, but it's useful that the lens is easily removable so custom optics can be swapped in when needed. Wide angle or fisheye lenses are widely available in the consumer market. Close-up lenses meeting particular specifications were more difficult to find. For example, we wanted a close up of a rodent's face at a fixed location (behavioral lick port) from a distance of 17cm; nothing on the consumer market worked well. We are using Edmund Optics 12mm UCi Series Lens, f/2.8. We can recommend Edmund Optics for a wide selection of scientific lenses and excellent technical sales support.
-
-### Notes on mounting hardware
-We found the GoPro standard useful because there is a wide array of available mounting hardware options, which are already optimized to be lightweight, low profile, impervious to vibration and moisture. Once mounting screws are tightened, we find GoPro mounts to hold camera positions very securely and stably compared to clip-on, tripod, or bendable camera mounts. 
-
-We 3D printed custom GoPro mount camera cases. Here are the stl files for the [front](./ratrixCamCameraCaseFront.stl) and [back](./ratrixCamCameraCaseBack.stl). We derived these from files that were provided under CC BY-NC 4.0 license [here](https://www.printables.com/model/661757-arducam-b0205-ir-case-gopro-mount/files). Specifically, we modified the depth of the box and the positions and sizes of openings for connectors and LEDs to accomodate differences in the camera card layout; and removed the photosensor opening. We printed these in PLA, high res, dense infill.
 
 ## Step 1. Pre-assemble 8 cameras
 1. Disable the IR cut filters  (for model B0506 Arducam) [^2]
@@ -69,6 +53,8 @@ We 3D printed custom GoPro mount camera cases. Here are the stl files for the [f
 
 
 ## Step 2. Prepare the Mac 
+Note: these instructions assume the user is completely unfamiliar with Python and not a programmer, and therefore includes basic setup instructions for the Python environment that Python users can safely ignore.
+
 1. Set up a Mac Mini with desired user name and password
 2. Connect to a network
 3. Download these programs from the internet and install:
@@ -110,6 +96,7 @@ We 3D printed custom GoPro mount camera cases. Here are the stl files for the [f
 
 15. Run script to try launching the camera code. If this fails, check terminal window for errors.
 16. Click Start Recording, wait until all 8 cameras show up. The camera numbers are associated with positions on the screen as follows:
+    
      ![layout diagram](img/layout.png)
    - Label the USB ports on the hubs according to their camera numbers 1 through 8
    - Label the thunderbolt ports on the Mac to reflect which port serves 1-4 vs. 5-8
@@ -180,6 +167,22 @@ determines where video output is saved. If you want to save to an external SSD d
 If you will be running the system with 8 cameras, these are the only things that must be edited for the code to run. If you have fewer than 8 cameras, you’ll need to reduce the number of cameras defined in the `config.json` file.
 
 The descriptive strings for the study name and camera views can be edited in the config file, but you’ll also be able to do this in the configuration editor when you run the program (see User Manual). 
+
+### Notes on USB hub choice
+It may not be obvious, but the specific USB hub brand is critical.  We use Rosonway. Most USB splitters and many powered USB hubs do not work, even if they are rated for sufficient speed. Other hubs may work, but would require testing. The reason for this, briefly, is that Macs do not support direct addressing of video devices or USB ports. Therefore, to make sure the cameras are reliably assigned to the same identity within the ratrixcam code, we are depending on the obscure fact that when the Mac looks for video streams, it polls its thunderbolt ports in a consistent order; and some but not all USB hubs reliably poll their ports in a specific order. Because we depend on this to define camera identities, ratrixCam will not start until the Mac reports that it sees the expected number of video streams.
+
+### Notes on camera choice
+The model B0506 Arducam is currently (6/2025) the only comparable USB camera we could find that has good IR-sensitive recording. (We tested a large number of other supposedly IR-sensitive cameras, but the image through a true IR-pass filter was extremely poor, even with high IR illumination). This camera has manual focus, is a plus in our application. Word of warning: some secondary vendors ship this camera in a case, but we found that these often have glued the lens in place such that it can neither be focused nor removed. We would have preferred a camera without photo-sensor controlled IR-cut technology (which we had to disable) and that runs at 60fps.  Having 24 bit color is useless, as IR images are monochrome, making files unnecessarily large. Transcoding to monochrome doesn’t seem to be widely supported.  
+
+This camera is limited to 30fps; streaming 1080P at 24bit color mjpeg it has a raw uncompressed bit rate of ~1.5Gbps, far below the 5Gbps capacity of the USB channel. However, we use them at lower resolution to avoid overwhelming the computer when streaming 8 cameras at once. Using 640x480 is sufficient for applications like DeepLabCut and SLEAP, and keeps the file sizes smaller so the system can be run for longer sessions before running out of space on the drive.  
+
+### Notes on lenses
+The lenses that ship with model B0506 Arducam are fine, but it's useful that the lens is easily removable so custom optics can be swapped in when needed. Wide angle or fisheye lenses are widely available in the consumer market. Close-up lenses meeting particular specifications were more difficult to find. For example, we wanted a close up of a rodent's face at a fixed location (behavioral lick port) from a distance of 17cm; nothing on the consumer market worked well. We are using Edmund Optics 12mm UCi Series Lens, f/2.8. We can recommend Edmund Optics for a wide selection of scientific lenses and excellent technical sales support.
+
+### Notes on mounting hardware
+We found the GoPro standard useful because there is a wide array of available mounting hardware options, which are already optimized to be lightweight, low profile, impervious to vibration and moisture. Once mounting screws are tightened, we find GoPro mounts to hold camera positions very securely and stably compared to clip-on, tripod, or bendable camera mounts. 
+
+We 3D printed custom GoPro mount camera cases. Here are the stl files for the [front](./ratrixCamCameraCaseFront.stl) and [back](./ratrixCamCameraCaseBack.stl). We derived these from files that were provided under CC BY-NC 4.0 license [here](https://www.printables.com/model/661757-arducam-b0205-ir-case-gopro-mount/files). Specifically, we modified the depth of the box and the positions and sizes of openings for connectors and LEDs to accomodate differences in the camera card layout; and removed the photosensor opening. We printed these in PLA, high res, dense infill.
 
 ## For additional operating instructions see the User Manual
 
