@@ -26,6 +26,8 @@ When you click Start Recording, the configuration editor closes and a Monitor Wi
 
 As each camera connects, its current view will start to update in the display; it should take 15-60 seconds for all 8 cameras to start. Note that all cameras must be present before the cameras will launch. By default, videos are recorded at 30fps but the displayed images update once per second.  To the right of the camera views, there are text fields indicating basic session information. You may have to resize the window to see everything. 
 
+  ![layout diagram](img/RatrixCamRealtimeView.png)
+  
 While the cameras are starting up, locate the Terminal Window and move it to where you will be able to watch the messages that scroll by. If there are warnings or errors they will appear here.
 
 #### Changing the labels
