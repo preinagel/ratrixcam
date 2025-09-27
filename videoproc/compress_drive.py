@@ -11,7 +11,7 @@ from pathlib import Path
 from pprint import pprint
 
 import cv2
-import motion_detection
+import detect_motion
 import numpy as np
 
 
@@ -167,7 +167,7 @@ def detect_motion(input_path: Path, motion_percentile: float, motion_threshold: 
     """Perform motion detection and return results"""
     try:
         start = time.time()
-        motion_by_frame = motion_detection.main(input_path, play_video=False)
+        motion_by_frame = detect_motion.main(input_path, play_video=False)
         motion_perc = np.percentile(motion_by_frame, motion_percentile)
         found_motion = motion_perc >= motion_threshold
         detection_time = time.time() - start
