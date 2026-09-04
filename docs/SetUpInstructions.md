@@ -20,7 +20,8 @@ Instructions for setting up an 8-camera instance for deployment in an animal hou
 - Close-up lenses M12 mount where needed (e.g. face view) 
 - 8 IR-pass filters (IR-pass acrylic sheet, cut into ~2” squares)
 - Adhesive polarizing film sufficient to cover the 8 IR-pass filters
-- 8 camera cases with GoPro mount (3-D printed); small self-tapping screws
+- 8 camera cases with GoPro mount (3-D printed)  [front](./ratrixCamCameraCaseFront.stl) and [back](./ratrixCamCameraCaseBack.stl)
+- small self-tapping screws for camera cases
 - 8 light-blocking camera hoods (plastic or 3-D printed)
 - Some mechanism to lightly mount hood to camera case (e.g. magnets, velcro…)
 - Some mechanism to hold an IR-pass filter in front of camera (e.g., slots in hood)
