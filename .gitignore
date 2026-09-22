@@ -5,3 +5,12 @@ __pycache__
 status
 temp
 LocalConfig.json
+
+# site-specific filename rules; local only (see custom_filename_parser_example.py)
+videoproc/custom_filename_parser.py
+
+# legacy-rescue helper scripts not part of videoproc
+videoproc/legacy_audit_backlog.py
+videoproc/legacy_datehist.py
+videoproc/needs_investigation.py
+videoproc/validate_source_folder.py
