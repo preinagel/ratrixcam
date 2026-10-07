@@ -34,7 +34,7 @@ from classify import (
     find_unmatched_files,
     log_unmatched_files,
 )
-from util import build_output_path, get_codec_nframes, parse_filenames, parse_recording_datetime
+from util import build_output_path, code_version, get_codec_nframes, parse_filenames, parse_recording_datetime
 
 # connectivity-loss handling: if the input/output root becomes unreachable (e.g. a
 # network-mounted volume drops), retry fast at first, then patiently, before giving up --
@@ -49,6 +49,29 @@ CONNECTIVITY_TOTAL_TIMEOUT_HOURS = 10
 # probable misnaming and compressed with the conservative task-view setting
 TASK_VIEWS = ("lid", "face")
 CAGE_VIEWS = ("buddy", "home")
+
+# ffmpeg encoding policy. The task-view CRF is the --taskcam_crf argument; the rest is fixed
+VIDEO_CODEC = "libx264"
+PIX_FMT = "yuv420p"
+CRF_CAGE_MOTION = 30
+CRF_NO_MOTION = 40
+GOP_NO_MOTION = 1800
+
+
+def encoding_policy(taskcam_crf: int, compress_spd: str) -> dict:
+    """The complete set of encoding decisions in force, for the run's config.json."""
+    return {
+        "codec": VIDEO_CODEC,
+        "pix_fmt": PIX_FMT,
+        "preset": compress_spd,
+        "task_views": list(TASK_VIEWS),
+        "cage_views": list(CAGE_VIEWS),
+        "crf_task_view_motion": taskcam_crf,
+        "crf_cage_view_motion": CRF_CAGE_MOTION,
+        "crf_unrecognized_view_motion": taskcam_crf,
+        "crf_no_motion": CRF_NO_MOTION,
+        "gop_no_motion": GOP_NO_MOTION,
+    }
 
 
 def build_manifest(input_paths: list[Path]) -> list[dict]:
@@ -297,11 +320,11 @@ def compress_video(
         "-i",
         str(input_path),  # converts into platform-dependent path format
         "-c:v",
-        "libx264",
+        VIDEO_CODEC,
         "-preset",
         compress_spd,
         "-pix_fmt",
-        "yuv420p",
+        PIX_FMT,
         "-threads",
         str(threads),
     ]
@@ -309,13 +332,13 @@ def compress_video(
     unrecognized_view = False
     if not motion_detected:
         print("    no motion, highly lossy compression will be used")
-        command = base_command + ["-crf", "40", "-g", "1800", str(output_path)]
+        command = base_command + ["-crf", str(CRF_NO_MOTION), "-g", str(GOP_NO_MOTION), str(output_path)]
     elif view in TASK_VIEWS:
         print("    motion, task view: minimally lossy compression will be used")
         command = base_command + ["-crf", str(taskcam_crf), str(output_path)]
     elif view in CAGE_VIEWS:
         print("    motion, cage view: more lossy compression will be used")
-        command = base_command + ["-crf", "30", str(output_path)]
+        command = base_command + ["-crf", str(CRF_CAGE_MOTION), str(output_path)]
     else:
         # a view name outside the known lists is most likely a misnamed file; never let that
         # silently select the strongest compression
@@ -426,9 +449,17 @@ def main(
         write_manifest(run_metadata_dir / "manifest.csv", manifest)
         append_index_row(output / "videoproc_run_metadata" / "index.csv", run_id, manifest)
 
+        config = dict(kwargs)
+        config["code_version"] = code_version()
+        config["encoding_policy"] = encoding_policy(taskcam_crf, compress_spd)
+        config["motion_detection"] = {
+            "percentile": motion_percentile,
+            "threshold": motion_threshold,
+            **detect_motion.PARAMETERS,
+        }
         config_path = run_metadata_dir / "config.json"
         config_path.parent.mkdir(parents=True, exist_ok=True)
-        config_path.write_text(json.dumps(kwargs, indent=4, default=str))
+        config_path.write_text(json.dumps(config, indent=4, default=str))
 
         log_path = run_metadata_dir / "log.csv"
         motion_timeseries_path = run_metadata_dir / "motion_timeseries.csv"

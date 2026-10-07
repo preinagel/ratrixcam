@@ -33,7 +33,7 @@ from classify import (
     find_unmatched_files,
 )
 from compress_drive import append_index_row, build_manifest, start_terminal_log, write_manifest
-from util import build_output_path, parse_filenames
+from util import build_output_path, code_version, parse_filenames
 
 EXTRA_FIELDS = [
     "source_codec",
@@ -221,7 +221,7 @@ def main(
         manifest = build_manifest(input_paths)
         write_manifest(run_dir / "manifest.csv", manifest)
         append_index_row(destination / "videoproc_run_metadata" / "index.csv", run_id, manifest)
-        (run_dir / "config.json").write_text(json.dumps(kwargs, indent=4, default=str))
+        (run_dir / "config.json").write_text(json.dumps({**kwargs, "code_version": code_version()}, indent=4, default=str))
 
         unmatched_mp4, n_other_files = find_unmatched_files(source, input_paths)
         rows: list[dict] = unmatched_rows(unmatched_mp4, n_other_files, pattern)

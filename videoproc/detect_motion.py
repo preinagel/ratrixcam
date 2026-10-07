@@ -13,20 +13,32 @@ def play_frame(frame):
     return cv.waitKey(1) & 0xFF == ord("q")
 
 
+N_FRAMES_TO_SKIP = 30  # frames used only to stabilize the background model
+SAMPLE_EVERY = 10  # analyse every Nth frame
+RESIZE_DIVISOR = 3  # frame dimensions divided by this before analysis
+MOG2_HISTORY = 600  # number of frames that affect the background model
+MOG2_VAR_THRESHOLD = 16  # sensitivity threshold
+OPENING_KERNEL = (3, 3)
+
+PARAMETERS = {
+    "n_frames_to_skip": N_FRAMES_TO_SKIP,
+    "sample_every": SAMPLE_EVERY,
+    "resize_divisor": RESIZE_DIVISOR,
+    "mog2_history": MOG2_HISTORY,
+    "mog2_var_threshold": MOG2_VAR_THRESHOLD,
+    "opening_kernel": OPENING_KERNEL,
+}
+
+
 def main(path, play_video):
     cap = cv.VideoCapture(path)
 
-    # initialize background subtractor and kernel
     mog = cv.createBackgroundSubtractorMOG2(
-        history=600,  # Number of frames that affect the background model
-        varThreshold=16,  # Sensitivity threshold
-        detectShadows=False,  # Increases speed
+        history=MOG2_HISTORY, varThreshold=MOG2_VAR_THRESHOLD, detectShadows=False
     )
-    kernel = cv.getStructuringElement(cv.MORPH_ELLIPSE, (3, 3))
+    kernel = cv.getStructuringElement(cv.MORPH_ELLIPSE, OPENING_KERNEL)
 
-    # motion detection
     motion_by_frame = []
-    n_frames_to_skip = 30
     n_frames = 0
 
     while True:
@@ -36,15 +48,13 @@ def main(path, play_video):
 
         n_frames += 1
 
-        # skip every 10 frames (1/3 sec) for faster processing
-        if n_frames % 10 != 0:
+        if n_frames % SAMPLE_EVERY != 0:
             continue
 
-        # reduce frame resolution for faster processing
-        frame = cv.resize(frame, (frame.shape[1] // 3, frame.shape[0] // 3))
+        frame = cv.resize(frame, (frame.shape[1] // RESIZE_DIVISOR, frame.shape[0] // RESIZE_DIVISOR))
 
         # skip frames for MOG stability
-        if n_frames <= n_frames_to_skip:
+        if n_frames <= N_FRAMES_TO_SKIP:
             mog.apply(frame)
             continue
 
