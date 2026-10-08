@@ -7,6 +7,7 @@ import csv
 import json
 import os
 import shutil
+import socket
 import subprocess
 import sys
 import time
@@ -128,37 +129,54 @@ def write_manifest(manifest_path: Path, manifest: list[dict]) -> None:
         writer.writerows(manifest)
 
 
+INDEX_LOCK_TIMEOUT_SECONDS = 300  # how long a run waits for index.csv before giving up on it
+INDEX_LOCK_STALE_SECONDS = 600  # a lock is held for milliseconds; one this old belongs to a dead run
+INDEX_LOCK_POLL_SECONDS = 0.5
+INDEX_FIELDS = ["run_id", "subjects", "range_start", "range_end", "n_streams", "n_files"]
+
+
 @contextlib.contextmanager
-def _file_lock(lock_path: Path, timeout: float = 30.0, poll_interval: float = 0.05):
+def _file_lock(
+    lock_path: Path,
+    timeout: float = INDEX_LOCK_TIMEOUT_SECONDS,
+    stale_after: float = INDEX_LOCK_STALE_SECONDS,
+    poll_interval: float = INDEX_LOCK_POLL_SECONDS,
+):
     """Cross-platform mutual-exclusion lock using atomic exclusive file creation
     (os.O_CREAT | os.O_EXCL is atomic on both NTFS and POSIX filesystems, unlike
-    fcntl.flock which is POSIX-only and wouldn't work on Windows)."""
+    fcntl.flock which is POSIX-only and wouldn't work on Windows). A lock file older than
+    `stale_after` was left behind by a run that died holding it and is removed."""
     deadline = time.time() + timeout
     while True:
         try:
             fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
             break
         except FileExistsError:
+            try:
+                age = time.time() - lock_path.stat().st_mtime
+            except FileNotFoundError:
+                continue  # released between our attempt and the stat; retry at once
+            if age > stale_after:
+                print(f"WARNING: removing stale lock {lock_path} (age {age:.0f} s)")
+                lock_path.unlink(missing_ok=True)
+                continue
             if time.time() >= deadline:
                 raise TimeoutError(f"could not acquire lock {lock_path} within {timeout}s")
             time.sleep(poll_interval)
     try:
+        os.write(fd, f"{socket.gethostname()} pid {os.getpid()} {datetime.now():%Y-%m-%d %H:%M:%S}\n".encode())
         yield
     finally:
         os.close(fd)
         lock_path.unlink(missing_ok=True)
 
 
-def append_index_row(index_path: Path, run_id: str, manifest: list[dict]) -> None:
-    """Append one summary line for this run to the top-level run index (creating it with a
-    header on first use), so later lookups don't require opening every run's own folder.
-    Locked so two concurrent compress_drive.py runs sharing the same output root (a real
-    usage pattern here -- one machine running two batches at once) can't interleave writes
-    or duplicate the header row."""
-    index_path.parent.mkdir(parents=True, exist_ok=True)
+def index_row(run_id: str, manifest: list[dict]) -> dict:
+    """The one-line summary of a run that goes into index.csv (derivable from the run folder's
+    manifest.csv, so the index can always be rebuilt; see rebuild_index.py)."""
     starts = [s["start"] for s in manifest if s["start"]]
     ends = [s["end"] for s in manifest if s["end"]]
-    row = {
+    return {
         "run_id": run_id,
         "subjects": "_".join(sorted({s["subj_ID"] for s in manifest})),
         "range_start": min(starts) if starts else "",
@@ -166,14 +184,33 @@ def append_index_row(index_path: Path, run_id: str, manifest: list[dict]) -> Non
         "n_streams": len(manifest),
         "n_files": sum(s["file_count"] for s in manifest),
     }
+
+
+def append_index_row(index_path: Path, run_id: str, manifest: list[dict]) -> bool:
+    """Append one summary line for this run to the top-level run index (creating it with a
+    header on first use), so later lookups don't require opening every run's own folder.
+    Locked so concurrent runs sharing the same output root, on one or several machines,
+    can't interleave writes or duplicate the header row. Returns False (after a warning)
+    if the index stayed locked for the whole timeout; the run itself continues, since its
+    own folder is the complete record and the index can be rebuilt from it."""
+    index_path.parent.mkdir(parents=True, exist_ok=True)
+    row = index_row(run_id, manifest)
     lock_path = index_path.with_suffix(index_path.suffix + ".lock")
-    with _file_lock(lock_path):
-        is_new = not index_path.exists()
-        with open(index_path, "a", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=list(row.keys()))
-            if is_new:
-                writer.writeheader()
-            writer.writerow(row)
+    try:
+        with _file_lock(lock_path):
+            is_new = not index_path.exists()
+            with open(index_path, "a", newline="") as f:
+                writer = csv.DictWriter(f, fieldnames=INDEX_FIELDS)
+                if is_new:
+                    writer.writeheader()
+                writer.writerow(row)
+        return True
+    except TimeoutError as e:
+        print(
+            f"WARNING: {e}; this run is recorded only in its own folder "
+            "(run rebuild_index.py to regenerate index.csv later)"
+        )
+        return False
 
 
 def append_motion_timeseries(path: Path, clip_filename: str, motion_by_frame) -> None:
@@ -474,7 +511,8 @@ def main(
 
         manifest = build_manifest(input_paths)
         write_manifest(run_metadata_dir / "manifest.csv", manifest)
-        append_index_row(output / "videoproc_run_metadata" / "index.csv", run_id, manifest)
+        index_path = output / "videoproc_run_metadata" / "index.csv"
+        indexed = append_index_row(index_path, run_id, manifest)
 
         config = dict(kwargs)
         config["code_version"] = code_version()
@@ -634,6 +672,8 @@ def main(
             n_motion_skipped_compressed_source,
             taskcam_crf,
         )
+        if not indexed:
+            append_index_row(index_path, run_id, manifest)
 
     finally:
         # flush and restore stdout/stderr and close the log file, even on an early return
