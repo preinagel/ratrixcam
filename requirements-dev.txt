@@ -1,0 +1,2 @@
+# test-only dependency; videoproc itself already requires opencv-python and numpy
+pytest>=8

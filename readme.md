@@ -6,3 +6,21 @@ See the [User Manual](./docs/UserManual.md) and [Setup Instructions](./docs/SetU
 Project started by Blake Bruell and Pamela Reinagel 2025
 
 With support from the [NIH BRAIN Initiative](https://braininitiative.nih.gov/) and [NINDS](https://www.ninds.nih.gov/) 1R34NS132037-01
+
+## Running the tests
+
+The `videoproc` tools (`compress_drive.py`, `confirm_and_delete.py`) have a pytest suite
+under `tests/`. It generates its own synthetic video clips and runs entirely in temporary
+directories -- no real recordings or network drives are touched.
+
+Requirements: Python 3.10+, `ffmpeg` on PATH, and the packages `videoproc` itself already
+needs (`opencv-python`, `numpy`), plus `pytest`:
+
+    pip install -r requirements-dev.txt
+
+Run the suite from the repository root:
+
+    pytest -v
+
+GitHub Actions runs the same suite on every push and pull request to `dev` and `main`
+(see `.github/workflows/tests.yml`).

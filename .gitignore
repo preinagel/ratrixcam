@@ -14,3 +14,6 @@ videoproc/legacy_audit_backlog.py
 videoproc/legacy_datehist.py
 videoproc/needs_investigation.py
 videoproc/validate_source_folder.py
+
+# pytest
+.pytest_cache/
