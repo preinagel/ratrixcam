@@ -177,19 +177,20 @@ def append_index_row(index_path: Path, run_id: str, manifest: list[dict]) -> Non
 
 
 def append_motion_timeseries(path: Path, clip_filename: str, motion_by_frame) -> None:
-    """Append one clip's per-sampled-frame motion values (one row per sample), so per-frame
-    activity (e.g. for an occupancy timeline or picking high-activity sub-clips) survives
-    past the single found_motion/motion_perc summary already kept in the per-file log.
-    detect_motion.py skips the first 30 frames then keeps every 10th, so sample_index i
-    corresponds to true video frame ~40 + 10*i (and thus ~(40 + 10*i)/fps seconds in)."""
+    """Append one clip's per-sampled-frame motion values as a single row (clip filename,
+    then the values space-separated, 4 significant digits), so per-frame activity (e.g. for
+    an occupancy timeline or picking high-activity sub-clips) survives past the single
+    found_motion/motion_perc summary in the per-file log. detect_motion.py skips the first
+    N_FRAMES_TO_SKIP frames then keeps every SAMPLE_EVERY-th, so value i corresponds to true
+    video frame ~(N_FRAMES_TO_SKIP + SAMPLE_EVERY) + SAMPLE_EVERY*i. Read back with
+    `[float(x) for x in row['motion_values'].split()]`."""
     is_new = not path.exists()
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "a", newline="") as f:
         writer = csv.writer(f)
         if is_new:
-            writer.writerow(["clip_filename", "sample_index", "motion_value"])
-        for i, value in enumerate(motion_by_frame):
-            writer.writerow([clip_filename, i, value])
+            writer.writerow(["clip_filename", "motion_values"])
+        writer.writerow([clip_filename, " ".join(f"{value:.4g}" for value in motion_by_frame)])
 
 
 class TeeStream:
