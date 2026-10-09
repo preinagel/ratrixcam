@@ -74,9 +74,11 @@ def run_confirm_and_delete(source: Path, dest: Path, extra_args=(), delete=False
 
 
 def latest_run_dir(dest: Path, prefix: str) -> Path:
+    """The run folder most recently written to. Run ids only resolve to the second, so two
+    runs started within one second sort arbitrarily by name; folder mtime (ns) does not."""
     runs_root = dest / "videoproc_run_metadata"
-    candidates = sorted(p.name for p in runs_root.iterdir() if p.is_dir() and p.name.startswith(prefix))
-    return runs_root / candidates[-1]
+    candidates = [p for p in runs_root.iterdir() if p.is_dir() and p.name.startswith(prefix)]
+    return max(candidates, key=lambda p: p.stat().st_mtime_ns)
 
 
 def read_log(run_dir: Path) -> dict:

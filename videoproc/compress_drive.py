@@ -35,6 +35,7 @@ from classify import (
     find_unmatched_files,
     log_unmatched_files,
 )
+from run_metadata_transfer import destination_for, find_run_metadata_dirs, transfer
 from util import (
     RAW_CODEC,
     build_output_path,
@@ -431,6 +432,7 @@ def print_summary(
     motion_detection: bool,
     n_motion_skipped_compressed_source: int,
     taskcam_crf: int,
+    aux_summary: str = "",
 ) -> None:
     n_rows = sum(logger.status_counts.values())
     print("\n==== run summary ====")
@@ -453,7 +455,31 @@ def print_summary(
     unlisted = " (not listed individually; review by hand)" if n_unmatched_mp4 > MAX_LISTED_PATTERN_MISMATCHES else ""
     print(f".mp4 files not matching --pattern (not checked or copied): {n_unmatched_mp4}{unlisted}")
     print(f"non-.mp4 files in source (not checked or copied): {n_other}")
+    if aux_summary:
+        print(aux_summary)
     print(f"rows flagged for human review: {logger.n_action_items} -> {logger.action_items_path}")
+
+
+def transfer_run_metadata(source: Path, destination: Path) -> str:
+    """Copy every ratrixcam run-metadata folder found under the source to the archive, never
+    overwriting a destination file that differs. Returns the summary line for the run."""
+    run_dirs = find_run_metadata_dirs(source)
+    if not run_dirs:
+        return ""
+    n_files = 0
+    problems: list[str] = []
+    for run_dir in run_dirs:
+        dest_dir = destination_for(run_dir, destination)
+        n_copied, differing = transfer(run_dir, dest_dir)
+        n_files += n_copied
+        problems += [f"{run_dir.name}/{rel}" for rel in differing]
+        print(f"run metadata {run_dir.name}: {n_copied} file(s) copied to {dest_dir}")
+        for rel in differing:
+            print(f"    WARNING: {rel} already exists at the destination with a different size; not overwritten")
+    line = f"ratrixcam run-metadata folders transferred: {len(run_dirs)} ({n_files} file(s) copied)"
+    if problems:
+        line += f"; WARNING: {len(problems)} file(s) differ at the destination and were not overwritten"
+    return line
 
 
 def main(
@@ -538,6 +564,7 @@ def main(
 
         unmatched_mp4, n_other_files = find_unmatched_files(input, input_paths)
         log_unmatched_files(logger, unmatched_mp4, n_other_files, pattern)
+        aux_summary = transfer_run_metadata(input, output)
 
         n_unrecognized_view = 0
         n_motion_skipped_compressed_source = 0
@@ -671,6 +698,7 @@ def main(
             motion_detection,
             n_motion_skipped_compressed_source,
             taskcam_crf,
+            aux_summary,
         )
         if not indexed:
             append_index_row(index_path, run_id, manifest)

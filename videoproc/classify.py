@@ -5,6 +5,7 @@ from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
+from run_metadata_transfer import is_run_metadata_path
 from util import RAW_CODEC, get_codec_nframes
 
 # fixed vocabulary for the log's `status` column
@@ -187,12 +188,13 @@ def classify_file(
 def find_unmatched_files(input_root: Path, matched: list[Path]) -> tuple[list[Path], int]:
     """Everything under input_root that `--pattern` did not select: the .mp4 files
     individually, plus a count of all other files, so nothing in the source tree goes
-    unaccounted for when the user decides whether it is safe to delete."""
+    unaccounted for when the user decides whether it is safe to delete. Files inside
+    ratrixcam run-metadata folders are handled as a unit elsewhere and not counted here."""
     matched_set = set(matched)
     unmatched_mp4: list[Path] = []
     n_other = 0
     for path in input_root.rglob("*"):
-        if not path.is_file() or path in matched_set:
+        if not path.is_file() or path in matched_set or is_run_metadata_path(path, input_root):
             continue
         if path.suffix.lower() == ".mp4":
             unmatched_mp4.append(path)

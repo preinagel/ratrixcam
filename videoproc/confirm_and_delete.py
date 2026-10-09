@@ -33,6 +33,7 @@ from classify import (
     find_unmatched_files,
 )
 from compress_drive import append_index_row, build_manifest, start_terminal_log, write_manifest
+from run_metadata_transfer import compare, destination_for, find_run_metadata_dirs, remove, total_size
 from util import build_output_path, code_version, parse_filenames
 
 EXTRA_FIELDS = [
@@ -120,6 +121,7 @@ def print_summary(
     min_age_hours: float,
     decoded: bool,
     action_items_path: Path,
+    aux_summary: str = "",
 ) -> None:
     file_rows = [r for r in rows if r["status"] != STATUS_PATTERN_MISMATCH]
     counts: dict[str, int] = {}
@@ -139,12 +141,42 @@ def print_summary(
     unlisted = " (not listed individually; review by hand)" if n_unmatched_mp4 > MAX_LISTED_PATTERN_MISMATCHES else ""
     print(f".mp4 files not matching --pattern (not checked): {n_unmatched_mp4}{unlisted}")
     print(f"non-.mp4 files in source (not checked): {n_other}")
+    if aux_summary:
+        print(aux_summary)
     print(f"rows flagged for human review: {n_flagged} -> {action_items_path}")
 
 
-def delete_sources(source_root: Path, deletable: list[tuple[Path, Path]], run_dir: Path) -> None:
+def verify_run_metadata(source: Path, destination: Path) -> tuple[list[tuple[Path, Path]], list[Path], str]:
+    """Check every ratrixcam run-metadata folder under the source against its archive copy.
+    Returns (verified (run_dir, dest_dir) pairs, unverified run_dirs, summary line)."""
+    run_dirs = find_run_metadata_dirs(source)
+    if not run_dirs:
+        return [], [], ""
+    verified, unverified = [], []
+    for run_dir in run_dirs:
+        dest_dir = destination_for(run_dir, destination)
+        missing, differing = compare(run_dir, dest_dir)
+        if missing or differing:
+            unverified.append(run_dir)
+            print(
+                f"    NOT DELETABLE run metadata {run_dir.name}: {len(missing)} file(s) missing at the archive, "
+                f"{len(differing)} differing (run compress_drive to transfer it)"
+            )
+        else:
+            verified.append((run_dir, dest_dir))
+            print(f"    run metadata {run_dir.name}: all files present at {dest_dir}")
+    line = f"ratrixcam run-metadata folders: {len(verified)} verified at the archive"
+    if unverified:
+        line += f", {len(unverified)} NOT verified (block deletion)"
+    return verified, unverified, line
+
+
+def delete_sources(
+    source_root: Path, deletable: list[tuple[Path, Path]], run_dir: Path, aux_dirs: list[tuple[Path, Path]] = ()
+) -> None:
     """Delete verified source files one by one, logging each, then report what remains."""
-    print(f"\nAbout to permanently delete {len(deletable)} verified source file(s) under {source_root}")
+    extra = f" and {len(aux_dirs)} verified run-metadata folder(s)" if aux_dirs else ""
+    print(f"\nAbout to permanently delete {len(deletable)} verified source file(s){extra} under {source_root}")
     try:
         answer = input("Type DELETE to proceed, anything else to abort: ")
     except EOFError:
@@ -163,7 +195,11 @@ def delete_sources(source_root: Path, deletable: list[tuple[Path, Path]], run_di
             src.unlink()
             writer.writerow([src, dst, size, datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
             n_deleted += 1
-    print(f"Deleted {n_deleted} file(s); record in {deletion_log}")
+        for aux_src, aux_dst in aux_dirs:
+            size = total_size(aux_src)
+            remove(aux_src)
+            writer.writerow([aux_src, aux_dst, size, datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
+    print(f"Deleted {n_deleted} file(s)" + (f" and {len(aux_dirs)} run-metadata folder(s)" if aux_dirs else "") + f"; record in {deletion_log}")
 
     # remove folders left empty (a lone .DS_Store counts as empty), deepest first, so only
     # folders that still hold something remain for inspection
@@ -225,6 +261,7 @@ def main(
 
         unmatched_mp4, n_other_files = find_unmatched_files(source, input_paths)
         rows: list[dict] = unmatched_rows(unmatched_mp4, n_other_files, pattern)
+        aux_verified, aux_unverified, aux_summary = verify_run_metadata(source, destination)
 
         # ---- pass 1: cheap checks for every file (parse, probe, age) ----
         now = time.time()
@@ -286,11 +323,11 @@ def main(
                 print(f"    ERROR {input_path.resolve()}: {e}")
 
         write_rows(rows, log_path, action_items_path)
-        print_summary(rows, len(input_paths), len(unmatched_mp4), n_other_files, min_age_hours, False, action_items_path)
+        print_summary(rows, len(input_paths), len(unmatched_mp4), n_other_files, min_age_hours, False, action_items_path, aux_summary)
 
         # ---- refusal gate: stop before decoding if the run cannot end in a deletion ----
         candidates = [r for r in rows if r["deletable"]]
-        n_not_deletable = len(input_paths) - len(candidates) + len(unmatched_mp4)
+        n_not_deletable = len(input_paths) - len(candidates) + len(unmatched_mp4) + len(aux_unverified)
         if delete and n_not_deletable and not delete_partial:
             print(
                 f"\nREFUSING to delete: {n_not_deletable} file(s) are not verified deletable "
@@ -319,13 +356,13 @@ def main(
                 if i % 100 == 0 or i == len(candidates):
                     print(f"    decoded {i}/{len(candidates)}")
             write_rows(rows, log_path, action_items_path)
-            print_summary(rows, len(input_paths), len(unmatched_mp4), n_other_files, min_age_hours, True, action_items_path)
+            print_summary(rows, len(input_paths), len(unmatched_mp4), n_other_files, min_age_hours, True, action_items_path, aux_summary)
 
         if not delete:
             print("\nReport only: --delete not set, nothing was deleted.")
             return
         deletable = [(Path(r["input_path"]), Path(r["output_path"])) for r in rows if r["deletable"]]
-        n_not_deletable = len(input_paths) - len(deletable) + len(unmatched_mp4)
+        n_not_deletable = len(input_paths) - len(deletable) + len(unmatched_mp4) + len(aux_unverified)
         if n_not_deletable and not delete_partial:
             print(
                 f"\nREFUSING to delete: {n_not_deletable} file(s) are not verified deletable "
@@ -335,7 +372,7 @@ def main(
         if not deletable:
             print("\nNothing verified deletable; nothing deleted.")
             return
-        delete_sources(source, deletable, run_dir)
+        delete_sources(source, deletable, run_dir, aux_verified)
 
     finally:
         sys.stdout.flush()

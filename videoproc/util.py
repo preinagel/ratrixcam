@@ -3,28 +3,20 @@
 Intended to become the module shared with ratrixcam, so that both tools build and parse
 file and folder names with one convention."""
 
-import subprocess
+import sys
 from datetime import datetime
 from pathlib import Path
 
 import cv2
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repo root; the shared module moves next (#26)
+from ratrix_naming import code_version as _code_version  # noqa: E402
+
 
 def code_version() -> str:
-    """Short git commit of the videoproc checkout, '+dirty' if it has uncommitted edits,
-    'unknown' if git or the repository is unavailable. Recorded in every run's config.json
-    so settings hardwired in code can be recovered later."""
-    here = Path(__file__).resolve().parent
-    try:
-        commit = subprocess.run(
-            ["git", "-C", str(here), "rev-parse", "--short", "HEAD"], capture_output=True, text=True, check=True
-        ).stdout.strip()
-        dirty = subprocess.run(
-            ["git", "-C", str(here), "status", "--porcelain", "--", str(here)], capture_output=True, text=True, check=True
-        ).stdout.strip()
-        return commit + ("+dirty" if dirty else "")
-    except (OSError, subprocess.CalledProcessError):
-        return "unknown"
+    """Git commit of the videoproc checkout ('+dirty' if edited), recorded in every run's
+    config.json so settings hardwired in code can be recovered later."""
+    return _code_version(Path(__file__))
 
 # FourCC ratrixcam writes when it records; any other openable codec has been through
 # downstream processing and is treated as "compressed"

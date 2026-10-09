@@ -18,6 +18,7 @@ import PIL.ImageTk
 from PIL import Image, ImageTk
 
 import ratrix_multicam
+from ratrix_run_metadata import RunMetadata
 from ratrix_utils import (
     Config,
     ensure_config_file_exists,
@@ -32,6 +33,7 @@ class State:
     def __init__(self):
         self.camera_process: Process | None = None
         self.current_window: tk.Tk | None = None
+        self.run_metadata: RunMetadata | None = None
 
 
 def run_without_handlers(config: Config, stop_event: Event):
@@ -234,6 +236,8 @@ def create_config_editor(
             target=run_without_handlers, args=(config, stop_event)
         )
         state.camera_process.start()
+        if state.run_metadata is not None:
+            state.run_metadata.record_start()
         window.destroy()
 
     tk.Button(
@@ -452,6 +456,8 @@ def graceful_shutdown(state: State, stop_event: Event):
 
     if state.camera_process is None:
         print("No camera process to stop")
+        if state.run_metadata is not None and state.run_metadata.terminal_log is not None:
+            state.run_metadata.terminal_log.stop()
         return
 
     print("Ratrix IO attempting graceful shutdown...")
@@ -468,6 +474,13 @@ def graceful_shutdown(state: State, stop_event: Event):
         print("RatrixCam: Timed out waiting for child processes to terminate, killing")
         state.camera_process.kill()
     print("Ratrix Cam GUI: Shutdown complete")
+
+    # cameras are down: gather the run's artifacts (terminal log, stills, loose temp files)
+    if state.run_metadata is not None:
+        try:
+            state.run_metadata.collect_at_shutdown()
+        except Exception as e:
+            print(f"WARNING: run metadata collection failed: {e}")
 
     sys.exit(0)
 
@@ -502,6 +515,11 @@ def main():
     if config is None:
         return
 
+    # from here on, everything printed by this process and the camera processes it spawns
+    # also goes to a log file in the temp folder; it moves to the output drive at shutdown
+    state.run_metadata = RunMetadata(config, config_path)
+    state.run_metadata.start_terminal_log()
+
     # GUI
     bgcolor = "#3b0a0a"
     if os.environ.get("DISPLAY", "") == "":
@@ -522,6 +540,8 @@ def main():
 
     if state.camera_process is None:
         print("Session Ended, cameras not started")
+        if state.run_metadata.terminal_log is not None:
+            state.run_metadata.terminal_log.stop()
         return
 
     if not ensure_dir_exists(config.save_path):
