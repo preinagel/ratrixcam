@@ -1,2 +1,4 @@
-# test-only dependency; videoproc itself already requires opencv-python and numpy
+# test-only dependencies. videoproc itself needs opencv-python and numpy; the run-metadata
+# tests also import the ratrixcam side, which needs pydantic.
 pytest>=8
+pydantic>=2

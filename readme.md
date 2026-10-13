@@ -14,7 +14,8 @@ under `tests/`. It generates its own synthetic video clips and runs entirely in 
 directories -- no real recordings or network drives are touched.
 
 Requirements: Python 3.10+, `ffmpeg` on PATH, and the packages `videoproc` itself already
-needs (`opencv-python`, `numpy`), plus `pytest`:
+needs (`opencv-python`, `numpy`), plus `pytest` and `pydantic` (the run-metadata tests import
+ratrixcam modules):
 
     pip install -r requirements-dev.txt
 
