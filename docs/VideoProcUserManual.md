@@ -72,6 +72,7 @@ Several compressions may run at once against the same archive, from one or sever
 | `--motion_detection` | off | analyse each raw clip for motion and compress motionless clips much more strongly; also saves per-frame motion values. Off: every clip is encoded at `--taskcam_crf`. Never applied to already-compressed sources |
 | `--motion_percentile` | `99.9` | with motion detection: percentile of the per-frame motion values used as a clip's motion score |
 | `--motion_threshold` | `0` | with motion detection: a clip whose score is at or above this counts as having motion. 0 treats every clip as motion while still recording the motion values; we use `0.001` for our rats, calibrated on our own raw video |
+| `--motion_review` / `--no-motion_review` | on | with motion detection: save the highest-scoring frame of every no-motion clip as a JPEG in the run's `no_motion_stills/` folder, flag no-motion clips in which even one sampled frame reaches the threshold (`motion_review.csv`), and keep the per-frame motion values only for motion clips and flagged clips. Off: no stills, no flags, motion values kept for every clip |
 | `--n_threads` | `4` | threads given to ffmpeg |
 | `--taskcam_crf` | `25` | ffmpeg quality (CRF) for task-chamber views with motion, and for every clip when motion detection is off; lower is better quality and larger files |
 | `--compress_spd` | `veryfast` | ffmpeg preset; slower presets give smaller files for the same quality |
@@ -96,6 +97,10 @@ With `--motion_detection`, the tool samples every tenth frame of a clip at reduc
 
 The threshold and percentile are specific to our cameras, lighting and animals; another setup will need its own calibration, which is why the tool's default is to compress everything at full quality and record the motion values (`motion_timeseries.csv`) for later analysis rather than act on them. Already-compressed sources are never motion-analysed: compression artifacts register as motion and would defeat the purpose.
 
+> **Warning: strong compression destroys the ability to check for motion later.** A clip encoded at the no-motion setting (CRF 40) cannot be re-analysed for motion afterwards: compression artifacts dominate the detector's signal, and fine detail is gone for visual inspection too. Cage views encoded at CRF 30 preserve motion traces only roughly; task views at CRF 25 preserve them well. The no-motion classification is therefore the one decision in this pipeline that cannot be revisited once the raw clip is deleted. Leave `--motion_threshold` at its default of 0, which sends every clip down the motion pathway, until you have validated a threshold on your own raw video: run with the default, read the saved motion values, and confirm that clips you know to contain an animal always score above your candidate threshold and that empty clips score below it with margin. Our threshold of 0.001 at the 99.9th percentile was set that way; for our 10-minute clips it requires three sampled frames (about one second of video) at or above 0.001.
+
+**Reviewing no-motion clips before deleting the raw video.** With motion review on (the default), every clip classified no-motion leaves a still of its highest-scoring sampled frame in the run's `no_motion_stills/` folder, named for the clip and the frame number. A clip in which even one sampled frame reaches the threshold is listed in `motion_review.csv` with its peak score and still, keeps its full motion time series, and is counted in the run summary by view. These are the clips most likely to hide a brief visit by the animal that the percentile rule tolerated; look at their stills, their time series, or the raw clip, and if the classification was wrong, re-run with a different threshold and `--overwrite_compressed` before running `confirm_and_delete.py`. On our data about 3 % of no-motion clips are flagged.
+
 ## Technical Details
 Information below here is not necessary to use the tools, but may be useful when something unexpected turns up or when reconstructing how an archived clip was made.
 
@@ -112,15 +117,17 @@ Every run — compression or verification — creates its own folder under the a
 | ----------- | ----------- | ----------- |
 | `config.json` | both | every argument the run was given; `code_version` (the git commit of the code, `+dirty` if it had uncommitted edits); for compression runs also `encoding_policy` (codec, pixel format, preset, view lists, CRF per branch, no-motion GOP) and `motion_detection` (enabled, percentile, threshold, detector parameters) |
 | `manifest.csv` | both | per (subject, view) stream: date range covered and file count seen in the source scan |
-| `log.csv` | both | one row per file considered: `input_path`, `output_path`, `start_time`, `status`, `action_item`, `skipped_reason`, `error`, then the compression fields (`motion_perc`, `found_motion`, `motion_detection_time`, `fract_frames_exceeding`, `compression_ratio`, `compression_success`, `compression_time`, `valid_output`); verification runs add `source_codec`, `destination_codec`, `destination_mtime`, `age_hours`, `size_ratio`, `decode_ok`, `deletable` |
+| `log.csv` | both | one row per file considered: `input_path`, `output_path`, `start_time`, `status`, `action_item`, `skipped_reason`, `error`, then the compression fields (`motion_perc`, `found_motion`, `motion_detection_time`, `fract_frames_exceeding`, `motion_max`, `n_frames_over_threshold`, `motion_review_flag`, `compression_ratio`, `compression_success`, `compression_time`, `valid_output`); verification runs add `source_codec`, `destination_codec`, `destination_mtime`, `age_hours`, `size_ratio`, `decode_ok`, `deletable` |
 | `action_items.csv` | both | the subset of `log.csv` rows flagged for human review (header only if none) |
 | `terminal.log` | both | a copy of the terminal output including the end-of-run summary (messages printed directly by OpenCV or ffmpeg are not captured) |
-| `motion_timeseries.csv` | compression, only with `--motion_detection` | one row per compressed clip: `clip_filename`, `motion_values` (space-separated, one value per sampled frame, 4 significant digits) |
+| `motion_timeseries.csv` | compression, only with `--motion_detection` | one row per motion clip and per flagged no-motion clip (every compressed clip with `--no-motion_review`): `clip_filename`, `motion_values` (space-separated, one value per sampled frame, 4 significant digits) |
+| `no_motion_stills/` | compression, with motion detection and review | one JPEG per clip classified no-motion: the sampled frame with the highest motion score, `<clip>_frame<N>.jpg` (0-based frame number) |
+| `motion_review.csv` | compression, with motion detection and review, only if any clip was flagged | one row per no-motion clip with at least one sampled frame at the threshold: `clip_filename`, `output_path`, `motion_max`, `n_frames_over_threshold`, `motion_perc`, `peak_frame_number`, `still_path` |
 | `deletion_log.csv` | verification, only when files were deleted | one row per deleted original: `input_path`, `output_path`, `input_size_bytes`, `deleted_at` |
 
 In addition `<archive root>/videoproc_run_metadata/index.csv` gains one line per run (run id, subjects, date range, stream and file counts). Appends to it are locked so runs from several computers can share one archive.
 
-The footprint is about 9 KB per compressed clip (of which ~8 KB is the motion timeseries) and about 0.6 KB per verified clip — well under 0.1 % of the video.
+The footprint is about 9 KB per compressed clip (of which ~8 KB is the motion timeseries) plus a still of roughly 50 KB per no-motion clip, and about 0.6 KB per verified clip — well under 0.1 % of the video.
 
 ### What happens to each file
 For every file matching `--pattern`, `compress_drive.py` parses the filename, computes the destination path, probes both files (codec and frame count), and decides:

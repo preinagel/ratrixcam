@@ -12,10 +12,13 @@ import subprocess
 import sys
 import time
 import uuid
+from collections import Counter
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from pprint import pprint
 
+import cv2
 import detect_motion
 import numpy as np
 
@@ -65,6 +68,20 @@ PIX_FMT = "yuv420p"
 CRF_CAGE_MOTION = 30
 CRF_NO_MOTION = 40
 GOP_NO_MOTION = 1800
+
+# motion review: material kept so a no-motion classification can be checked before the raw
+# clip is deleted (see --motion_review)
+NO_MOTION_STILLS_DIRNAME = "no_motion_stills"
+MOTION_REVIEW_FILENAME = "motion_review.csv"
+MOTION_REVIEW_FIELDS = [
+    "clip_filename",
+    "output_path",
+    "motion_max",
+    "n_frames_over_threshold",
+    "motion_perc",
+    "peak_frame_number",
+    "still_path",
+]
 
 
 def encoding_policy(taskcam_crf: int, compress_spd: str) -> dict:
@@ -231,6 +248,25 @@ def append_motion_timeseries(path: Path, clip_filename: str, motion_by_frame) ->
         writer.writerow([clip_filename, " ".join(f"{value:.4g}" for value in motion_by_frame)])
 
 
+def save_peak_still(stills_dir: Path, clip_filename: str, frame, frame_number: int) -> Path:
+    """JPEG of the sampled frame that scored highest in a clip classified no-motion, so the
+    classification can be checked by eye before the raw clip is deleted."""
+    stills_dir.mkdir(parents=True, exist_ok=True)
+    path = stills_dir / f"{Path(clip_filename).stem}_frame{frame_number}.jpg"
+    cv2.imwrite(str(path), frame, [cv2.IMWRITE_JPEG_QUALITY, 90])
+    return path
+
+
+def append_motion_review_row(path: Path, row: dict) -> None:
+    """One row per no-motion clip with at least one sampled frame at or above the threshold."""
+    is_new = not path.exists()
+    with open(path, "a", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=MOTION_REVIEW_FIELDS)
+        if is_new:
+            writer.writeheader()
+        writer.writerow(row)
+
+
 class TeeStream:
     """File-like object that forwards each write to multiple underlying streams, so
     output reaches all of them (e.g. the live terminal and a log file) at once."""
@@ -330,22 +366,44 @@ def copy_file(in_file: Path, out_file: Path, max_retries: int = 5) -> None:
     raise RuntimeError(f"Failed to copy {in_file} to {out_file} after {max_retries} attempts")
 
 
-def run_motion_detection(input_path: Path, motion_percentile: float, motion_threshold: float):
-    """Perform motion detection and return results"""
+@dataclass
+class MotionResult:
+    motion_perc: float
+    found_motion: bool
+    detection_time: float
+    fract_frames_exceeding: float
+    motion_by_frame: np.ndarray
+    motion_max: float
+    n_frames_over_threshold: int
+    peak_frame: np.ndarray | None
+    peak_frame_number: int | None
+
+
+def run_motion_detection(input_path: Path, motion_percentile: float, motion_threshold: float) -> MotionResult | None:
+    """Motion detection on one clip. None when the clip has too few frames to score."""
     try:
         start = time.time()
-        motion_by_frame = detect_motion.main(input_path, play_video=False)
+        motion_by_frame, peak_frame, peak_frame_number = detect_motion.main(
+            input_path, play_video=False, return_peak=True
+        )
         motion_perc = np.percentile(motion_by_frame, motion_percentile)
-        found_motion = motion_perc >= motion_threshold
-        detection_time = time.time() - start
-        fract_frames_exceeding = np.mean(motion_by_frame > motion_threshold)
-
-        print("     ", fract_frames_exceeding, "of frames exceeded motion threshold")
-        return motion_perc, found_motion, detection_time, fract_frames_exceeding, motion_by_frame
+        over = motion_by_frame >= motion_threshold
+        print("     ", float(np.mean(over)), "of frames reached the motion threshold")
+        return MotionResult(
+            motion_perc,
+            motion_perc >= motion_threshold,
+            time.time() - start,
+            float(np.mean(over)),
+            motion_by_frame,
+            float(motion_by_frame.max()),
+            int(over.sum()),
+            peak_frame,
+            peak_frame_number,
+        )
 
     except IndexError:
         print(f"     WARNING: {input_path.resolve()} has not enough frames for motion detection")
-        return None, True, None, None, None
+        return None
 
 
 def compress_video(
@@ -433,6 +491,9 @@ def print_summary(
     n_motion_skipped_compressed_source: int,
     taskcam_crf: int,
     aux_summary: str = "",
+    motion_review: bool = False,
+    n_no_motion: int = 0,
+    flagged_by_view: Counter | None = None,
 ) -> None:
     n_rows = sum(logger.status_counts.values())
     print("\n==== run summary ====")
@@ -445,6 +506,14 @@ def print_summary(
             f"; skipped for {n_motion_skipped_compressed_source} clip(s) from already-compressed sources "
             f"(encoded at CRF {taskcam_crf})" if n_motion_skipped_compressed_source else ""
         ))
+        if motion_review:
+            print(f"no-motion clips: {n_no_motion}; peak still saved for each in {NO_MOTION_STILLS_DIRNAME}/")
+            n_flagged = sum(flagged_by_view.values()) if flagged_by_view else 0
+            by_view = ", ".join(f"{view} {n}" for view, n in sorted(flagged_by_view.items())) if n_flagged else ""
+            print(
+                f"    flagged for review (>= 1 sampled frame at the threshold): {n_flagged}"
+                + (f" ({by_view}) -> {MOTION_REVIEW_FILENAME}; time series kept for these" if n_flagged else "")
+            )
     else:
         print(f"motion detection: off -- every clip encoded at CRF {taskcam_crf}")
     if n_unrecognized_view:
@@ -496,6 +565,7 @@ def main(
     overwrite_compressed: bool,
     output_studyname: str,
     motion_detection: bool,
+    motion_review: bool,
 ):
     """(optional motion detection) -> compression."""
 
@@ -547,10 +617,18 @@ def main(
             "enabled": motion_detection,
             "percentile": motion_percentile,
             "threshold": motion_threshold,
+            "review": motion_review,
             **detect_motion.PARAMETERS,
         }
         if motion_detection:
             print(f"motion detection ON: threshold {motion_threshold} at the {motion_percentile}th percentile")
+            if motion_review:
+                print(
+                    f"motion review ON: peak still for every no-motion clip in {NO_MOTION_STILLS_DIRNAME}/; "
+                    "time series kept for motion clips and for no-motion clips with any sampled frame at the threshold"
+                )
+            else:
+                print("motion review OFF: no stills; time series kept for every clip")
         else:
             print(f"motion detection OFF: every clip encoded at CRF {taskcam_crf}")
         config_path = run_metadata_dir / "config.json"
@@ -568,6 +646,8 @@ def main(
 
         n_unrecognized_view = 0
         n_motion_skipped_compressed_source = 0
+        n_no_motion = 0
+        flagged_by_view: Counter = Counter()
         for i, input_path in enumerate(input_paths):
             if not wait_for_connectivity(input, output):
                 print(
@@ -632,15 +712,48 @@ def main(
                     n_motion_skipped_compressed_source += 1
                     print(f"    source is already compressed ({decision.input_codec}); motion detection skipped")
                 elif motion_detection:
-                    motion_perc, found_motion, detection_time, fract_frames_exceeding, motion_by_frame = (
-                        run_motion_detection(input_path, motion_percentile, motion_threshold)
-                    )
-                    logger.motion_detection_time = detection_time
-                    logger.motion_perc = motion_perc
-                    logger.found_motion = found_motion
-                    logger.fract_frames_exceeding = fract_frames_exceeding
-                    if motion_by_frame is not None:
-                        append_motion_timeseries(motion_timeseries_path, input_path.name, motion_by_frame)
+                    res = run_motion_detection(input_path, motion_percentile, motion_threshold)
+                    # too few frames to score: treated as motion, i.e. the conservative encoding
+                    found_motion = True if res is None else res.found_motion
+                    if res is not None:
+                        logger.motion_detection_time = res.detection_time
+                        logger.motion_perc = res.motion_perc
+                        logger.found_motion = res.found_motion
+                        logger.fract_frames_exceeding = res.fract_frames_exceeding
+                        logger.motion_max = res.motion_max
+                        logger.n_frames_over_threshold = res.n_frames_over_threshold
+                        flagged = False
+                        if motion_review and not res.found_motion:
+                            n_no_motion += 1
+                            still = save_peak_still(
+                                run_metadata_dir / NO_MOTION_STILLS_DIRNAME,
+                                input_path.name,
+                                res.peak_frame,
+                                res.peak_frame_number,
+                            )
+                            flagged = res.n_frames_over_threshold > 0
+                            logger.motion_review_flag = flagged
+                            if flagged:
+                                flagged_by_view[view] += 1
+                                print(
+                                    f"    REVIEW: no motion by the {motion_percentile}th-percentile rule, but "
+                                    f"{res.n_frames_over_threshold} sampled frame(s) reach the threshold "
+                                    f"(max {res.motion_max:.4g}); still and time series kept"
+                                )
+                                append_motion_review_row(
+                                    run_metadata_dir / MOTION_REVIEW_FILENAME,
+                                    {
+                                        "clip_filename": input_path.name,
+                                        "output_path": output_path,
+                                        "motion_max": f"{res.motion_max:.4g}",
+                                        "n_frames_over_threshold": res.n_frames_over_threshold,
+                                        "motion_perc": f"{res.motion_perc:.4g}",
+                                        "peak_frame_number": res.peak_frame_number,
+                                        "still_path": still,
+                                    },
+                                )
+                        if res.found_motion or flagged or not motion_review:
+                            append_motion_timeseries(motion_timeseries_path, input_path.name, res.motion_by_frame)
 
                 # (7) video compression; found_motion None means "no motion classification: best quality"
                 success, err_msg, compression_time, unrecognized_view = compress_video(
@@ -699,6 +812,9 @@ def main(
             n_motion_skipped_compressed_source,
             taskcam_crf,
             aux_summary,
+            motion_review,
+            n_no_motion,
+            flagged_by_view,
         )
         if not indexed:
             append_index_row(index_path, run_id, manifest)
@@ -752,6 +868,15 @@ if __name__ == "__main__":
         help="with --motion_detection: a clip whose motion score is at or above this counts as having motion. "
         "The default 0 classifies every clip as motion (encoded by view at --taskcam_crf / CRF 30) while still "
         "recording motion_timeseries.csv; this lab uses 0.001, calibrated on its own raw video",
+    )
+    parser.add_argument(
+        "--motion_review",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="with --motion_detection: save the highest-scoring frame of every no-motion clip as a still "
+        "in the run's no_motion_stills/ folder, and keep the motion time series only for motion clips and "
+        "for no-motion clips in which at least one sampled frame reaches --motion_threshold (listed in "
+        "motion_review.csv). --no-motion_review: no stills, time series for every clip",
     )
     parser.add_argument(
         "--n_threads",

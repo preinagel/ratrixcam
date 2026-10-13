@@ -25,9 +25,10 @@ WIDTH, HEIGHT, FPS = 640, 480, 30
 SQUARE = 60
 
 
-def _write_raw_clip(path: Path, n_frames: int) -> None:
+def _write_raw_clip(path: Path, n_frames: int, square_frames=None) -> None:
     """A moving solid square over a static textured (random-noise) background, written
-    with the FMP4 fourcc -- the FourCC ratrixcam itself records with."""
+    with the FMP4 fourcc -- the FourCC ratrixcam itself records with. square_frames limits
+    the square to those frame indices (None = every frame; empty = a static clip)."""
     fourcc = cv2.VideoWriter_fourcc(*"FMP4")
     writer = cv2.VideoWriter(str(path), fourcc, FPS, (WIDTH, HEIGHT))
     if not writer.isOpened():
@@ -36,9 +37,10 @@ def _write_raw_clip(path: Path, n_frames: int) -> None:
     background = rng.integers(0, 255, (HEIGHT, WIDTH, 3), dtype=np.uint8)
     for i in range(n_frames):
         frame = background.copy()
-        x = (i * 4) % (WIDTH - SQUARE)
-        y = (i * 3) % (HEIGHT - SQUARE)
-        frame[y : y + SQUARE, x : x + SQUARE] = (0, 0, 255)
+        if square_frames is None or i in square_frames:
+            x = (i * 4) % (WIDTH - SQUARE)
+            y = (i * 3) % (HEIGHT - SQUARE)
+            frame[y : y + SQUARE, x : x + SQUARE] = (0, 0, 255)
         writer.write(frame)
     writer.release()
 
@@ -82,6 +84,10 @@ def clips(tmp_path_factory) -> dict:
     _write_raw_clip(r30, 900)
     r20 = d / "R20.mp4"
     _write_raw_clip(r20, 600)
+    r30_static = d / "R30_static.mp4"
+    _write_raw_clip(r30_static, 900, square_frames=())
+    r30_blip = d / "R30_blip.mp4"
+    _write_raw_clip(r30_blip, 900, square_frames=range(495, 506))  # covers sampled frame 499
 
     c30 = d / "C30.mp4"
     _compress(r30, c30)
@@ -100,9 +106,10 @@ def clips(tmp_path_factory) -> dict:
     paths = {
         "R30": r30, "R20": r20, "C30": c30, "C20": c20, "junk": junk,
         "R30_corrupt": r30_corrupt, "C30_corrupt": c30_corrupt,
+        "R30_static": r30_static, "R30_blip": r30_blip,
     }
 
-    for name in ("R30", "R20", "R30_corrupt"):
+    for name in ("R30", "R20", "R30_corrupt", "R30_static", "R30_blip"):
         codec, _ = get_codec_nframes(paths[name])
         assert codec == RAW_CODEC, f"{name}: expected codec {RAW_CODEC!r}, got {codec!r}"
     for name in ("C30", "C20", "C30_corrupt"):

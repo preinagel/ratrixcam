@@ -30,7 +30,10 @@ PARAMETERS = {
 }
 
 
-def main(path, play_video):
+def main(path, play_video, return_peak=False):
+    """Per-sampled-frame motion scores for a clip. With return_peak, also returns the
+    full-resolution frame that scored highest and its 0-based frame number, for a still
+    image of the moment most likely to show an animal."""
     cap = cv.VideoCapture(path)
 
     mog = cv.createBackgroundSubtractorMOG2(
@@ -40,6 +43,7 @@ def main(path, play_video):
 
     motion_by_frame = []
     n_frames = 0
+    peak_value, peak_frame, peak_frame_number = -1.0, None, None
 
     while True:
         ret, frame = cap.read()
@@ -51,6 +55,7 @@ def main(path, play_video):
         if n_frames % SAMPLE_EVERY != 0:
             continue
 
+        full_frame = frame
         frame = cv.resize(frame, (frame.shape[1] // RESIZE_DIVISOR, frame.shape[0] // RESIZE_DIVISOR))
 
         # skip frames for MOG stability
@@ -65,7 +70,10 @@ def main(path, play_video):
         fg_mask_filt = cv.morphologyEx(fg_mask, cv.MORPH_OPEN, kernel)
 
         # motion by frame
-        motion_by_frame.append(cv.countNonZero(fg_mask_filt) / fg_mask_filt.size)
+        value = cv.countNonZero(fg_mask_filt) / fg_mask_filt.size
+        motion_by_frame.append(value)
+        if return_peak and value > peak_value:
+            peak_value, peak_frame, peak_frame_number = value, full_frame.copy(), n_frames - 1
 
         # display frame if show_frames is enabled
         if play_video and play_frame(fg_mask_filt):
@@ -73,6 +81,8 @@ def main(path, play_video):
 
     cap.release()
 
+    if return_peak:
+        return np.asarray(motion_by_frame), peak_frame, peak_frame_number
     return np.asarray(motion_by_frame)
 
 

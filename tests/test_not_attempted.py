@@ -29,7 +29,7 @@ def test_connectivity_lost_after_start_logs_every_file_not_attempted(tmp_path, c
         motion_percentile=99.9, motion_threshold=0.0, n_threads=4,
         taskcam_crf=25, compress_spd="veryfast", recompress=False,
         overwrite_raw=False, overwrite_compressed=False,
-        output_studyname=STUDYNAME, motion_detection=False,
+        output_studyname=STUDYNAME, motion_detection=False, motion_review=True,
     )
 
     run_dir = latest_run_dir(dest_root, "videoproc_")
