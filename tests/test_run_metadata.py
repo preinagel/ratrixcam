@@ -111,9 +111,28 @@ def test_collect_at_shutdown_gathers_loose_temp_files_and_stills(tmp_path):
     assert (run.run_dir / "Screenshot 2026-01-02.png").exists()
     assert (run.run_dir / run.log_path.name).read_text() == "fake terminal log\n"
     assert not (temp / "Screenshot 2026-01-02.png").exists()
+    assert not (Path(config.stills_path) / "cam_cam1_status.png").exists()  # moved, not copied
+    assert not Path(config.stills_path).exists()  # emptied stills folder removed
     assert not empty_cam_dir.exists()
     assert (busy_cam_dir / "cam2_20260102_03-04-05.mp4").exists()  # never touched
-    assert Path(config.stills_path).exists()  # stills folder itself stays
+    assert temp.exists()  # kept because a camera folder still holds a file
+
+
+def test_collect_at_shutdown_removes_an_emptied_temp_folder(tmp_path):
+    config, config_path = make_config(tmp_path)
+    run = RunMetadata(config, config_path)
+    run.record_start()
+    temp = Path(config.temp_path)
+    (Path(config.stills_path) / "cam_cam1_status.png").write_bytes(b"png")
+    (temp / ".DS_Store").write_bytes(b"")
+    run.log_path.write_text("fake terminal log\n")
+    (temp / "Test_cam1").mkdir()
+
+    run.collect_at_shutdown()
+
+    assert (run.run_dir / STILLS_DIRNAME / "cam_cam1_status.png").exists()
+    assert (run.run_dir / run.log_path.name).read_text() == "fake terminal log\n"
+    assert not temp.exists()
 
 
 # ----------------------------------------------------------------- videoproc side

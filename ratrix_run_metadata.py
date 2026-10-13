@@ -101,42 +101,65 @@ class RunMetadata:
             print(f"WARNING: could not write run metadata to {self.run_dir}: {e}")
 
     def collect_at_shutdown(self) -> None:
-        """After the cameras have stopped: copy the status stills, move every loose file from
-        the temp folder (screenshots, the terminal log, anything the user dropped there) into
-        the run's metadata folder, and remove per-camera temp folders that are empty. Folders
-        that still hold files -- untransferred videos -- are left alone and reported."""
+        """After the cameras have stopped: move the status stills and every loose file from
+        the temp folder (screenshots, anything the user dropped there) into the run's
+        metadata folder, remove per-camera temp folders that are empty, and report. The
+        terminal log is closed and moved last, so the report itself is in it. Folders that
+        still hold files -- untransferred videos -- are left alone and reported; otherwise
+        the temp folder is removed entirely."""
         if self._collected:
             return
         self._collected = True
-        if self.terminal_log is not None:
-            print(f"Collecting run metadata into {self.run_dir}")
-            self.terminal_log.stop()  # the log file must be complete and closed before it moves
+        print(f"Collecting run metadata into {self.run_dir}")
         if not ensure_dir_exists(str(self.run_dir)):
             print(f"WARNING: could not create {self.run_dir}; run artifacts left in {self.config.temp_path}")
+            if self.terminal_log is not None:
+                self.terminal_log.stop()
             return
+        temp = Path(self.config.temp_path)
         moved, kept = [], []
         try:
             stills_src = Path(self.config.stills_path)
             if stills_src.is_dir():
                 stills_dst = self.run_dir / STILLS_DIRNAME
                 stills_dst.mkdir(exist_ok=True)
-                for f in stills_src.iterdir():
-                    if f.is_file():
-                        shutil.copy2(f, stills_dst / f.name)
-            temp = Path(self.config.temp_path)
+                for f in sorted(stills_src.iterdir()):
+                    if f.is_file() and f.name != ".DS_Store":
+                        shutil.move(str(f), str(stills_dst / f.name))
+                        moved.append(f.name)
+                _remove_if_empty(stills_src)
             for entry in sorted(temp.iterdir()):
+                if entry == self.log_path:
+                    continue  # closed and moved last, below
                 if entry.is_file():
-                    if entry.name == ".DS_Store":
-                        continue
-                    shutil.move(str(entry), str(self.run_dir / entry.name))
-                    moved.append(entry.name)
-                elif entry.is_dir() and entry.resolve() != stills_src.resolve():
-                    if any(entry.iterdir()):
-                        kept.append(entry.name)
-                    else:
-                        entry.rmdir()
+                    if entry.name != ".DS_Store":
+                        shutil.move(str(entry), str(self.run_dir / entry.name))
+                        moved.append(entry.name)
+                elif entry.is_dir() and not _remove_if_empty(entry):
+                    kept.append(entry.name)
         except OSError as e:
             print(f"WARNING: collecting run metadata failed part-way: {e}")
-        print(f"Run metadata saved to {self.run_dir} ({len(moved)} file(s) moved from the temp folder)")
+        print(f"Run metadata collected: {len(moved)} file(s) moved from the temp folder")
         for name in kept:
             print(f"WARNING: temp folder '{name}' still contains files (untransferred videos?); left in place")
+        if self.terminal_log is not None:
+            print(f"Closing the terminal log and saving it as {self.run_dir / self.log_path.name}")
+            self.terminal_log.stop()
+        if self.log_path.exists():
+            try:
+                shutil.move(str(self.log_path), str(self.run_dir / self.log_path.name))
+            except OSError as e:
+                print(f"WARNING: could not move the terminal log into {self.run_dir}: {e}")
+        if not kept and temp.is_dir() and _remove_if_empty(temp):
+            print(f"Temp folder {temp} removed")
+
+
+def _remove_if_empty(folder: Path) -> bool:
+    """Remove a folder that holds nothing but a .DS_Store; True if it is gone."""
+    for f in folder.iterdir():
+        if f.name == ".DS_Store":
+            f.unlink()
+        else:
+            return False
+    folder.rmdir()
+    return True
