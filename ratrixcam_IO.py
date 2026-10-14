@@ -17,9 +17,9 @@ import PIL
 import PIL.ImageTk
 from PIL import Image, ImageTk
 
-import ratrix_multicam
-from ratrix_run_metadata import RunMetadata
-from ratrix_utils import (
+import ratrixcam_multi
+from ratrixcam_run_metadata import RunMetadata
+from ratrixcam_utils import (
     Config,
     ensure_config_file_exists,
     ensure_dir_exists,
@@ -39,7 +39,7 @@ class State:
 def run_without_handlers(config: Config, stop_event: Event):
     _ = signal.signal(signal.SIGINT, signal.SIG_IGN)
     _ = signal.signal(signal.SIGTERM, signal.SIG_IGN)
-    ratrix_multicam.run(config, stop_event)
+    ratrixcam_multi.run(config, stop_event)
 
 
 def hdd_status_update_loop(
@@ -152,7 +152,7 @@ def create_config_editor(
     window = tk.Tk()
     _ = window.configure(background=bgcolor)
     window.geometry("1024x600")
-    window.title("Ratrix Cameras")
+    window.title("ratrixcam")
 
     entry_font = font.Font(family="Helvitica", size=19)
     version_font = font.Font(family="Helvitica", size=9)
@@ -260,7 +260,7 @@ def create_recording_window(state: State, bgcolor: str, config: Config) -> tk.Tk
     _ = window.configure(background=bgcolor)
     window.geometry("1424x1200")
     right_row = 1150
-    window.title("Ratrix Camera System")
+    window.title("ratrixcam")
 
     cam_refresh = 1000
     cam_x, cam_y = 280, 215
@@ -450,7 +450,7 @@ def graceful_shutdown(state: State, stop_event: Event):
     _ = signal.signal(signal.SIGTERM, signal.SIG_DFL)
 
     if state.current_window is not None:
-        print("Ratrix IO: Closing GUI window")
+        print("ratrixcam IO: closing GUI window")
         state.current_window.destroy()
         state.current_window = None
 
@@ -460,7 +460,7 @@ def graceful_shutdown(state: State, stop_event: Event):
             state.run_metadata.terminal_log.stop()
         return
 
-    print("Ratrix IO attempting graceful shutdown...")
+    print("ratrixcam IO: attempting graceful shutdown...")
     stop_event.set()
 
     timeout = 600 #transcoding takes ~50% video duration, so wait 10min before killing unfinished processes
@@ -471,9 +471,9 @@ def graceful_shutdown(state: State, stop_event: Event):
             break
         time.sleep(0.1)  # wait a bit before trying again
     else:
-        print("RatrixCam: Timed out waiting for child processes to terminate, killing")
+        print("ratrixcam IO: timed out waiting for child processes to terminate, killing")
         state.camera_process.kill()
-    print("Ratrix Cam GUI: Shutdown complete")
+    print("ratrixcam IO: shutdown complete")
 
     # cameras are down: gather the run's artifacts (terminal log, stills, loose temp files)
     if state.run_metadata is not None:
@@ -503,7 +503,7 @@ def main():
         lambda sig, frame: graceful_shutdown(state, stop_event),
     )
 
-    parser = argparse.ArgumentParser(description="Ratrix Camera Setup", add_help=False)
+    parser = argparse.ArgumentParser(description="ratrixcam", add_help=False)
     _ = parser.add_argument("-c", "--config", type=str, required=True)
     args = vars(parser.parse_args())
     config_path: str = args["config"]

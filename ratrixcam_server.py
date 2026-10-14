@@ -16,7 +16,7 @@ import cv2
 from cv2.typing import MatLike
 from pydantic import BaseModel
 
-from ratrix_utils import Config, ensure_dir_exists, load_settings, still_path
+from ratrixcam_utils import Config, ensure_dir_exists, load_settings, still_path
 
 video_codec = cv2.VideoWriter.fourcc(*"mp4v")
 
@@ -306,7 +306,7 @@ def run(config: Config, device_id: int, stop_event: Event):
     #     f"==== STOPPING CAMERA {str(device_id + 1).zfill(2)} at: {datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}",
     # )
     
-    print(f"Ratrix Cam Server {device_id+1} Shutdown complete; saved {filecount} files during this run")
+    print(f"ratrixcam server {device_id+1}: shutdown complete; saved {filecount} files during this run")
 
 
 def main():
@@ -322,7 +322,7 @@ def main():
     _ = signal.signal(signal.SIGINT, int_handler)
     _ = signal.signal(signal.SIGTERM, lambda sig, frame: stop_event.set())
 
-    parser = argparse.ArgumentParser(description="Ratrix Camera Setup", add_help=False)
+    parser = argparse.ArgumentParser(description="ratrixcam camera server", add_help=False)
     _ = parser.add_argument("-c", "--config", type=str, required=True)
     _ = parser.add_argument("-i", "--index", type=int, required=True)
     args = vars(parser.parse_args())

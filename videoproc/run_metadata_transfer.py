@@ -1,12 +1,12 @@
 """Carry ratrixcam run-metadata folders (camera_config.json, terminal log, stills, notes --
-see ratrix_naming.py) from a source tree to the archive, and verify them there (GitHub #34)."""
+see ratrixcam_naming.py) from a source tree to the archive, and verify them there (GitHub #34)."""
 
 import shutil
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repo root; the shared module moves next (#26)
-from ratrix_naming import RUN_METADATA_DIRNAME  # noqa: E402
+from ratrixcam_naming import RUN_METADATA_DIRNAME  # noqa: E402
 
 
 def find_run_metadata_dirs(source_root: Path) -> list[Path]:

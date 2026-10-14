@@ -10,8 +10,8 @@ from multiprocessing.synchronize import Event
 from threading import Thread
 from types import FrameType
 
-import ratrix_cam_server
-from ratrix_utils import (
+import ratrixcam_server
+from ratrixcam_utils import (
     Config,
     ensure_dir_exists,
     load_settings,
@@ -44,7 +44,7 @@ def count_video_devices():
 def run_without_handlers(config: Config, camera_idx: int, stop_event: Event):
     _ = signal.signal(signal.SIGINT, signal.SIG_IGN)
     _ = signal.signal(signal.SIGTERM, signal.SIG_IGN)
-    ratrix_cam_server.run(config, camera_idx, stop_event)
+    ratrixcam_server.run(config, camera_idx, stop_event)
 
 
 # Main loop: check every second and restart any cameras or processes that are not running
@@ -167,7 +167,7 @@ def run(config: Config, stop_event: Event):
             print("TTL logging failed to terminate, killing process")
             p_TTL.kill()
 
-    print("Ratrix Multicam: Shutdown complete")
+    print("ratrixcam multi: shutdown complete")
 
 
 def main():
@@ -188,7 +188,7 @@ def main():
     _ = signal.signal(signal.SIGTERM, lambda sig, frame: stop())
 
     parser = argparse.ArgumentParser(
-        description="Ratrix Multi-Camera Setup", add_help=False
+        description="ratrixcam multi-camera supervisor", add_help=False
     )
     _ = parser.add_argument("-c", "--config", type=str, required=True)
     args = vars(parser.parse_args())

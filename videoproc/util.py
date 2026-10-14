@@ -10,7 +10,7 @@ from pathlib import Path
 import cv2
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repo root; the shared module moves next (#26)
-from ratrix_naming import code_version as _code_version  # noqa: E402
+from ratrixcam_naming import code_version as _code_version  # noqa: E402
 
 
 def code_version() -> str:

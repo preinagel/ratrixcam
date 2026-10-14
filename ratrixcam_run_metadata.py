@@ -11,7 +11,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from ratrix_naming import (
+from ratrixcam_naming import (
     CAMERA_CONFIG_FILENAME,
     NOTES_FILENAME,
     NOTES_TEMPLATE,
@@ -21,7 +21,7 @@ from ratrix_naming import (
     run_metadata_dir,
     terminal_log_filename,
 )
-from ratrix_utils import Config, ensure_dir_exists
+from ratrixcam_utils import Config, ensure_dir_exists
 
 
 class TerminalLog:

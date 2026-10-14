@@ -19,9 +19,9 @@ from helpers import (
 
 REPO = VIDEOPROC_DIR.parent
 sys.path.insert(0, str(REPO))
-from ratrix_naming import CAMERA_CONFIG_FILENAME, NOTES_FILENAME, RUN_METADATA_DIRNAME, STILLS_DIRNAME  # noqa: E402
-from ratrix_run_metadata import RunMetadata  # noqa: E402
-from ratrix_utils import Config  # noqa: E402
+from ratrixcam_naming import CAMERA_CONFIG_FILENAME, NOTES_FILENAME, RUN_METADATA_DIRNAME, STILLS_DIRNAME  # noqa: E402
+from ratrixcam_run_metadata import RunMetadata  # noqa: E402
+from ratrixcam_utils import Config  # noqa: E402
 
 
 def make_config(tmp_path: Path) -> tuple[Config, Path]:
@@ -48,8 +48,8 @@ def test_terminal_log_captures_parent_and_spawned_child_output(tmp_path):
     program = textwrap.dedent(f"""
         import multiprocessing, sys
         sys.path.insert(0, {str(REPO)!r})
-        from ratrix_run_metadata import RunMetadata
-        from ratrix_utils import load_settings
+        from ratrixcam_run_metadata import RunMetadata
+        from ratrixcam_utils import load_settings
 
         def child():
             print("CHILD says hello")
