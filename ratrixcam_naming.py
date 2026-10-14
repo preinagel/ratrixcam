@@ -5,7 +5,7 @@ builders/parsers still live in videoproc/util.py and move here next.
 Folder layout for a recording run's metadata (GitHub #34):
 
     <save_path>/ratrixcam_run_metadata/<run_id>/
-        camera_config.json          copy of the config in use, taken at launch
+        camera_config.json          copy of the config in use, taken at Start Recording
         terminal_<run_id>.log       verbatim terminal output of the whole run
         notes.txt                   template for the human's notes
         stills/                     the per-camera status stills as they were at shutdown
@@ -13,6 +13,7 @@ Folder layout for a recording run's metadata (GitHub #34):
 """
 
 import subprocess
+import uuid
 from datetime import datetime
 from pathlib import Path
 
@@ -44,8 +45,9 @@ def safe_token(text: str) -> str:
     return "".join(c if c.isalnum() or c in "-." else "_" for c in text.strip()) or "unnamed"
 
 
-def run_id(rack_name: str, started: datetime) -> str:
-    return f"{started:%Y%m%d_%H%M%S}_{safe_token(rack_name)}"
+def run_id(started: datetime) -> str:
+    """ratrixcam_<YYYYMMDD>_<HHMMSS>_<8 random hex>, the same shape as videoproc's run ids."""
+    return f"ratrixcam_{started:%Y%m%d_%H%M%S}_{uuid.uuid4().hex[:8]}"
 
 
 def run_metadata_dir(save_path: str | Path, run_id_: str) -> Path:

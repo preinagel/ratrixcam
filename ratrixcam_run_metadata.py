@@ -15,6 +15,7 @@ from ratrixcam_naming import (
     CAMERA_CONFIG_FILENAME,
     NOTES_FILENAME,
     NOTES_TEMPLATE,
+    RUN_METADATA_DIRNAME,
     STILLS_DIRNAME,
     code_version,
     run_id,
@@ -71,7 +72,7 @@ class RunMetadata:
         self.config = config
         self.config_path = config_path
         self.started = started or datetime.now()
-        self.run_id = run_id(config.rack_name, self.started)
+        self.run_id = run_id(self.started)
         self.log_path = Path(config.temp_path) / terminal_log_filename(self.run_id)
         self.run_dir = run_metadata_dir(config.save_path, self.run_id)
         self.terminal_log: TerminalLog | None = None
@@ -110,7 +111,7 @@ class RunMetadata:
         if self._collected:
             return
         self._collected = True
-        print(f"Collecting run metadata into {self.run_dir}")
+        print(f"Collecting run metadata in the Recording folder as {RUN_METADATA_DIRNAME}/{self.run_id}")
         if not ensure_dir_exists(str(self.run_dir)):
             print(f"WARNING: could not create {self.run_dir}; run artifacts left in {self.config.temp_path}")
             if self.terminal_log is not None:
@@ -143,7 +144,9 @@ class RunMetadata:
         for name in kept:
             print(f"WARNING: temp folder '{name}' still contains files (untransferred videos?); left in place")
         if self.terminal_log is not None:
-            print(f"Closing the terminal log and saving it as {self.run_dir / self.log_path.name}")
+            print(
+                f"Closing the terminal log and saving it as {RUN_METADATA_DIRNAME}/{self.run_id}/{self.log_path.name}"
+            )
             self.terminal_log.stop()
         if self.log_path.exists():
             try:
@@ -151,7 +154,7 @@ class RunMetadata:
             except OSError as e:
                 print(f"WARNING: could not move the terminal log into {self.run_dir}: {e}")
         if not kept and temp.is_dir() and _remove_if_empty(temp):
-            print(f"Temp folder {temp} removed")
+            print("Temp folder removed")
 
 
 def _remove_if_empty(folder: Path) -> bool:

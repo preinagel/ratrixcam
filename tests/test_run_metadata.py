@@ -4,6 +4,7 @@ deletion of ratrixcam_run_metadata folders) driven through the CLIs."""
 
 import csv
 import json
+import re
 import subprocess
 import sys
 import textwrap
@@ -82,7 +83,7 @@ def test_terminal_log_captures_parent_and_spawned_child_output(tmp_path):
 def test_record_start_copies_config_and_writes_notes_template(tmp_path):
     config, config_path = make_config(tmp_path)
     run = RunMetadata(config, config_path, started=datetime(2026, 1, 2, 3, 4, 5))
-    assert run.run_id == "20260102_030405_Test_Rack"
+    assert re.fullmatch(r"ratrixcam_20260102_030405_[0-9a-f]{8}", run.run_id)
     run.record_start()
     assert run.run_dir == Path(config.save_path) / RUN_METADATA_DIRNAME / run.run_id
     assert json.loads((run.run_dir / CAMERA_CONFIG_FILENAME).read_text())["rack_name"] == "Test Rack"
