@@ -124,14 +124,14 @@ def test_confirm_b_deletes_nothing(confirm_b, cd_prepared):
 
 def test_confirm_destination_inside_own_source_is_an_error(tmp_path, clips):
     dest2 = tmp_path / "dest2"
-    source_c = dest2 / "rat903"
-    place(clips["R30"], source_path(source_c, "10-00-00", subject="rat903"))
+    source_c = dest2 / "rat557"
+    place(clips["R30"], source_path(source_c, "10-00-00", subject="rat557"))
 
     result = run_confirm_and_delete(source_c, dest2, extra_args=["--min_age_hours", "0"])
     assert result.returncode == 0, result.stderr
 
     run_dir = latest_run_dir(dest2, "confirm_")
-    row = read_log(run_dir)[fname("10-00-00", subject="rat903")]
+    row = read_log(run_dir)[fname("10-00-00", subject="rat557")]
     assert row["status"] == "error"
     assert is_true(row["action_item"])
     assert "inside the source folder" in row["skipped_reason"]
@@ -171,20 +171,20 @@ def confirm_d(cd_prepared, confirm_b):
     return {"result": result, "run_dir": run_dir}
 
 
-def test_confirm_d_deletes_exactly_the_three_verified_clips(confirm_d, cd_prepared):
+def test_confirm_d_deletes_exactly_the_two_verified_clips(confirm_d, cd_prepared):
     deletion_rows = read_rows(confirm_d["run_dir"] / "deletion_log.csv")
-    assert len(deletion_rows) == 3
+    assert len(deletion_rows) == 2
 
     source_root, _ = cd_prepared
     assert not source_path(source_root, TIMES["t03"]).exists()
     assert not source_path(source_root, T11_TIME, date=T11_DATE).exists()
-    assert not source_path(source_root, HOM_TIME, view="hom").exists()
+    assert source_path(source_root, HOM_TIME, view="hom").exists()  # unparseable: never archived, never deleted
 
 
 def test_confirm_d_removes_emptied_session_folders(confirm_d, cd_prepared):
     source_root, _ = cd_prepared
     assert not session_folder_path(source_root, date=T11_DATE).exists()
-    assert not session_folder_path(source_root, view="hom").exists()
+    assert session_folder_path(source_root, view="hom").exists()  # still holds the unparseable clip
 
 
 def test_confirm_d_keeps_session_folder_with_leftovers(confirm_d, cd_prepared):

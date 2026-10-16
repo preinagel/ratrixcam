@@ -82,11 +82,10 @@ def test_run1_unparseable_filename_is_flagged(run1):
     assert is_true(row["action_item"])
 
 
-def test_run1_misspelt_view_is_compressed_and_warned(run1):
+def test_run1_misspelt_view_is_unparseable(run1):
     row = run1["log"][fname(HOM_TIME, view="hom")]
-    assert row["status"] == "compressed"
-    assert "unrecognized camera view 'hom'" in run1["result"].stdout
-    assert "1 file(s) had an unrecognized camera view" in run1["result"].stdout
+    assert row["status"] == "unparseable"
+    assert is_true(row["action_item"])
 
 
 def test_run1_pattern_mismatches_are_listed_individually(run1):
@@ -103,10 +102,7 @@ def test_run1_non_mp4_files_are_counted_in_summary(run1):
 def test_run1_motion_timeseries_has_one_row_per_motion_detected_clip(run1):
     # t03 is skipped as raw_at_destination before reaching compression/motion detection
     rows = read_rows(run1["run_dir"] / "motion_timeseries.csv")
-    expected_names = {
-        fname(TIMES["t01"]), fname(TIMES["t05"]),
-        fname(TIMES["t10"]), fname(HOM_TIME, view="hom"),
-    }
+    expected_names = {fname(TIMES["t01"]), fname(TIMES["t05"]), fname(TIMES["t10"])}
     assert {row["clip_filename"] for row in rows} == expected_names
     for row in rows:
         assert [float(x) for x in row["motion_values"].split()]

@@ -7,9 +7,9 @@ from pathlib import Path
 
 VIDEOPROC_DIR = Path(__file__).resolve().parents[1] / "videoproc"
 
-SUBJECT = "rat901"
+SUBJECT = "rat556"
 VIEW = "home"
-DATE = "20250101"
+DATE = "20250701"
 STUDYNAME = "LS"
 PATTERN = "**/Longitudinal*/*.mp4"
 
@@ -19,7 +19,7 @@ TIMES = {
     "t05": "10-05-00", "t06": "10-06-00", "t07": "10-07-00", "t08": "10-08-00",
     "t09": "10-09-00", "t10": "10-10-00",
 }
-T11_DATE = "20250102"
+T11_DATE = "20250702"
 T11_TIME = "10-11-00"
 HOM_TIME = "10-12-00"
 T12_TIME = "10-13-00"

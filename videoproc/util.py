@@ -3,8 +3,9 @@
 Intended to become the module shared with ratrixcam, so that both tools build and parse
 file and folder names with one convention."""
 
+import re
 import sys
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 
 import cv2
@@ -30,20 +31,36 @@ except ImportError:
     custom_filename_parser = None
 
 
-def parse_filenames(video_fname: Path) -> tuple[str, str, str, str] | None:
-    """Split a video filename into (subjectID, view, YYYYMMDD, HH-MM-SS).
+# the legacy experiment's standard clip name, every field closed-set or strictly parsed
+SUBJECT_IDS = frozenset(f"rat{n}" for n in range(556, 564))  # rat556 .. rat563
+VIEWS = frozenset(("face", "lid", "buddy", "home"))
+RECORDING_DATE_FIRST = date(2025, 6, 27)
+RECORDING_DATE_LAST = date(2025, 8, 29)
+VIDEO_EXT = ".mp4"
+STANDARD_STEM = re.compile(r"(rat\d{3})_([a-z]+)_(\d{8})_(\d{2}-\d{2}-\d{2})")
 
-    The standard shape is subjID_view_date_time, e.g. rat558_buddy_20250722_09-41-55.mp4.
-    Anything else is offered to custom_filename_parser.parse() if that module exists.
-    Returns None when neither recognizes the name; callers must treat that as unparseable
-    rather than substitute placeholder values.
-    TODO(generalize): validate tokens against the configured subject-ID and view lists and
-    a real date parse, instead of a bare token-count split."""
+
+def parse_filenames(video_fname: Path) -> tuple[str, str, str, str] | None:
+    """Split a clip filename into (subjectID, view, YYYYMMDD, HH-MM-SS).
+
+    The standard name is rat<ID>_<view>_<YYYYMMDD>_<HH-MM-SS>.mp4 with the subject in
+    SUBJECT_IDS, the view in VIEWS, a real date within the experiment's recording dates
+    and a real time. A name that fails any of these is offered to custom_filename_parser.parse()
+    if that module exists; otherwise, or if that also declines, the result is None and the
+    caller must treat the file as unparseable."""
     stem = video_fname.stem
-    tokens = stem.split("_")
-    if len(tokens) == 4:
-        subj_ID, camera_view, filming_date, filming_time = tokens
-        return subj_ID, camera_view, filming_date, filming_time
+    if video_fname.suffix == VIDEO_EXT:
+        m = STANDARD_STEM.fullmatch(stem)
+        if m:
+            subj_ID, camera_view, filming_date, filming_time = m.groups()
+            recorded = parse_recording_datetime(filming_date, filming_time)
+            if (
+                subj_ID in SUBJECT_IDS
+                and camera_view in VIEWS
+                and recorded is not None
+                and RECORDING_DATE_FIRST <= recorded.date() <= RECORDING_DATE_LAST
+            ):
+                return subj_ID, camera_view, filming_date, filming_time
     if custom_filename_parser is not None:
         return custom_filename_parser.parse(stem)
     return None
