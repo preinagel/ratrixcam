@@ -45,9 +45,9 @@ def parse_filenames(video_fname: Path) -> tuple[str, str, str, str] | None:
 
     The standard name is rat<ID>_<view>_<YYYYMMDD>_<HH-MM-SS>.mp4 with the subject in
     SUBJECT_IDS, the view in VIEWS, a real date within the experiment's recording dates
-    and a real time. A name that fails any of these is offered to custom_filename_parser.parse()
-    if that module exists; otherwise, or if that also declines, the result is None and the
-    caller must treat the file as unparseable."""
+    and a real time. A name that fails any of these is offered, extension included, to
+    custom_filename_parser.parse() if that module exists; otherwise, or if that also declines,
+    the result is None and the caller must treat the file as unparseable."""
     stem = video_fname.stem
     if video_fname.suffix == VIDEO_EXT:
         m = STANDARD_STEM.fullmatch(stem)
@@ -62,7 +62,7 @@ def parse_filenames(video_fname: Path) -> tuple[str, str, str, str] | None:
             ):
                 return subj_ID, camera_view, filming_date, filming_time
     if custom_filename_parser is not None:
-        return custom_filename_parser.parse(stem)
+        return custom_filename_parser.parse(video_fname.name)
     return None
 
 
