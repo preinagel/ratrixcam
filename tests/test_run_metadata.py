@@ -22,7 +22,7 @@ REPO = VIDEOPROC_DIR.parent
 sys.path.insert(0, str(REPO))
 from ratrixcam_naming import NOTES_FILENAME, RUN_METADATA_DIRNAME, STILLS_DIRNAME  # noqa: E402
 from ratrixcam_run_metadata import RunMetadata  # noqa: E402
-from ratrixcam_utils import Config  # noqa: E402
+from ratrixcam_utils import Config, stills_dir  # noqa: E402
 
 
 def make_config(tmp_path: Path) -> tuple[Config, Path]:
@@ -30,11 +30,9 @@ def make_config(tmp_path: Path) -> tuple[Config, Path]:
     for d in (temp, save, stills):
         d.mkdir(parents=True, exist_ok=True)
     data = {
-        "rack_name": "Test Rack", "study_label": "Test", "cameras": [{"name": "cam1", "row": 1, "col": 1}],
+        "study_label": "Test", "cameras": [{"subjID": "001", "view": "cam1", "position": "A"}],
         "default_fps": 30, "default_width": 640, "default_height": 480, "default_cam_exposure": -8.0,
-        "time_slice": 60, "preview_interval": 1, "codec": "MJPG", "video_ext": ".mp4",
-        "save_path": str(save), "temp_path": str(temp), "blank_image": str(tmp_path / "blank.png"),
-        "stills_path": str(stills), "recording_audio": False, "recording_ttl": False,
+        "time_slice": 60, "preview_interval": 1, "save_path": str(save), "temp_path": str(temp),
     }
     config_path = tmp_path / "camera_config_in_use.json"
     config_path.write_text(json.dumps(data, indent=2))
@@ -86,7 +84,7 @@ def test_record_start_copies_config_and_writes_notes_template(tmp_path):
     assert re.fullmatch(r"ratrixcam_20260102_030405_[0-9a-f]{8}", run.run_id)
     run.record_start()
     assert run.run_dir == Path(config.save_path) / RUN_METADATA_DIRNAME / run.run_id
-    assert json.loads((run.run_dir / Path(config_path).name).read_text())["rack_name"] == "Test Rack"
+    assert json.loads((run.run_dir / Path(config_path).name).read_text())["study_label"] == "Test"
     assert (run.run_dir / NOTES_FILENAME).read_text().startswith("Notes for this recording run")
 
 
@@ -95,7 +93,7 @@ def test_collect_at_shutdown_gathers_loose_temp_files_and_stills(tmp_path):
     run = RunMetadata(config, config_path)
     run.record_start()
     temp = Path(config.temp_path)
-    (Path(config.stills_path) / "cam_cam1_status.png").write_bytes(b"png")
+    (Path(stills_dir(config.temp_path)) / "cam_cam1_status.png").write_bytes(b"png")
     (temp / "Screenshot 2026-01-02.png").write_bytes(b"shot")
     (temp / ".DS_Store").write_bytes(b"")
     run.log_path.write_text("fake terminal log\n")
@@ -112,8 +110,8 @@ def test_collect_at_shutdown_gathers_loose_temp_files_and_stills(tmp_path):
     assert (run.run_dir / "Screenshot 2026-01-02.png").exists()
     assert (run.run_dir / run.log_path.name).read_text() == "fake terminal log\n"
     assert not (temp / "Screenshot 2026-01-02.png").exists()
-    assert not (Path(config.stills_path) / "cam_cam1_status.png").exists()  # moved, not copied
-    assert not Path(config.stills_path).exists()  # emptied stills folder removed
+    assert not (Path(stills_dir(config.temp_path)) / "cam_cam1_status.png").exists()  # moved, not copied
+    assert not Path(stills_dir(config.temp_path)).exists()  # emptied stills folder removed
     assert not empty_cam_dir.exists()
     assert (busy_cam_dir / "cam2_20260102_03-04-05.mp4").exists()  # never touched
     assert temp.exists()  # kept because a camera folder still holds a file
@@ -124,7 +122,7 @@ def test_collect_at_shutdown_removes_an_emptied_temp_folder(tmp_path):
     run = RunMetadata(config, config_path)
     run.record_start()
     temp = Path(config.temp_path)
-    (Path(config.stills_path) / "cam_cam1_status.png").write_bytes(b"png")
+    (Path(stills_dir(config.temp_path)) / "cam_cam1_status.png").write_bytes(b"png")
     (temp / ".DS_Store").write_bytes(b"")
     run.log_path.write_text("fake terminal log\n")
     (temp / "Test_cam1").mkdir()

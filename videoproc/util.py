@@ -12,8 +12,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repo root; the s
 from ratrixcam_naming import (  # noqa: E402
     build_output_path,
     code_version as _code_version,
-    parse_filenames,
-    parse_recording_datetime,
 )
 
 

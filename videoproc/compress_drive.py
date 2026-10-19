@@ -40,8 +40,8 @@ from classify import (
 )
 from run_metadata_transfer import destination_for, find_run_metadata_dirs, transfer
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "legacy"))  # path to legacy handling code, to be removed with the legacy backlog
-from legacy_rules import legacy_crf  # noqa: E402
+#sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "legacy"))  # path to legacy handling code, to be removed with the legacy backlog
+#from legacy_rules import legacy_crf  # noqa: E402
 
 from util import (
     RAW_CODEC,
@@ -730,7 +730,9 @@ def main(
                     if 0:
                         pass  # placeholder: per-camera compression setting from the config file (format TBD)
                     else:
-                        crf, unrecognized_view = legacy_crf(view)
+                        #crf, unrecognized_view = legacy_crf(view)
+                        crf=25
+                        unrecognized_view=1
                 n_unrecognized_view += unrecognized_view
 
                 # (8) video compression
