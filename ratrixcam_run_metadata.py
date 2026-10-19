@@ -5,6 +5,7 @@ ratrixcam_IO.py calls into it at launch, at Start Recording, and after the camer
 """
 
 import os
+import platform
 import shutil
 import subprocess
 import sys
@@ -22,6 +23,20 @@ from ratrixcam_naming import (
     terminal_log_filename,
 )
 from ratrixcam_utils import Config, ensure_dir_exists, stills_dir
+
+
+def computer_identity() -> str:
+    """'<host name> <MAC address>' of this computer, for the run records. The MAC is that of
+    the built-in Ethernet interface en0 as reported by ifconfig; unknown if it cannot be read."""
+    mac = "MAC unknown"
+    try:
+        for line in subprocess.run(["ifconfig", "en0"], capture_output=True, text=True, check=True).stdout.splitlines():
+            if line.strip().startswith("ether "):
+                mac = line.split()[1]
+                break
+    except (OSError, subprocess.CalledProcessError):
+        pass
+    return f"{platform.node()} {mac}"
 
 
 class TerminalLog:
@@ -82,7 +97,8 @@ class RunMetadata:
             print("WARNING: temp folder unavailable; terminal output will not be logged to a file")
             return
         self.terminal_log = TerminalLog(self.log_path)
-        print(f"ratrixcam run {self.run_id} -- code version {code_version()}")
+        print(f"ratrixcam run {self.run_id} -- code version {code_version()} -- computer {computer_identity()}")
+        print(f"Launched as: {sys.executable} {' '.join(sys.argv)}  (working folder {os.getcwd()})")
         print(f"Terminal output is being copied to {self.log_path}")
 
     def record_start(self) -> None:

@@ -21,10 +21,5 @@
     {"subjID": "999", "view": "view2", "position": "F"},
     {"subjID": "999", "view": "view3", "position": "G"},
     {"subjID": "999", "view": "view4", "position": "H"}
-  ],
-
-  "codec": "MJPG",
-  "video_ext": ".mp4",
-  "recording_audio": false,
-  "recording_ttl": false
+  ]
 }

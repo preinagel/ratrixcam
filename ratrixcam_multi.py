@@ -21,6 +21,10 @@ from ratrixcam_utils import (
     stills_dir,
 )
 
+# not currently supported; to be re-introduced as config options when implemented
+RECORDING_AUDIO = False
+RECORDING_TTL = False
+
 
 def count_video_devices():
     try:
@@ -131,7 +135,7 @@ def run(config: Config, stop_event: Event):
                 print(f"Multicam: error starting camera {name}:", e)
 
         # check the TTL process and restart if applicable
-        if config.recording_ttl:
+        if RECORDING_TTL:
             raise Exception("TTL server not implemented")
             if p_TTL is not None and p_TTL.is_alive():
                 continue

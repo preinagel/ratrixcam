@@ -35,12 +35,8 @@ class Config(BaseModel):
     default_cam_exposure: float  # LUT code for camera exposure setting, eg -8
     time_slice: int
     preview_interval: int
-    codec: str  # cv2 video codec, eg MJPG
-    video_ext: str  # extension for video files eg .mp4
     save_path: str  # final destination folder for video files
     temp_path: str  # temporary folder for video files while streaming
-    recording_audio: bool  # not currently supported
-    recording_ttl: bool  # not currently supported
 
 
 def ensure_dir_exists(path: str) -> bool:
