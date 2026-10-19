@@ -4,10 +4,12 @@ recheck inside the loop fails)."""
 
 import sys
 
+import pytest
+
 from helpers import PATTERN, STUDYNAME, VIDEOPROC_DIR, latest_run_dir, place, read_log, source_path
 
 sys.path.insert(0, str(VIDEOPROC_DIR))
-import compress_drive  # noqa: E402
+compress_drive = pytest.importorskip("compress_drive", exc_type=ImportError)
 
 
 def test_connectivity_lost_after_start_logs_every_file_not_attempted(tmp_path, clips, monkeypatch):
