@@ -16,7 +16,8 @@ import cv2
 from cv2.typing import MatLike
 from pydantic import BaseModel
 
-from ratrixcam_utils import Config, ensure_dir_exists, load_settings, still_path
+from ratrixcam_naming import still_path
+from ratrixcam_utils import Config, ensure_dir_exists, load_settings
 
 video_codec = cv2.VideoWriter.fourcc(*"mp4v")
 

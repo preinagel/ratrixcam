@@ -1,4 +1,4 @@
-"""Carry ratrixcam run-metadata folders (camera_config.json, terminal log, stills, notes --
+"""Carry ratrixcam run-metadata folders (config copy, terminal log, stills, notes --
 see ratrixcam_naming.py) from a source tree to the archive, and verify them there (GitHub #34)."""
 
 import shutil

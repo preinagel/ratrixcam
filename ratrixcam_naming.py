@@ -5,20 +5,21 @@ builders/parsers still live in videoproc/util.py and move here next.
 Folder layout for a recording run's metadata (GitHub #34):
 
     <save_path>/ratrixcam_run_metadata/<run_id>/
-        camera_config.json          copy of the config in use, taken at Start Recording
+        <config filename>           copy of the config file given with -c, same name, taken at Start Recording
         terminal_<run_id>.log       verbatim terminal output of the whole run
         notes.txt                   template for the human's notes
         stills/                     the per-camera status stills as they were at shutdown
         <anything else>             other files found in the temp folder at shutdown
 """
 
+import importlib.util
+import os
 import subprocess
 import uuid
 from datetime import datetime
 from pathlib import Path
 
 RUN_METADATA_DIRNAME = "ratrixcam_run_metadata"
-CAMERA_CONFIG_FILENAME = "camera_config.json"
 NOTES_FILENAME = "notes.txt"
 STILLS_DIRNAME = "stills"
 NOTES_TEMPLATE = "Notes for this recording run (free text; edit by hand).\n"
@@ -56,3 +57,58 @@ def run_metadata_dir(save_path: str | Path, run_id_: str) -> Path:
 
 def terminal_log_filename(run_id_: str) -> str:
     return f"terminal_{run_id_}.log"
+
+
+def still_path(stills_path: str, camera_name: str) -> str:
+    return os.path.join(stills_path, f"cam_{camera_name}_status.png")
+
+
+# optional site-specific parser for filename shapes the standard rule does not cover; loaded
+# from this exact file and nowhere else (see custom_filename_parser_example.py)
+CUSTOM_PARSER_PATH = Path(__file__).resolve().parent / "custom_filename_parser.py"
+
+
+def _load_custom_parser():
+    if not CUSTOM_PARSER_PATH.is_file():
+        return None
+    spec = importlib.util.spec_from_file_location("custom_filename_parser", CUSTOM_PARSER_PATH)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+custom_filename_parser = _load_custom_parser()
+
+
+def parse_filenames(video_fname: Path) -> tuple[str, str, str, str] | None:
+    """Split a video filename into (subjectID, view, YYYYMMDD, HH-MM-SS).
+
+    The standard shape is subjID_view_date_time, e.g. rat558_buddy_20250722_09-41-55.mp4.
+    Anything else is offered to custom_filename_parser.parse() if that module exists.
+    Returns None when neither recognizes the name; callers must treat that as unparseable
+    rather than substitute placeholder values.
+    TODO(generalize): validate tokens against the configured subject-ID and view lists and
+    a real date parse, instead of a bare token-count split."""
+    stem = video_fname.stem
+    tokens = stem.split("_")
+    if len(tokens) == 4:
+        subj_ID, camera_view, filming_date, filming_time = tokens
+        return subj_ID, camera_view, filming_date, filming_time
+    if custom_filename_parser is not None:
+        return custom_filename_parser.parse(stem)
+    return None
+
+
+def parse_recording_datetime(filming_date: str, filming_time: str) -> datetime | None:
+    try:
+        return datetime.strptime(f"{filming_date}_{filming_time}", "%Y%m%d_%H-%M-%S")
+    except ValueError:
+        return None
+
+
+def build_output_path(
+    output_root: Path, output_studyname: str, subj_ID: str, view: str, recording_date: str, recording_time: str
+) -> Path:
+    """Standard final-destination path for a compressed clip."""
+    new_filename = f"{subj_ID}_{view}_{recording_date}_{recording_time}.mp4"
+    return output_root / subj_ID / f"{output_studyname}_{subj_ID}_{view}_{recording_date}" / new_filename

@@ -69,12 +69,11 @@ Several compressions may run at once against the same archive, from one or sever
 | `output` | required | archive root; compressed files and run records are written under it |
 | `--output_studyname` | required | study-name prefix for archive folders (e.g. `LS`), independent of whatever prefix the source files carry |
 | `--pattern` | `**/LS*/*.mp4` | glob selecting which source files are in scope |
-| `--motion_detection` | off | analyse each raw clip for motion and compress motionless clips much more strongly; also saves per-frame motion values. Off: every clip is encoded at `--taskcam_crf`. Never applied to already-compressed sources |
+| `--motion_detection` | off | analyse each raw clip for motion and compress motionless clips much more strongly; also saves per-frame motion values. Off: every clip is encoded according to the camera policy in force |
 | `--motion_percentile` | `99.9` | with motion detection: percentile of the per-frame motion values used as a clip's motion score |
 | `--motion_threshold` | `0` | with motion detection: a clip whose score is at or above this counts as having motion. 0 treats every clip as motion while still recording the motion values; we use `0.001` for our rats, calibrated on our own raw video |
 | `--motion_review` / `--no-motion_review` | on | with motion detection: save the highest-scoring frame of every no-motion clip as a JPEG in the run's `no_motion_stills/` folder, flag no-motion clips in which even one sampled frame reaches the threshold (`motion_review.csv`), and keep the per-frame motion values only for motion clips and flagged clips. Off: no stills, no flags, motion values kept for every clip |
 | `--n_threads` | `4` | threads given to ffmpeg |
-| `--taskcam_crf` | `25` | ffmpeg quality (CRF) for task-chamber views with motion, and for every clip when motion detection is off; lower is better quality and larger files |
 | `--compress_spd` | `veryfast` | ffmpeg preset; slower presets give smaller files for the same quality |
 | `--recompress` | off | re-encode source files that are already compressed instead of copying them as-is (a second lossy generation — for when the raw originals are gone and the first compression was too weak) |
 | `--overwrite_raw` | off | replace a raw (uncompressed) video found at the destination with the processed source |
@@ -115,7 +114,8 @@ Every run — compression or verification — creates its own folder under the a
 
 | File | Written by | Contents |
 | ----------- | ----------- | ----------- |
-| `config.json` | both | every argument the run was given; `code_version` (the git commit of the code, `+dirty` if it had uncommitted edits); for compression runs also `encoding_policy` (codec, pixel format, preset, view lists, CRF per branch, no-motion GOP) and `motion_detection` (enabled, percentile, threshold, detector parameters) |
+| `compression_config.json` | compression | every argument the run was given; `code_version` (the git commit of the code, `+dirty` if it had uncommitted edits); `motion_detection` (enabled, percentile, threshold, detector parameters) |
+| `config.json` | verification | every argument the run was given; `code_version` |
 | `manifest.csv` | both | per (subject, view) stream: date range covered and file count seen in the source scan |
 | `log.csv` | both | one row per file considered: `input_path`, `output_path`, `start_time`, `status`, `action_item`, `skipped_reason`, `error`, then the compression fields (`motion_perc`, `found_motion`, `motion_detection_time`, `fract_frames_exceeding`, `motion_max`, `n_frames_over_threshold`, `motion_review_flag`, `compression_ratio`, `compression_success`, `compression_time`, `valid_output`); verification runs add `source_codec`, `destination_codec`, `destination_mtime`, `age_hours`, `size_ratio`, `decode_ok`, `deletable` |
 | `action_items.csv` | both | the subset of `log.csv` rows flagged for human review (header only if none) |
@@ -149,10 +149,10 @@ A valid source that is itself already compressed is copied byte-for-byte unless 
 `confirm_and_delete.py` applies the same table in report-only form and adds `not_at_destination`, `destination_invalid`, `too_recent` and `decode_failed`, all flagged. A file is deletable only if its status is `already_done` after the age gate and the decode check.
 
 ### Compression settings in force
-Outputs are H.264 (`libx264`, `yuv420p`). With motion detection off, or for an already-compressed source, every clip is encoded at `--taskcam_crf`. With motion detection on: clips with motion from the task-chamber views (`lid`, `face`) use `--taskcam_crf`; clips with motion from the cage views (`buddy`, `home`) use CRF 30; clips with motion from any other view name use `--taskcam_crf` and produce a warning, since an unknown view name usually means a misnamed file; clips without motion use CRF 40 with a 1800-frame keyframe interval. The view names are currently fixed in the code; the complete table in force is written to each run's `config.json`.
+Outputs are H.264 (`libx264`, `yuv420p`). With motion detection on, clips without motion use CRF 40 with a 1800-frame keyframe interval. Every other clip, including all clips when motion detection is off, is encoded at the CRF given by the camera policy in force. The policy currently in force is the lab's legacy rule in `legacy/legacy_rules.py`: task-chamber views (`lid`, `face`) use CRF 25; cage views (`buddy`, `home`) use CRF 30; any other view name uses CRF 25 and produces a warning, since an unknown view name usually means a misnamed file. The terminal log records the CRF chosen for each clip.
 
 ### Legacy filenames and `custom_filename_parser.py`
-The tools recognize one filename shape, `<subjectID>_<view>_<YYYYMMDD>_<HH-MM-SS>.mp4`. For archives with older conventions, copy `videoproc/custom_filename_parser_example.py` to `videoproc/custom_filename_parser.py` and implement `parse(stem)`, which receives the filename without extension and returns `(subjectID, view, YYYYMMDD, HH-MM-SS)` or `None`. The tools call it for any name the standard rule does not recognize. The file is excluded from version control because it describes your data, not the tool.
+The tools recognize one filename shape, `<subjectID>_<view>_<YYYYMMDD>_<HH-MM-SS>.mp4`. For archives with older conventions, copy `custom_filename_parser_example.py` (in the repo folder) to `custom_filename_parser.py` next to it and implement `parse(stem)`, which receives the filename without extension and returns `(subjectID, view, YYYYMMDD, HH-MM-SS)` or `None`. The tools call it for any name the standard rule does not recognize. The file is excluded from version control because it describes your data, not the tool.
 
 ### Timing and capacity
 On an 8-core Apple-silicon Mac with 10-minute 640×480 clips: compression about 12–15 s per clip plus about 11 s of motion detection when enabled; verification probe about one minute per thousand clips; decode about 1–3 s per clip. Raw clips of 200–770 MB typically compress to 1–60 MB depending on view and motion, an aggregate ratio of roughly 25–30 to one. The source and destination may both be on a network volume; a dropped mount pauses the run (fast retries for a minute, then every ten minutes, for up to ten hours) rather than failing it.

@@ -3,6 +3,8 @@ import shutil
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 
+from ratrixcam_naming import still_path
+
 
 class CameraConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -68,10 +70,6 @@ def ensure_config_file_exists(config_file: str):
             print("Fatal Error: failed to find settings file " + config_file)
             print(type(e), e)
             return
-
-
-def still_path(stills_path: str, camera_name: str) -> str:
-    return os.path.join(stills_path, f"cam_{camera_name}_status.png")
 
 
 def reset_stills(config: Config):

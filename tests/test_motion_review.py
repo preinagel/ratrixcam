@@ -53,7 +53,7 @@ def test_review_classifies_moving_static_and_blip(tmp_path, clips):
 
     assert "no-motion clips: 2" in result.stdout
     assert "flagged for review (>= 1 sampled frame at the threshold): 1 (home 1)" in result.stdout
-    config = json.loads((run_dir / "config.json").read_text())
+    config = json.loads((run_dir / "compression_config.json").read_text())
     assert config["motion_detection"]["review"] is True
 
 
@@ -66,5 +66,5 @@ def test_review_off_keeps_every_timeseries_and_no_stills(tmp_path, clips):
     log = read_log(run_dir)
     assert log[fname(BLIP)]["motion_review_flag"] == ""
     assert "motion review OFF" in result.stdout
-    config = json.loads((run_dir / "config.json").read_text())
+    config = json.loads((run_dir / "compression_config.json").read_text())
     assert config["motion_detection"]["review"] is False

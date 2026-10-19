@@ -12,7 +12,6 @@ from datetime import datetime
 from pathlib import Path
 
 from ratrixcam_naming import (
-    CAMERA_CONFIG_FILENAME,
     NOTES_FILENAME,
     NOTES_TEMPLATE,
     RUN_METADATA_DIRNAME,
@@ -93,7 +92,7 @@ class RunMetadata:
             print(f"WARNING: could not create {self.run_dir}; run metadata will not be saved")
             return
         try:
-            shutil.copy2(self.config_path, self.run_dir / CAMERA_CONFIG_FILENAME)
+            shutil.copy2(self.config_path, self.run_dir / os.path.basename(self.config_path))
             notes = self.run_dir / NOTES_FILENAME
             if not notes.exists():
                 notes.write_text(NOTES_TEMPLATE)

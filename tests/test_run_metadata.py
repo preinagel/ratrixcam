@@ -20,7 +20,7 @@ from helpers import (
 
 REPO = VIDEOPROC_DIR.parent
 sys.path.insert(0, str(REPO))
-from ratrixcam_naming import CAMERA_CONFIG_FILENAME, NOTES_FILENAME, RUN_METADATA_DIRNAME, STILLS_DIRNAME  # noqa: E402
+from ratrixcam_naming import NOTES_FILENAME, RUN_METADATA_DIRNAME, STILLS_DIRNAME  # noqa: E402
 from ratrixcam_run_metadata import RunMetadata  # noqa: E402
 from ratrixcam_utils import Config  # noqa: E402
 
@@ -86,7 +86,7 @@ def test_record_start_copies_config_and_writes_notes_template(tmp_path):
     assert re.fullmatch(r"ratrixcam_20260102_030405_[0-9a-f]{8}", run.run_id)
     run.record_start()
     assert run.run_dir == Path(config.save_path) / RUN_METADATA_DIRNAME / run.run_id
-    assert json.loads((run.run_dir / CAMERA_CONFIG_FILENAME).read_text())["rack_name"] == "Test Rack"
+    assert json.loads((run.run_dir / Path(config_path).name).read_text())["rack_name"] == "Test Rack"
     assert (run.run_dir / NOTES_FILENAME).read_text().startswith("Notes for this recording run")
 
 
@@ -145,7 +145,7 @@ def source_with_run_metadata(tmp_path, clips):
     place(clips["R30"], source_path(source_root, "10-00-00"))
     run_dir = source_root / RUN_METADATA_DIRNAME / "20260102_030405_Test_Rack"
     (run_dir / STILLS_DIRNAME).mkdir(parents=True)
-    (run_dir / CAMERA_CONFIG_FILENAME).write_text('{"rack_name": "Test Rack"}')
+    (run_dir / "camera_config.json").write_text('{"rack_name": "Test Rack"}')
     (run_dir / NOTES_FILENAME).write_text("notes\n")
     (run_dir / "terminal_20260102_030405_Test_Rack.log").write_text("log\n")
     (run_dir / STILLS_DIRNAME / "cam_cam1_status.png").write_bytes(b"png")
@@ -157,7 +157,7 @@ def test_compress_drive_transfers_run_metadata_and_counts_nothing_else(source_wi
     result = run_compress_drive(source_root, dest_root, extra_args=["--n_threads", "4"])
     assert result.returncode == 0, result.stderr
     dest_run = dest_root / RUN_METADATA_DIRNAME / run_dir.name
-    assert (dest_run / CAMERA_CONFIG_FILENAME).exists()
+    assert (dest_run / "camera_config.json").exists()
     assert (dest_run / STILLS_DIRNAME / "cam_cam1_status.png").exists()
     assert "ratrixcam run-metadata folders transferred: 1 (4 file(s) copied)" in result.stdout
     assert "non-.mp4 files in source (not checked or copied): 0" in result.stdout

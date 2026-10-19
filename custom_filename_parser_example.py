@@ -3,7 +3,7 @@ Template for a site-specific filename parser.
 
 videoproc recognizes one filename shape natively: <subjectID>_<view>_<YYYYMMDD>_<HH-MM-SS>.
 If your archive contains files named by an older or different convention, copy this file to
-custom_filename_parser.py in the same folder and fill in parse() with your own rules; videoproc
+custom_filename_parser.py in the repo folder, next to ratrixcam_naming.py and fill in parse() with your own rules; videoproc
 will call it for any filename the standard rule does not recognize. Keep custom_filename_parser.py
 out of version control -- it describes your data, not the tool.
 

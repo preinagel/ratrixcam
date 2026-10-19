@@ -32,8 +32,7 @@ def read_motion_timeseries(run_dir: Path) -> dict[str, np.ndarray]:
 
 
 def sampled_frame_numbers(n_samples: int, parameters: dict = detect_motion.PARAMETERS) -> np.ndarray:
-    """0-based video frame number of each sampled score, from the detector parameters
-    recorded in the run's config.json (or the current defaults)."""
+    """0-based video frame number of each sampled score, given the detector parameters."""
     skip, every = parameters["n_frames_to_skip"], parameters["sample_every"]
     first = (skip // every + 1) * every - 1
     return first + every * np.arange(n_samples)

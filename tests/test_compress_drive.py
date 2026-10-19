@@ -175,7 +175,7 @@ def test_motion_detection_off_leaves_motion_columns_blank(tmp_path, clips):
     assert row["motion_perc"] == ""
     assert not (run_dir / "motion_timeseries.csv").exists()
 
-    config = json.loads((run_dir / "config.json").read_text())
+    config = json.loads((run_dir / "compression_config.json").read_text())
     assert config["motion_detection"]["enabled"] is False
 
 

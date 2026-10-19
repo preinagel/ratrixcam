@@ -39,15 +39,23 @@ from classify import (
     log_unmatched_files,
 )
 from run_metadata_transfer import destination_for, find_run_metadata_dirs, transfer
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "legacy"))  # path to legacy handling code, to be removed with the legacy backlog
+from legacy_rules import legacy_crf  # noqa: E402
+
 from util import (
     RAW_CODEC,
-    build_output_path,
     code_version,
     get_codec_nframes,
+)
+
+from ratrixcam_naming import (
+    build_output_path,
     parse_filenames,
     parse_recording_datetime,
 )
 
+# NON-NEGOTIABLE HARDWIRED CONSTANTS DEFINED HERE
 # connectivity-loss handling: if the input/output root becomes unreachable (e.g. a
 # network-mounted volume drops), retry fast at first, then patiently, before giving up --
 # rather than spinning through the rest of the file list failing on every single file
@@ -56,18 +64,10 @@ CONNECTIVITY_FAST_RETRY_COUNT = 6  # 1 minute total
 CONNECTIVITY_SLOW_RETRY_SECONDS = 600  # 10 minutes
 CONNECTIVITY_TOTAL_TIMEOUT_HOURS = 10
 
-# TODO(generalize): camera views and their compression policy belong in the shared config,
-# not here. Until then, only these names select a policy; anything else is treated as a
-# probable misnaming and compressed with the conservative task-view setting
-TASK_VIEWS = ("lid", "face")
-CAGE_VIEWS = ("buddy", "home")
-
-# ffmpeg encoding policy. The task-view CRF is the --taskcam_crf argument; the rest is fixed
 VIDEO_CODEC = "libx264"
 PIX_FMT = "yuv420p"
-CRF_CAGE_MOTION = 30
-CRF_NO_MOTION = 40
-GOP_NO_MOTION = 1800
+CRF_NO_MOTION = 40   # agressive compression setting for videos with no motion, if motion detection used
+GOP_NO_MOTION = 1800 # GroupOfPicutres: keyframe interval for aggressive compression of no-motion videos
 
 # motion review: material kept so a no-motion classification can be checked before the raw
 # clip is deleted (see --motion_review)
@@ -82,24 +82,6 @@ MOTION_REVIEW_FIELDS = [
     "peak_frame_number",
     "still_path",
 ]
-
-
-def encoding_policy(taskcam_crf: int, compress_spd: str) -> dict:
-    """The complete set of encoding decisions in force, for the run's config.json."""
-    return {
-        "codec": VIDEO_CODEC,
-        "pix_fmt": PIX_FMT,
-        "preset": compress_spd,
-        "task_views": list(TASK_VIEWS),
-        "cage_views": list(CAGE_VIEWS),
-        "crf_task_view_motion": taskcam_crf,
-        "crf_cage_view_motion": CRF_CAGE_MOTION,
-        "crf_unrecognized_view_motion": taskcam_crf,
-        "crf_no_motion": CRF_NO_MOTION,
-        "gop_no_motion": GOP_NO_MOTION,
-        "crf_when_motion_detection_off": taskcam_crf,
-    }
-
 
 def build_manifest(input_paths: list[Path]) -> list[dict]:
     """
@@ -409,17 +391,16 @@ def run_motion_detection(input_path: Path, motion_percentile: float, motion_thre
 def compress_video(
     input_path: Path,
     output_path: Path,
-    motion_detected: bool,
-    view: str,
     threads: int,
-    taskcam_crf: int,
+    crf: int,
+    gop: int | None,
     compress_spd: str,
 ):
-    """Compress video using ffmpeg. Returns (success, error message, compression time, and
-    whether the view name was unrecognized and the conservative setting was used)."""
+    """Compress video using ffmpeg at the given CRF, with a keyframe interval only when gop is
+    given. Returns (success, error message, compression time)."""
     start = time.time()
 
-    base_command = [
+    command = [
         "ffmpeg",
         "-y",
         "-i",
@@ -432,39 +413,21 @@ def compress_video(
         PIX_FMT,
         "-threads",
         str(threads),
+        "-crf",
+        str(crf),
     ]
-
-    unrecognized_view = False
-    if motion_detected is None:
-        print(f"    no motion classification: compressing at CRF {taskcam_crf}")
-        command = base_command + ["-crf", str(taskcam_crf), str(output_path)]
-    elif not motion_detected:
-        print("    no motion, highly lossy compression will be used")
-        command = base_command + ["-crf", str(CRF_NO_MOTION), "-g", str(GOP_NO_MOTION), str(output_path)]
-    elif view in TASK_VIEWS:
-        print("    motion, task view: minimally lossy compression will be used")
-        command = base_command + ["-crf", str(taskcam_crf), str(output_path)]
-    elif view in CAGE_VIEWS:
-        print("    motion, cage view: more lossy compression will be used")
-        command = base_command + ["-crf", str(CRF_CAGE_MOTION), str(output_path)]
-    else:
-        # a view name outside the known lists is most likely a misnamed file; never let that
-        # silently select the strongest compression
-        unrecognized_view = True
-        print(
-            f"    WARNING: unrecognized camera view '{view}' (known: {', '.join(TASK_VIEWS + CAGE_VIEWS)}); "
-            "motion present, using minimally lossy compression"
-        )
-        command = base_command + ["-crf", str(taskcam_crf), str(output_path)]
+    if gop is not None:
+        command += ["-g", str(gop)]
+    command.append(str(output_path))
 
     # run ffmpeg compression
     try:
         subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
         compression_time = time.time() - start
-        return True, None, compression_time, unrecognized_view
+        return True, None, compression_time
     except subprocess.CalledProcessError as e:
         compression_time = time.time() - start
-        return False, e.stderr.decode("utf-8"), compression_time, unrecognized_view
+        return False, e.stderr.decode("utf-8"), compression_time
 
 
 def log_not_attempted(logger: Logger, remaining: list[Path]) -> None:
@@ -488,8 +451,7 @@ def print_summary(
     n_other: int,
     n_unrecognized_view: int,
     motion_detection: bool,
-    n_motion_skipped_compressed_source: int,
-    taskcam_crf: int,
+    # n_motion_skipped_compressed_source: int,  # pending a decision on already-compressed sources
     aux_summary: str = "",
     motion_review: bool = False,
     n_no_motion: int = 0,
@@ -502,10 +464,9 @@ def print_summary(
     for status, count in sorted(logger.status_counts.items()):
         print(f"    {status}: {count}")
     if motion_detection:
-        print("motion detection: on" + (
-            f"; skipped for {n_motion_skipped_compressed_source} clip(s) from already-compressed sources "
-            f"(encoded at CRF {taskcam_crf})" if n_motion_skipped_compressed_source else ""
-        ))
+        print("motion detection: on")
+        # pending a decision on already-compressed sources:
+        # print(f"    skipped for {n_motion_skipped_compressed_source} clip(s) from already-compressed sources")
         if motion_review:
             print(f"no-motion clips: {n_no_motion}; peak still saved for each in {NO_MOTION_STILLS_DIRNAME}/")
             n_flagged = sum(flagged_by_view.values()) if flagged_by_view else 0
@@ -515,7 +476,7 @@ def print_summary(
                 + (f" ({by_view}) -> {MOTION_REVIEW_FILENAME}; time series kept for these" if n_flagged else "")
             )
     else:
-        print(f"motion detection: off -- every clip encoded at CRF {taskcam_crf}")
+        print("motion detection: off")
     if n_unrecognized_view:
         print(
             f"WARNING: {n_unrecognized_view} file(s) had an unrecognized camera view name and were compressed "
@@ -558,7 +519,6 @@ def main(
     motion_percentile: float,
     motion_threshold: float,
     n_threads: int,
-    taskcam_crf: int,
     compress_spd: str,
     recompress: bool,
     overwrite_raw: bool,
@@ -612,7 +572,6 @@ def main(
 
         config = dict(kwargs)
         config["code_version"] = code_version()
-        config["encoding_policy"] = encoding_policy(taskcam_crf, compress_spd)
         config["motion_detection"] = {
             "enabled": motion_detection,
             "percentile": motion_percentile,
@@ -621,7 +580,8 @@ def main(
             **detect_motion.PARAMETERS,
         }
         if motion_detection:
-            print(f"motion detection ON: threshold {motion_threshold} at the {motion_percentile}th percentile")
+            print("motion detection ON: clips with no detected motion will be aggressively compressed")
+            print(f"    threshold {motion_threshold} at the {motion_percentile}th percentile")
             if motion_review:
                 print(
                     f"motion review ON: peak still for every no-motion clip in {NO_MOTION_STILLS_DIRNAME}/; "
@@ -630,8 +590,8 @@ def main(
             else:
                 print("motion review OFF: no stills; time series kept for every clip")
         else:
-            print(f"motion detection OFF: every clip encoded at CRF {taskcam_crf}")
-        config_path = run_metadata_dir / "config.json"
+            print("motion detection OFF: all clips will be compressed according to camera policy regardless of motion")
+        config_path = run_metadata_dir / "compression_config.json"
         config_path.parent.mkdir(parents=True, exist_ok=True)
         config_path.write_text(json.dumps(config, indent=4, default=str))
 
@@ -645,7 +605,7 @@ def main(
         aux_summary = transfer_run_metadata(input, output)
 
         n_unrecognized_view = 0
-        n_motion_skipped_compressed_source = 0
+        # n_motion_skipped_compressed_source = 0  # pending a decision on already-compressed sources
         n_no_motion = 0
         flagged_by_view: Counter = Counter()
         for i, input_path in enumerate(input_paths):
@@ -698,20 +658,24 @@ def main(
                 print(f"    will attempt to save as {output_path.name}.")
                 output_path.parent.mkdir(parents=True, exist_ok=True)
 
-                # (5) an already-compressed source is copied as-is unless --recompress
+                # (5) if classify_file returned a decision to copy the file, do so 
+                #     (e.g.,an already-compressed source is copied as-is unless --recompress)
                 if decision.action == ACTION_COPY:
                     copy_file(input_path, output_path)
                     logger.status = STATUS_COPIED
                     print("    source already compressed; copied without re-encoding")
                     continue
 
-                # (6) motion detection -- only when requested, and never on an already-compressed
-                # source, whose compression artifacts register as motion
+                # (6) motion detection -- only when requested
                 found_motion = None
-                if motion_detection and decision.input_codec != RAW_CODEC:
-                    n_motion_skipped_compressed_source += 1
-                    print(f"    source is already compressed ({decision.input_codec}); motion detection skipped")
-                elif motion_detection:
+
+                # PR 261014 this condition intentionally removed pending more discussion
+                # never on an already-compressed source, whose compression artifacts register as motion
+                #if motion_detection and decision.input_codec != RAW_CODEC:
+                #    n_motion_skipped_compressed_source += 1
+                #    print(f"    source is already compressed ({decision.input_codec}); motion detection skipped")
+ 
+                if motion_detection:
                     res = run_motion_detection(input_path, motion_percentile, motion_threshold)
                     # too few frames to score: treated as motion, i.e. the conservative encoding
                     found_motion = True if res is None else res.found_motion
@@ -754,12 +718,25 @@ def main(
                                 )
                         if res.found_motion or flagged or not motion_review:
                             append_motion_timeseries(motion_timeseries_path, input_path.name, res.motion_by_frame)
-
-                # (7) video compression; found_motion None means "no motion classification: best quality"
-                success, err_msg, compression_time, unrecognized_view = compress_video(
-                    input_path, output_path, found_motion, view, n_threads, taskcam_crf, compress_spd
-                )
+                # (7) choose the encoding: if motion detection is in use, a motionless clip gets the
+                # fixed aggressive setting; otherwise, or when motion was detected, the CRF comes
+                # from the camera policy in force
+                unrecognized_view = False
+                if found_motion is False:
+                    crf, gop = CRF_NO_MOTION, GOP_NO_MOTION
+                    print("    no motion, highly lossy compression will be used")
+                else:
+                    gop = None
+                    if 0:
+                        pass  # placeholder: per-camera compression setting from the config file (format TBD)
+                    else:
+                        crf, unrecognized_view = legacy_crf(view)
                 n_unrecognized_view += unrecognized_view
+
+                # (8) video compression
+                success, err_msg, compression_time = compress_video(
+                    input_path, output_path, n_threads, crf, gop, compress_spd
+                )
                 logger.compression_time = compression_time
                 logger.compression_success = success
 
@@ -809,8 +786,7 @@ def main(
             n_other_files,
             n_unrecognized_view,
             motion_detection,
-            n_motion_skipped_compressed_source,
-            taskcam_crf,
+            # n_motion_skipped_compressed_source,  # pending a decision on already-compressed sources
             aux_summary,
             motion_review,
             n_no_motion,
@@ -852,8 +828,7 @@ if __name__ == "__main__":
         action="store_true",
         help="analyse each raw clip for motion and compress clips without motion more strongly; also saves "
         "motion_timeseries.csv (per-frame motion values), which can be used to develop a custom threshold. "
-        "Off by default: every clip is encoded at --taskcam_crf. Skipped automatically for already-compressed "
-        "sources, whose compression artifacts register as motion",
+        "Off by default",
     )
     parser.add_argument(
         "--motion_percentile",
@@ -866,7 +841,7 @@ if __name__ == "__main__":
         default=0.0,
         type=float,
         help="with --motion_detection: a clip whose motion score is at or above this counts as having motion. "
-        "The default 0 classifies every clip as motion (encoded by view at --taskcam_crf / CRF 30) while still "
+        "The default 0 classifies every clip as motion (encoded according to camera policy) while still "
         "recording motion_timeseries.csv; this lab uses 0.001, calibrated on its own raw video",
     )
     parser.add_argument(
@@ -883,9 +858,6 @@ if __name__ == "__main__":
         default=4,
         type=int,
         help="number of threads used by ffmpeg {4 for mac05, 5 for mac06, 5 for mac07}",
-    )
-    parser.add_argument(
-        "--taskcam_crf", default=25, type=int, help="compression quality {24 for visually lossless, ..., 30 for lossy}"
     )
     parser.add_argument(
         "--compress_spd",

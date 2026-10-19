@@ -11,12 +11,12 @@ from threading import Thread
 from types import FrameType
 
 import ratrixcam_server
+from ratrixcam_naming import still_path
 from ratrixcam_utils import (
     Config,
     ensure_dir_exists,
     load_settings,
     reset_stills,
-    still_path,
 )
 
 
@@ -125,7 +125,7 @@ def run(config: Config, stop_event: Event):
                 camera_processes[idx] = cam_proc
                 just_started_a_cam=True
                 print(f"Multicam: Started camera {camera_config.name}")
-                
+
             except Exception as e:
                 print(f"Multicam: error starting camera {camera_config.name}:", e)
 

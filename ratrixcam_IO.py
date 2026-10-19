@@ -19,13 +19,13 @@ from PIL import Image, ImageTk
 
 import ratrixcam_multi
 from ratrixcam_run_metadata import RunMetadata
+from ratrixcam_naming import still_path
 from ratrixcam_utils import (
     Config,
     ensure_config_file_exists,
     ensure_dir_exists,
     load_settings,
     reset_stills,
-    still_path,
 )
 
 
