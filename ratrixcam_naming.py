@@ -1,6 +1,6 @@
 """Names and paths shared by ratrixcam and videoproc, plus the code-version stamp both write
-into their records. Start of the shared naming module (GitHub #26); the video filename
-builders/parsers still live in videoproc/util.py and move here next.
+into their records (GitHub #26). Every string built from the subject prefix, subject ID and
+view is built here and nowhere else; nothing here parses names.
 
 Folder layout for a recording run's metadata (GitHub #34):
 
@@ -12,7 +12,6 @@ Folder layout for a recording run's metadata (GitHub #34):
         <anything else>             other files found in the temp folder at shutdown
 """
 
-import importlib.util
 import os
 import subprocess
 import uuid
@@ -63,47 +62,18 @@ def still_path(stills_path: str, camera_name: str) -> str:
     return os.path.join(stills_path, f"cam_{camera_name}_status.png")
 
 
-# optional site-specific parser for filename shapes the standard rule does not cover; loaded
-# from this exact file and nowhere else (see custom_filename_parser_example.py)
-CUSTOM_PARSER_PATH = Path(__file__).resolve().parent / "custom_filename_parser.py"
+VIDEO_EXT = ".mp4"
 
 
-def _load_custom_parser():
-    if not CUSTOM_PARSER_PATH.is_file():
-        return None
-    spec = importlib.util.spec_from_file_location("custom_filename_parser", CUSTOM_PARSER_PATH)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+def camera_name(subject_prefix: str, subjID: str, view: str) -> str:
+    """The camera's name as it appears in folder names, file names and frame overlays:
+    <subject_prefix><subjID>_<view>, e.g. rat556_buddy."""
+    return f"{subject_prefix}{subjID}_{view}"
 
 
-custom_filename_parser = _load_custom_parser()
-
-
-def parse_filenames(video_fname: Path) -> tuple[str, str, str, str] | None:
-    """Split a video filename into (subjectID, view, YYYYMMDD, HH-MM-SS).
-
-    The standard shape is subjID_view_date_time, e.g. rat558_buddy_20250722_09-41-55.mp4.
-    Anything else is offered to custom_filename_parser.parse() if that module exists.
-    Returns None when neither recognizes the name; callers must treat that as unparseable
-    rather than substitute placeholder values.
-    TODO(generalize): validate tokens against the configured subject-ID and view lists and
-    a real date parse, instead of a bare token-count split."""
-    stem = video_fname.stem
-    tokens = stem.split("_")
-    if len(tokens) == 4:
-        subj_ID, camera_view, filming_date, filming_time = tokens
-        return subj_ID, camera_view, filming_date, filming_time
-    if custom_filename_parser is not None:
-        return custom_filename_parser.parse(stem)
-    return None
-
-
-def parse_recording_datetime(filming_date: str, filming_time: str) -> datetime | None:
-    try:
-        return datetime.strptime(f"{filming_date}_{filming_time}", "%Y%m%d_%H-%M-%S")
-    except ValueError:
-        return None
+def clip_filename(camera_name_: str, started: datetime) -> str:
+    """<camera name>_<YYYYMMDD>_<HH-MM-SS>.mp4 for a clip that started at `started`."""
+    return f"{camera_name_}_{started:%Y%m%d_%H-%M-%S}{VIDEO_EXT}"
 
 
 def build_output_path(

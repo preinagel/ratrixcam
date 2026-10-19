@@ -19,13 +19,15 @@ from PIL import Image, ImageTk
 
 import ratrixcam_multi
 from ratrixcam_run_metadata import RunMetadata
-from ratrixcam_naming import still_path
+from ratrixcam_naming import camera_name, still_path
 from ratrixcam_utils import (
+    BLANK_IMAGE,
     Config,
     ensure_config_file_exists,
     ensure_dir_exists,
     load_settings,
     reset_stills,
+    stills_dir,
 )
 
 
@@ -34,6 +36,25 @@ class State:
         self.camera_process: Process | None = None
         self.current_window: tk.Tk | None = None
         self.run_metadata: RunMetadata | None = None
+
+
+def cameras_are_distinct(config: Config) -> bool:
+    """False, with a message, if two cameras share a subject ID and view (they would write
+    identical file names) or share a display position."""
+    ok = True
+    seen_names: dict[tuple[str, str], int] = {}
+    seen_positions: dict[str, int] = {}
+    for idx, camera in enumerate(config.cameras, start=1):
+        key = (camera.subjID, camera.view)
+        if key in seen_names:
+            print(f"ERROR: cameras {seen_names[key]} and {idx} both have subjID {camera.subjID!r} and view {camera.view!r}")
+            ok = False
+        seen_names.setdefault(key, idx)
+        if camera.position in seen_positions:
+            print(f"ERROR: cameras {seen_positions[camera.position]} and {idx} both have position {camera.position!r}")
+            ok = False
+        seen_positions.setdefault(camera.position, idx)
+    return ok
 
 
 def run_without_handlers(config: Config, stop_event: Event):
@@ -79,16 +100,6 @@ def time_recorded_update_loop(
         recorded_label,
         start_recording_date,
     )
-
-
-def update_config_file(
-    config_file_path: str,
-    config: Config,
-):
-    with open(config_file_path, "w") as file:
-        _ = file.seek(0)
-        _ = file.write(config.model_dump_json(indent=2, exclude_defaults=True))
-        _ = file.truncate()
 
 
 def get_camera_still_from_file(
@@ -146,90 +157,15 @@ def camera_image_update_loop(
     )
 
 
-def create_config_editor(
-    state: State, bgcolor: str, config: Config, config_path: str, stop_event: Event
-) -> tk.Tk:
+def create_start_window(state: State, bgcolor: str, config: Config, stop_event: Event) -> tk.Tk:
+    """The launch window: nothing but the Start Recording button. The config is taken as
+    given on the command line and is not displayed, edited or saved here."""
     window = tk.Tk()
     _ = window.configure(background=bgcolor)
     window.geometry("1024x600")
     window.title("ratrixcam")
 
-    entry_font = font.Font(family="Helvitica", size=19)
-    version_font = font.Font(family="Helvitica", size=9)
     button_font = font.Font(family="Helvitica", size=15)
-
-    date_now = dt.datetime.now()
-
-    # Create Label to display the Date
-    time_label = tk.Label(
-        window,
-        text=f"{date_now:%A, %B %d, %Y}",
-        bg=bgcolor,
-        fg="#ffffff",
-        font=version_font,
-    )
-    time_label.place(x=570, y=40)
-
-    study_label_title = tk.Label(
-        window, text="Study Name:", bg=bgcolor, fg="#ffffff", font=entry_font
-    )
-    study_label_input = tk.StringVar(window, value=config.study_label)
-    study_label_entry = tk.Entry(
-        window,
-        textvariable=study_label_input,
-        bg=bgcolor,
-        fg="#ffffff",
-        font=entry_font,
-    )
-    _ = study_label_entry.configure(bg=bgcolor, insertbackground="white")
-    study_label_title.place(x=65, y=20)
-    study_label_entry.place(x=240, y=20)
-
-    camera_label_frame = tk.Frame(window, bg=bgcolor)
-    camera_label_frame.place(x=65, y=100)
-
-    camera_label_values: list[tk.StringVar] = [
-        tk.StringVar(camera_label_frame, value=camera.name) for camera in config.cameras
-    ]
-    camera_label_entrys = [
-        tk.Entry(
-            camera_label_frame,
-            textvariable=camera_label_value,
-            insertbackground="white",
-            bg=bgcolor,
-            font=entry_font,
-            fg="#ffffff",
-        )
-        for camera_label_value in camera_label_values
-    ]
-
-    # use grid
-    for idx, (camera, entry) in enumerate(zip(config.cameras, camera_label_entrys)):
-        camera_label = tk.Label(
-            camera_label_frame,
-            text=f"Cam {idx+1} ID:",
-            bg=bgcolor,
-            fg="#ffffff",
-            font=entry_font,
-        )
-        camera_label.grid(row=camera.row * 2, column=camera.col, padx=10, pady=5)
-        entry.grid(row=camera.row * 2 + 1, column=camera.col, padx=10, pady=5)
-
-    def submit():
-        config.study_label = study_label_input.get()
-        for i, camera_label in enumerate(camera_label_values):
-            config.cameras[i].name = camera_label.get()
-        update_config_file(config_path, config)
-
-    tk.Button(
-        window,
-        text="Update Configuration",
-        bd=0,
-        height=2,
-        width=20,
-        font=button_font,
-        command=submit,
-    ).place(x=400, y=500)
 
     def start_recording():
         state.camera_process = Process(
@@ -253,6 +189,19 @@ def create_config_editor(
     ).place(x=100, y=500)
 
     return window
+
+
+# display cells for the eight camera positions, laid out  A B | E F  over  C D | G H
+# (grid column 2 is left empty as a gap between the two blocks)
+GRID_CELLS = {
+    "A": (0, 0), "B": (0, 1), "E": (0, 3), "F": (0, 4),
+    "C": (1, 0), "D": (1, 1), "G": (1, 3), "H": (1, 4),
+}
+
+
+def grid_cell(position: str) -> tuple[int, int]:
+    """(row, column) on the display for a camera's position letter."""
+    return GRID_CELLS[position]
 
 
 def create_recording_window(state: State, bgcolor: str, config: Config) -> tk.Tk:
@@ -393,21 +342,23 @@ def create_recording_window(state: State, bgcolor: str, config: Config) -> tk.Tk
 
     # Set up camera display
     # initialize to blank images
-    no_signal = Image.open(config.blank_image)
+    no_signal = Image.open(BLANK_IMAGE)
     no_signal_r = no_signal.resize((cam_x, cam_y), resample=2)
     resized_no_signal = ImageTk.PhotoImage(no_signal_r)
 
+    stills_folder = stills_dir(config.temp_path)
     for camera in config.cameras:
+        row, column = grid_cell(camera.position)
         image_label = tk.Label(window, image=resized_no_signal)
         image_label.image = resized_no_signal
-        image_label.grid(row=camera.row, column=camera.col)
+        image_label.grid(row=row, column=column)
         camera_image_update_loop(
             window,
             cam_refresh,
             resized_no_signal,
             image_label,
-            config.stills_path,
-            camera.name,
+            stills_folder,
+            camera_name(config.subject_prefix, camera.subjID, camera.view),
             cam_x,
             cam_y,
         )
@@ -514,6 +465,8 @@ def main():
     config = load_settings(config_path)
     if config is None:
         return
+    if not cameras_are_distinct(config):
+        return
 
     # from here on, everything printed by this process and the camera processes it spawns
     # also goes to a log file in the temp folder; it moves to the output drive at shutdown
@@ -525,9 +478,7 @@ def main():
     if os.environ.get("DISPLAY", "") == "":
         os.environ.__setitem__("DISPLAY", ":0.0")
 
-    state.current_window = create_config_editor(
-        state, bgcolor, config, config_path, stop_event
-    )
+    state.current_window = create_start_window(state, bgcolor, config, stop_event)
     # reestablish signal handlers since tkinter messes them up
     _ = signal.signal(signal.SIGINT, int_handler)
     _ = signal.signal(
@@ -550,11 +501,12 @@ def main():
     else:
         print(f"Recording folder: {config.save_path}")
 
-    if not ensure_dir_exists(config.stills_path):
+    stills_folder = stills_dir(config.temp_path)
+    if not ensure_dir_exists(stills_folder):
         print("ERROR: Stills folder does not exist and could not be created")
         return
     else:
-        print(f"Stills folder: {config.stills_path}")
+        print(f"Stills folder: {stills_folder}")
 
     # print('checking temp path')
     if not ensure_dir_exists(config.temp_path):

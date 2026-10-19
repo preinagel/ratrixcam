@@ -16,8 +16,8 @@ import cv2
 from cv2.typing import MatLike
 from pydantic import BaseModel
 
-from ratrixcam_naming import still_path
-from ratrixcam_utils import Config, ensure_dir_exists, load_settings
+from ratrixcam_naming import camera_name, clip_filename, still_path
+from ratrixcam_utils import Config, ensure_dir_exists, load_settings, stills_dir
 
 video_codec = cv2.VideoWriter.fourcc(*"mp4v")
 
@@ -67,12 +67,12 @@ def move_file(temp_file: str, out_file: str):
 
 
 class CameraParams(BaseModel):
-    name: str
-    row: int
+    name: str  # constructed camera name: <subject_prefix><subjID>_<view>
     width: int
     height: int
     fps: int
     cam_exposure: float
+    crf: int  # ffmpeg quality for this camera's clips, recorded for videoproc
 
 
 def save_frame_to_writer(
@@ -160,15 +160,14 @@ def close_writer(writer_state: WriterState, file_transfer_processes: list[Proces
 
 
 def run(config: Config, device_id: int, stop_event: Event):
+    camera = config.cameras[device_id]
     params = CameraParams(
-        name=config.cameras[device_id].name,
-        row=config.cameras[device_id].row,
-        width=(config.cameras[device_id].width or config.default_width),
-        height=(config.cameras[device_id].height or config.default_height),
-        fps=(config.cameras[device_id].fps or config.default_fps),
-        cam_exposure=(
-            config.cameras[device_id].exposure or config.default_cam_exposure
-        ),
+        name=camera_name(config.subject_prefix, camera.subjID, camera.view),
+        width=(camera.width or config.default_width),
+        height=(camera.height or config.default_height),
+        fps=(camera.fps or config.default_fps),
+        cam_exposure=(camera.exposure or config.default_cam_exposure),
+        crf=(camera.crf if camera.crf is not None else config.default_crf),
     )
     label: str = f"{config.study_label}_{params.name}"
     #ifi: float=1/params.fps #nominal interframe interval
@@ -178,12 +177,13 @@ def run(config: Config, device_id: int, stop_event: Event):
         print("ERROR: Temporary streaming folder does not exist and cannot be created")
         return
 
-    if not ensure_dir_exists(config.stills_path):
+    stills_folder = stills_dir(config.temp_path)
+    if not ensure_dir_exists(stills_folder):
         print("ERROR: Still image folder does not existand cannot be created")
         return
 
     # create full path filename for updating still images (used for GUI display)
-    camera_still_path = still_path(config.stills_path, params.name)
+    camera_still_path = still_path(stills_folder, params.name)
 
     # try to connect to the camera
     capture = cv2.VideoCapture(int(device_id))  # hardware address
@@ -235,7 +235,7 @@ def run(config: Config, device_id: int, stop_event: Event):
             if not ensure_dir_exists(current_save_dir):
                 print(f"WARNING! Unable to create output path '{current_save_dir}'")
                 continue
-            current_file_name = f"{params.name}_{str(current_datetime.strftime('%Y%m%d_%H-%M-%S'))}{config.video_ext}"
+            current_file_name = clip_filename(params.name, current_datetime)
             # Create video writer
             writer_state = WriterState(
                 cv2.VideoWriter(

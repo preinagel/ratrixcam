@@ -1,17 +1,21 @@
 import os
 import shutil
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 
-from ratrixcam_naming import still_path
+from ratrixcam_naming import camera_name, still_path
+
+Position = Literal["A", "B", "C", "D", "E", "F", "G", "H"]
 
 
 class CameraConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    name: str
-    row: int
-    col: int
+    subjID: str  # subject identifier without the prefix, e.g. "556"
+    view: str  # camera view, e.g. "buddy"
+    position: Position  # cell on the 2 x 4 display: A B | E F over C D | G H
+    crf: int | None = None  # ffmpeg quality for this camera's clips; default_crf if omitted
     fps: int | None = None
     width: int | None = None
     height: int | None = None
@@ -21,9 +25,10 @@ class CameraConfig(BaseModel):
 class Config(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    rack_name: str
     cameras: list[CameraConfig]
     study_label: str
+    subject_prefix: str = "subj"  # prefixed to every subjID to form the subject name, e.g. "rat"
+    default_crf: int = 25  # ffmpeg quality for cameras that do not set their own crf
     default_fps: int
     default_width: int
     default_height: int
@@ -34,8 +39,6 @@ class Config(BaseModel):
     video_ext: str  # extension for video files eg .mp4
     save_path: str  # final destination folder for video files
     temp_path: str  # temporary folder for video files while streaming
-    blank_image: str  # full path to image to display when cameras offline
-    stills_path: str  # folder containing most recent grabbed frames
     recording_audio: bool  # not currently supported
     recording_ttl: bool  # not currently supported
 
@@ -72,9 +75,19 @@ def ensure_config_file_exists(config_file: str):
             return
 
 
+# image shown for a camera that has no still yet or has gone offline
+BLANK_IMAGE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "blanks", "offline_status.png")
+
+
+def stills_dir(temp_path: str) -> str:
+    """Folder holding the most recent still from each camera, always inside the temp folder."""
+    return os.path.join(temp_path, "status")
+
+
 def reset_stills(config: Config):
-    for file in os.listdir(config.stills_path):
-        file_path = os.path.join(config.stills_path, file)
+    folder = stills_dir(config.temp_path)
+    for file in os.listdir(folder):
+        file_path = os.path.join(folder, file)
         if os.path.isfile(file_path):
             try:
                 os.remove(file_path)
@@ -83,7 +96,8 @@ def reset_stills(config: Config):
 
     # copy stills blank image to stills folder
     for camera in config.cameras:
-        _ = shutil.copy(config.blank_image, still_path(config.stills_path, camera.name))
+        name = camera_name(config.subject_prefix, camera.subjID, camera.view)
+        _ = shutil.copy(BLANK_IMAGE, still_path(folder, name))
 
 
 # -----------------------------------------------------------

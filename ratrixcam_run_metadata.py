@@ -21,7 +21,7 @@ from ratrixcam_naming import (
     run_metadata_dir,
     terminal_log_filename,
 )
-from ratrixcam_utils import Config, ensure_dir_exists
+from ratrixcam_utils import Config, ensure_dir_exists, stills_dir
 
 
 class TerminalLog:
@@ -119,7 +119,7 @@ class RunMetadata:
         temp = Path(self.config.temp_path)
         moved, kept = [], []
         try:
-            stills_src = Path(self.config.stills_path)
+            stills_src = Path(stills_dir(self.config.temp_path))
             if stills_src.is_dir():
                 stills_dst = self.run_dir / STILLS_DIRNAME
                 stills_dst.mkdir(exist_ok=True)

@@ -11,12 +11,14 @@ from threading import Thread
 from types import FrameType
 
 import ratrixcam_server
-from ratrixcam_naming import still_path
+from ratrixcam_naming import camera_name, still_path
 from ratrixcam_utils import (
+    BLANK_IMAGE,
     Config,
     ensure_dir_exists,
     load_settings,
     reset_stills,
+    stills_dir,
 )
 
 
@@ -51,11 +53,12 @@ def run_without_handlers(config: Config, camera_idx: int, stop_event: Event):
 def run(config: Config, stop_event: Event):
     print(f"Settings for '{config.study_label}' successfully loaded")
 
-    if not ensure_dir_exists(config.stills_path):
+    stills_folder = stills_dir(config.temp_path)
+    if not ensure_dir_exists(stills_folder):
         print("ERROR: Stills folder does not exist and could not be created")
         return
     else:
-        print(f"Stills folder: {config.stills_path}")
+        print(f"Stills folder: {stills_folder}")
 
     # print('checking temp path')
     if not ensure_dir_exists(config.temp_path):
@@ -100,16 +103,14 @@ def run(config: Config, stop_event: Event):
         for idx, (process, cam_up_prev, camera_config) in enumerate(
             zip(camera_processes, camera_state, config.cameras)
         ):
+            name = camera_name(config.subject_prefix, camera_config.subjID, camera_config.view)
             camera_state[idx] = process is not None and process.is_alive()
             if camera_state[idx]: #still running
                 continue
             elif cam_up_prev:# not running, but was previously: indicate offline in GUI and terminal
-                _ = shutil.copyfile(
-                    config.blank_image,
-                    still_path(config.stills_path, camera_config.name),
-                )
+                _ = shutil.copyfile(BLANK_IMAGE, still_path(stills_folder, name))
                 print(
-                    f"Camera {camera_config.name} went offline at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}."
+                    f"Camera {name} went offline at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}."
                 )
             if not have_all_cameras:
                 continue
@@ -124,10 +125,10 @@ def run(config: Config, stop_event: Event):
                 cam_proc.start()
                 camera_processes[idx] = cam_proc
                 just_started_a_cam=True
-                print(f"Multicam: Started camera {camera_config.name}")
+                print(f"Multicam: Started camera {name}")
 
             except Exception as e:
-                print(f"Multicam: error starting camera {camera_config.name}:", e)
+                print(f"Multicam: error starting camera {name}:", e)
 
         # check the TTL process and restart if applicable
         if config.recording_ttl:
@@ -161,7 +162,8 @@ def run(config: Config, stop_event: Event):
         for process, camera_config in zip(camera_processes, config.cameras):
             if process is None or not process.is_alive():
                 continue
-            print(f"Camera {camera_config.name} failed to terminate, killing process")
+            name = camera_name(config.subject_prefix, camera_config.subjID, camera_config.view)
+            print(f"Camera {name} failed to terminate, killing process")
             process.kill()
         if p_TTL is not None:
             print("TTL logging failed to terminate, killing process")
