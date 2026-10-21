@@ -23,6 +23,7 @@ DEFAULT_CRF = 25
 
 SUMMARY_FILENAME = "summary_by_subj_and_view.csv"
 SUMMARY_FIELDS = ["subjID", "view", "start", "end", "file_count"]
+SummaryRow = dict[str, str | int]  # one line of summary_by_subj_and_view.csv
 
 
 class ManifestError(ValueError):
@@ -83,25 +84,24 @@ def read_manifests(paths) -> list[ManifestRow]:
     return rows
 
 
-def summarize_by_subject_and_view(rows: list[ManifestRow]) -> list[dict]:
+def summarize_by_subject_and_view(rows: list[ManifestRow]) -> list[SummaryRow]:
     """One row per (subjID, view): first and last clip start, number of files."""
-    groups: dict[tuple[str, str], dict] = {}
+    starts: dict[tuple[str, str], list[datetime]] = {}
     for row in rows:
-        g = groups.setdefault(
-            (row.subjID, row.view),
-            {"subjID": row.subjID, "view": row.view, "start": row.clip_start, "end": row.clip_start, "file_count": 0},
-        )
-        g["file_count"] += 1
-        g["start"] = min(g["start"], row.clip_start)
-        g["end"] = max(g["end"], row.clip_start)
-    summary = sorted(groups.values(), key=lambda g: (g["subjID"], g["view"]))
-    for g in summary:
-        g["start"] = g["start"].strftime("%Y-%m-%d %H:%M:%S")
-        g["end"] = g["end"].strftime("%Y-%m-%d %H:%M:%S")
-    return summary
+        starts.setdefault((row.subjID, row.view), []).append(row.clip_start)
+    return [
+        {
+            "subjID": subjID,
+            "view": view,
+            "start": min(times).strftime("%Y-%m-%d %H:%M:%S"),
+            "end": max(times).strftime("%Y-%m-%d %H:%M:%S"),
+            "file_count": len(times),
+        }
+        for (subjID, view), times in sorted(starts.items())
+    ]
 
 
-def write_summary(path: Path, summary: list[dict]) -> None:
+def write_summary(path: Path, summary: list[SummaryRow]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=SUMMARY_FIELDS)

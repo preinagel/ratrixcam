@@ -55,11 +55,34 @@ LOG_FIELDS = [
 class Logger:
     """Per-file CSV log, plus a second CSV holding only the rows flagged for human review"""
 
+    # one attribute per log column (LOG_FIELDS): cleared by reset(), filled by the caller
+    input_path: Path | None = None
+    output_path: Path | None = None
+    subjID: str | None = None
+    view: str | None = None
+    start_time: str | None = None
+    status: str | None = None
+    action_item: bool = False
+    skipped_reason: str | None = None
+    error: str | None = None
+    motion_perc: float | None = None
+    found_motion: bool | None = None
+    motion_detection_time: float | None = None
+    fract_frames_exceeding: float | None = None
+    motion_max: float | None = None
+    n_frames_over_threshold: int | None = None
+    motion_review_flag: bool | None = None
+    crf: int | None = None
+    compression_ratio: float | None = None
+    compression_success: bool | None = None
+    compression_time: float | None = None
+    valid_output: bool | None = None
+
     def __init__(self, log_path: Path, action_items_path: Path, fields=LOG_FIELDS):
         self.fields = list(fields)
         self.log_path = log_path
         self.action_items_path = action_items_path
-        self.status_counts: Counter = Counter()
+        self.status_counts: Counter[str] = Counter()
         self.n_action_items = 0
         self.reset()
 
@@ -83,7 +106,7 @@ class Logger:
             with open(self.action_items_path, mode="a", newline="") as f:
                 csv.writer(f).writerow(row)
             self.n_action_items += 1
-        self.status_counts[self.status] += 1
+        self.status_counts[str(self.status)] += 1
 
 
 class SkipFile(Exception):

@@ -141,7 +141,7 @@ def camera_image_update_loop(
         photo_img = ImageTk.PhotoImage(new_image)
 
     _ = cam_image.config(image=photo_img)
-    cam_image.image = photo_img
+    cam_image.image = photo_img  # pyright: ignore[reportAttributeAccessIssue]  (keeps the image alive)
 
     _ = window.after(
         cam_refresh,
@@ -316,7 +316,7 @@ def create_recording_window(state: State, bgcolor: str, config: Config) -> tk.Tk
     for camera in config.cameras:
         row, column = grid_cell(camera.position)
         image_label = tk.Label(window, image=resized_no_signal)
-        image_label.image = resized_no_signal
+        image_label.image = resized_no_signal  # pyright: ignore[reportAttributeAccessIssue]  (keeps the image alive)
         image_label.grid(row=row, column=column)
         camera_image_update_loop(
             window,

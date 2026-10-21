@@ -92,5 +92,6 @@ if __name__ == "__main__":
     parser.add_argument("--play_video", action="store_true", help="Play video during processing (press 'q' to exit).")
     args = parser.parse_args()
 
-    motion_by_frame = main(args.path, args.play_video)
+    result = main(args.path, args.play_video)
+    motion_by_frame = result[0] if isinstance(result, tuple) else result
     print(f"motion-99-perc: {np.percentile(motion_by_frame, 99)}")

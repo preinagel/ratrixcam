@@ -104,8 +104,11 @@ def save_frame_to_writer(
     # NOTE text position is hardwired for 640x480 videos, needs generalization
     font = cv2.FONT_HERSHEY_PLAIN
     font_scale = params.height/480 #params.width / 640
+    # type checker: "frame is possibly unbound" here and at the four uses below, because it is
+    # first assigned inside the read loop. `if not ret or frame is None: return` after the loop
+    # would clear it and is behaviourally inert; left as written.
     _ = cv2.putText(
-        frame,
+        frame,  # checker: possibly unbound, see note above
         label,
         (math.ceil(0.015*params.width), math.floor(0.97*params.height )),  #(10, params.height - 10),
         font,
@@ -115,7 +118,7 @@ def save_frame_to_writer(
         lineType=cv2.LINE_AA,
     )
     _ = cv2.putText(
-        frame,
+        frame,  # checker: possibly unbound, see note above
         video_date,
         (math.floor(0.8*params.width), math.floor(0.94*params.height) ), #(params.width - 115, params.height - 25),
         font,
@@ -125,7 +128,7 @@ def save_frame_to_writer(
         lineType=cv2.LINE_AA,
     )
     _ = cv2.putText(
-        frame,
+        frame,  # checker: possibly unbound, see note above
         video_time_long,
         (math.floor(0.8*params.width), math.floor(0.97*params.height) ),#(params.width - 115, params.height - 10),
         font,
@@ -135,9 +138,9 @@ def save_frame_to_writer(
         lineType=cv2.LINE_AA,
     )
 
-    writer.write(frame)
+    writer.write(frame)  # checker: possibly unbound, see note above
 
-    return frame
+    return frame  # checker: possibly unbound, see note above
 
 class WriterState(NamedTuple):
     writer: cv2.VideoWriter

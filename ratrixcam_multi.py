@@ -137,15 +137,15 @@ def run(config: Config, stop_event: Event):
         # check the TTL process and restart if applicable
         if RECORDING_TTL:
             raise Exception("TTL server not implemented")
-            if p_TTL is not None and p_TTL.is_alive():
-                continue
-            # if not running, try to relaunch
-            try:
-                # p_TTL = Process(target=ttl.run, args=(...))
-                print("TTL logging restarted")
-            except Exception as e:
-                print(type(e), e)
-                print("Cannot restart TTL logging")
+            # if p_TTL is not None and p_TTL.is_alive():
+            #     continue
+            # # if not running, try to relaunch
+            # try:
+            #     # p_TTL = Process(target=ttl.run, args=(...))
+            #     print("TTL logging restarted")
+            # except Exception as e:
+            #     print(type(e), e)
+            #     print("Cannot restart TTL logging")
         _ = stop_event.wait(1)
 
     print("Multicam attempting to shut down nicely")
@@ -169,9 +169,9 @@ def run(config: Config, stop_event: Event):
             name = camera_name(config.subject_prefix, camera_config.subjID, camera_config.view)
             print(f"Camera {name} failed to terminate, killing process")
             process.kill()
-        if p_TTL is not None:
-            print("TTL logging failed to terminate, killing process")
-            p_TTL.kill()
+        # if p_TTL is not None:
+        #     print("TTL logging failed to terminate, killing process")
+        #     p_TTL.kill()
 
     print("ratrixcam multi: shutdown complete")
 

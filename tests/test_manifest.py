@@ -86,7 +86,10 @@ def test_close_writer_still_transfers_the_clip_when_the_manifest_fails(tmp_path,
     save_dir.mkdir(parents=True)
     (temp_dir / "clip.mp4").write_bytes(b"clip")
     manifest = ManifestMetadata(str(tmp_path / "temp" / "no_such_folder"), "rat999_home", "999", "home", 25)
-    state = ratrixcam_server.WriterState(StandInWriter(), str(save_dir), str(temp_dir), "clip.mp4", datetime.now())
+    state = ratrixcam_server.WriterState(
+        StandInWriter(),  # pyright: ignore[reportArgumentType]  (only release() is called)
+        str(save_dir), str(temp_dir), "clip.mp4", datetime.now(),
+    )
     transfers = []
 
     ratrixcam_server.close_writer(state, transfers, manifest)

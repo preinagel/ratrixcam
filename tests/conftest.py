@@ -29,7 +29,7 @@ def _write_raw_clip(path: Path, n_frames: int, square_frames=None) -> None:
     """A moving solid square over a static textured (random-noise) background, written
     with the FMP4 fourcc -- the FourCC ratrixcam itself records with. square_frames limits
     the square to those frame indices (None = every frame; empty = a static clip)."""
-    fourcc = cv2.VideoWriter_fourcc(*"FMP4")
+    fourcc = cv2.VideoWriter.fourcc(*"FMP4")
     writer = cv2.VideoWriter(str(path), fourcc, FPS, (WIDTH, HEIGHT))
     if not writer.isOpened():
         raise RuntimeError(f"cv2.VideoWriter could not open {path} for writing")
@@ -75,7 +75,7 @@ def _zero_bytes_copy(src: Path, dst: Path, offset_fraction: float, n_bytes: int)
 
 
 @pytest.fixture(scope="session")
-def clips(tmp_path_factory) -> dict:
+def clips(tmp_path_factory) -> dict[str, Path]:
     """Paths to the fixed set of synthetic source clips used across the suite, verified
     against util.get_codec_nframes before any test runs."""
     d = tmp_path_factory.mktemp("clips")

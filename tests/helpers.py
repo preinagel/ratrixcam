@@ -88,12 +88,12 @@ def base_args(source: Path) -> list[str]:
     return ["--manifest", str(manifest_path(source)), "--studyname", STUDYNAME, "--subject_prefix", SUBJECT_PREFIX]
 
 
-def run_compress_drive(source: Path, dest: Path, extra_args=(), timeout=300) -> subprocess.CompletedProcess:
+def run_compress_drive(source: Path, dest: Path, extra_args=(), timeout=300) -> subprocess.CompletedProcess[str]:
     cmd = [sys.executable, "compress_drive.py", str(source), str(dest), *base_args(source), *extra_args]
     return subprocess.run(cmd, cwd=VIDEOPROC_DIR, input="\n", capture_output=True, text=True, timeout=timeout)
 
 
-def run_confirm_and_delete(source: Path, dest: Path, extra_args=(), delete=False, timeout=300) -> subprocess.CompletedProcess:
+def run_confirm_and_delete(source: Path, dest: Path, extra_args=(), delete=False, timeout=300) -> subprocess.CompletedProcess[str]:
     cmd = [sys.executable, "confirm_and_delete.py", str(source), str(dest), *base_args(source), *extra_args]
     if delete:
         cmd.append("--delete")
@@ -109,7 +109,7 @@ def latest_run_dir(dest: Path, prefix: str) -> Path:
     return max(candidates, key=lambda p: p.stat().st_mtime_ns)
 
 
-def read_log(run_dir: Path) -> dict:
+def read_log(run_dir: Path) -> dict[str, dict[str, str]]:
     """The run's per-file log (compression_log.csv or inspection_log.csv), rows keyed by the
     input file's basename."""
     for name in ("compression_log.csv", "inspection_log.csv"):
@@ -119,12 +119,12 @@ def read_log(run_dir: Path) -> dict:
     raise FileNotFoundError(f"no per-file log in {run_dir}")
 
 
-def read_rows(path: Path) -> list:
+def read_rows(path: Path) -> list[dict[str, str]]:
     with open(path, newline="") as f:
         return list(csv.DictReader(f))
 
 
-def last_index_row(dest: Path) -> dict:
+def last_index_row(dest: Path) -> dict[str, str]:
     return read_rows(dest / "videoproc_run_metadata" / "index.csv")[-1]
 
 

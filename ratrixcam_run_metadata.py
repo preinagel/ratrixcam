@@ -4,6 +4,7 @@ into one folder on the output drive. Nothing here touches camera capture or proc
 ratrixcam_IO.py calls into it at launch, at Start Recording, and after the cameras have stopped.
 """
 
+import io
 import os
 import platform
 import shutil
@@ -60,12 +61,15 @@ class TerminalLog:
         sys.stderr.flush()
         self._saved = (os.dup(1), os.dup(2))
         self._tee = subprocess.Popen(["tee", "-a", str(path)], stdin=subprocess.PIPE)
-        os.dup2(self._tee.stdin.fileno(), 1)
-        os.dup2(self._tee.stdin.fileno(), 2)
+        assert self._tee.stdin is not None  # stdin=PIPE above
+        self._pipe = self._tee.stdin
+        os.dup2(self._pipe.fileno(), 1)
+        os.dup2(self._pipe.fileno(), 2)
         # fd 1 is now a pipe: keep this process line-buffered, and make spawned children
         # unbuffered, so messages reach the terminal when printed rather than at exit
-        sys.stdout.reconfigure(line_buffering=True)
-        sys.stderr.reconfigure(line_buffering=True)
+        for stream in (sys.stdout, sys.stderr):
+            if isinstance(stream, io.TextIOWrapper):
+                stream.reconfigure(line_buffering=True)
         os.environ["PYTHONUNBUFFERED"] = "1"
         self._active = True
 
@@ -81,7 +85,7 @@ class TerminalLog:
         os.dup2(self._saved[1], 2)
         for fd in self._saved:
             os.close(fd)
-        self._tee.stdin.close()
+        self._pipe.close()
         try:
             self._tee.wait(timeout=10)
         except subprocess.TimeoutExpired:
@@ -91,7 +95,7 @@ class TerminalLog:
 class RunMetadata:
     """One ratrixcam launch: its id, terminal log, and metadata folder on the output drive."""
 
-    def __init__(self, config: Config, config_path: str, started: datetime | None = None):
+    def __init__(self, config: Config, config_path: str | Path, started: datetime | None = None):
         self.config = config
         self.config_path = config_path
         self.started = started or datetime.now()

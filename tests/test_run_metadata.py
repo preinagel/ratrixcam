@@ -163,6 +163,7 @@ def test_start_terminal_log_fails_after_retries_when_the_log_cannot_be_created(t
     assert "ERROR" in capsys.readouterr().out
     run.log_path.rmdir()
     assert run.start_terminal_log() is True
+    assert run.terminal_log is not None
     run.terminal_log.stop()
 
 

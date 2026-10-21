@@ -17,6 +17,7 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 from pprint import pprint
+from typing import Any
 
 from classify import (
     LOG_FIELDS as BASE_LOG_FIELDS,
@@ -43,6 +44,7 @@ EXTRA_FIELDS = [
 ]
 LOG_FIELDS = BASE_LOG_FIELDS + EXTRA_FIELDS
 DELETION_FIELDS = ["input_path", "output_path", "input_size_bytes", "deleted_at"]
+Row = dict[str, Any]  # one inspection_log.csv line, keyed by LOG_FIELDS
 
 
 def destination_inside_source(source: Path, destination: Path) -> bool:
@@ -64,8 +66,8 @@ def decode_check(path: Path) -> tuple[bool, str]:
     return result.returncode == 0 and not err, err
 
 
-def new_row(input_path: Path) -> dict:
-    row = {field: None for field in LOG_FIELDS}
+def new_row(input_path: Path) -> Row:
+    row: Row = {field: None for field in LOG_FIELDS}
     row.update(
         input_path=input_path,
         start_time=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -75,11 +77,11 @@ def new_row(input_path: Path) -> dict:
     return row
 
 
-def mark_skipped(row: dict, skip: SkipFile) -> None:
+def mark_skipped(row: Row, skip: SkipFile) -> None:
     row.update(status=skip.status, action_item=skip.action_item, skipped_reason=str(skip), deletable=False)
 
 
-def write_rows(rows: list[dict], log_path: Path, action_items_path: Path) -> None:
+def write_rows(rows: list[Row], log_path: Path, action_items_path: Path) -> None:
     for path, subset in ((log_path, rows), (action_items_path, [r for r in rows if r["action_item"]])):
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "w", newline="") as f:
@@ -90,7 +92,7 @@ def write_rows(rows: list[dict], log_path: Path, action_items_path: Path) -> Non
 
 
 def print_summary(
-    rows: list[dict],
+    rows: list[Row],
     n_listed: int,
     min_age_hours: float,
     decoded: bool,
@@ -175,7 +177,7 @@ def main(
         write_summary(run_dir / SUMMARY_FILENAME, summary)
         append_index_row(destination / "videoproc_run_metadata" / "index.csv", run_id, summary)
 
-        rows: list[dict] = []
+        rows: list[Row] = []
 
         # ---- pass 1: cheap checks for every file (presence, probe, age) ----
         now = time.time()

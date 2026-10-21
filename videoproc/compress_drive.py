@@ -4,6 +4,7 @@ import argparse
 import concurrent.futures
 import contextlib
 import csv
+import io
 import os
 import shutil
 import socket
@@ -20,6 +21,8 @@ from pprint import pprint
 import cv2
 import detect_motion
 import numpy as np
+import numpy.typing as npt
+from cv2.typing import MatLike
 
 from classify import (
     ACTION_COPY,
@@ -38,6 +41,7 @@ from manifest import (
     SUMMARY_FILENAME,
     ManifestError,
     ManifestRow,
+    SummaryRow,
     read_manifests,
     summarize_by_subject_and_view,
     write_summary,
@@ -116,26 +120,28 @@ def _file_lock(
         lock_path.unlink(missing_ok=True)
 
 
-def index_row(run_id: str, summary: list[dict], motion_detection: bool | None = None, motion_threshold: float | None = None) -> dict:
+def index_row(
+    run_id: str, summary: list[SummaryRow], motion_detection: bool | None = None, motion_threshold: float | None = None
+) -> dict[str, object]:
     """The one-line summary of a run that goes into index.csv. The scope columns derive from
     the run folder's summary_by_subj_and_view.csv (see rebuild_index.py); the motion columns
     are a compression run's settings, blank for a confirm run."""
-    starts = [s["start"] for s in summary if s["start"]]
-    ends = [s["end"] for s in summary if s["end"]]
+    starts = [str(s["start"]) for s in summary if s["start"]]
+    ends = [str(s["end"]) for s in summary if s["end"]]
     return {
         "run_id": run_id,
-        "subjects": "_".join(sorted({s["subjID"] for s in summary})),
+        "subjects": "_".join(sorted({str(s["subjID"]) for s in summary})),
         "range_start": min(starts) if starts else "",
         "range_end": max(ends) if ends else "",
         "n_streams": len(summary),
-        "n_files": sum(s["file_count"] for s in summary),
+        "n_files": sum(int(s["file_count"]) for s in summary),
         "motion_detection": "" if motion_detection is None else motion_detection,
         "motion_threshold": "" if motion_threshold is None else motion_threshold,
     }
 
 
 def append_index_row(
-    index_path: Path, run_id: str, summary: list[dict], motion_detection: bool | None = None, motion_threshold: float | None = None
+    index_path: Path, run_id: str, summary: list[SummaryRow], motion_detection: bool | None = None, motion_threshold: float | None = None
 ) -> bool:
     """Append one summary line for this run to the top-level run index (creating it with a
     header on first use), so later lookups don't require opening every run's own folder.
@@ -189,7 +195,7 @@ def save_peak_still(stills_dir: Path, clip_filename: str, frame, frame_number: i
     return path
 
 
-def append_motion_review_row(path: Path, row: dict) -> None:
+def append_motion_review_row(path: Path, row: dict[str, object]) -> None:
     """One row per no-motion clip with at least one sampled frame at or above the threshold."""
     is_new = not path.exists()
     with open(path, "a", newline="") as f:
@@ -223,8 +229,9 @@ def start_terminal_log(log_path: Path):
     log_path.parent.mkdir(parents=True, exist_ok=True)
     # force line buffering so live output and the log file don't lag behind what's
     # actually been printed
-    sys.__stdout__.reconfigure(line_buffering=True)
-    sys.__stderr__.reconfigure(line_buffering=True)
+    for stream in (sys.__stdout__, sys.__stderr__):
+        if isinstance(stream, io.TextIOWrapper):
+            stream.reconfigure(line_buffering=True)
     log_file = open(log_path, "a", buffering=1)
     sys.stdout = TeeStream(sys.__stdout__, log_file)
     sys.stderr = TeeStream(sys.__stderr__, log_file)
@@ -304,10 +311,10 @@ class MotionResult:
     found_motion: bool
     detection_time: float
     fract_frames_exceeding: float
-    motion_by_frame: np.ndarray
+    motion_by_frame: npt.NDArray[np.float64]
     motion_max: float
     n_frames_over_threshold: int
-    peak_frame: np.ndarray | None
+    peak_frame: MatLike | None
     peak_frame_number: int | None
 
 
@@ -318,7 +325,7 @@ def run_motion_detection(input_path: Path, motion_percentile: float, motion_thre
         motion_by_frame, peak_frame, peak_frame_number = detect_motion.main(
             input_path, play_video=False, return_peak=True
         )
-        motion_perc = np.percentile(motion_by_frame, motion_percentile)
+        motion_perc = float(np.percentile(motion_by_frame, motion_percentile))
         over = motion_by_frame >= motion_threshold
         print("     ", float(np.mean(over)), "of frames reached the motion threshold")
         return MotionResult(
@@ -401,8 +408,9 @@ def print_summary(
     motion_detection: bool,
     motion_review: bool = False,
     n_no_motion: int = 0,
-    flagged_by_view: Counter | None = None,
+    flagged_by_view: Counter[str] | None = None,
 ) -> None:
+    flagged_by_view = flagged_by_view or Counter()
     n_rows = sum(logger.status_counts.values())
     print("\n==== run summary ====")
     print(f"clips listed in the manifest(s): {n_listed}")
@@ -413,7 +421,7 @@ def print_summary(
         print("motion detection: on")
         if motion_review:
             print(f"no-motion clips: {n_no_motion}; peak still saved for each in {NO_MOTION_STILLS_DIRNAME}/")
-            n_flagged = sum(flagged_by_view.values()) if flagged_by_view else 0
+            n_flagged = sum(flagged_by_view.values())
             by_view = ", ".join(f"{view} {n}" for view, n in sorted(flagged_by_view.items())) if n_flagged else ""
             print(
                 f"    flagged for review (>= 1 sampled frame at the threshold): {n_flagged}"
@@ -504,7 +512,7 @@ def main(
         logger = Logger(log_path, run_metadata_dir / "action_items.csv")
 
         n_no_motion = 0
-        flagged_by_view: Counter = Counter()
+        flagged_by_view: Counter[str] = Counter()
         for i, row in enumerate(rows):
             if not wait_for_connectivity(input, output):
                 print(
@@ -576,6 +584,7 @@ def main(
                         flagged = False
                         if motion_review and not res.found_motion:
                             n_no_motion += 1
+                            assert res.peak_frame is not None and res.peak_frame_number is not None  # return_peak=True
                             still = save_peak_still(
                                 run_metadata_dir / NO_MOTION_STILLS_DIRNAME,
                                 input_path.name,
