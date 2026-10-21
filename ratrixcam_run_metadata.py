@@ -13,11 +13,13 @@ from datetime import datetime
 from pathlib import Path
 
 from ratrixcam_naming import (
+    MANIFEST_SUFFIX,
     NOTES_FILENAME,
     NOTES_TEMPLATE,
     RUN_METADATA_DIRNAME,
     STILLS_DIRNAME,
     code_version,
+    manifests_dir,
     run_id,
     run_metadata_dir,
     terminal_log_filename,
@@ -117,9 +119,10 @@ class RunMetadata:
             print(f"WARNING: could not write run metadata to {self.run_dir}: {e}")
 
     def collect_at_shutdown(self) -> None:
-        """After the cameras have stopped: move the status stills and every loose file from
-        the temp folder (screenshots, anything the user dropped there) into the run's
-        metadata folder, remove per-camera temp folders that are empty, and report. The
+        """After the cameras have stopped: move the per-camera manifests from the temp folder
+        to manifests_<run_id> on the save drive; move the status stills and every other loose
+        file from the temp folder (screenshots, anything the user dropped there) into the run's
+        metadata folder; remove per-camera temp folders that are empty; and report. The
         terminal log is closed and moved last, so the report itself is in it. Folders that
         still hold files -- untransferred videos -- are left alone and reported; otherwise
         the temp folder is removed entirely."""
@@ -133,8 +136,14 @@ class RunMetadata:
                 self.terminal_log.stop()
             return
         temp = Path(self.config.temp_path)
-        moved, kept = [], []
+        moved, kept, manifests = [], [], []
         try:
+            manifests_dst = manifests_dir(self.config.save_path, self.run_id)
+            for f in sorted(temp.glob(f"*{MANIFEST_SUFFIX}")):
+                if f.is_file():
+                    manifests_dst.mkdir(parents=True, exist_ok=True)
+                    shutil.move(str(f), str(manifests_dst / f.name))
+                    manifests.append(f.name)
             stills_src = Path(stills_dir(self.config.temp_path))
             if stills_src.is_dir():
                 stills_dst = self.run_dir / STILLS_DIRNAME
@@ -155,6 +164,7 @@ class RunMetadata:
                     kept.append(entry.name)
         except OSError as e:
             print(f"WARNING: collecting run metadata failed part-way: {e}")
+        print(f"Manifests collected: {len(manifests)} file(s) moved to {manifests_dir(self.config.save_path, self.run_id)}")
         print(f"Run metadata collected: {len(moved)} file(s) moved from the temp folder")
         for name in kept:
             print(f"WARNING: temp folder '{name}' still contains files (untransferred videos?); left in place")

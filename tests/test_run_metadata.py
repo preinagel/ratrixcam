@@ -20,7 +20,7 @@ from helpers import (
 
 REPO = VIDEOPROC_DIR.parent
 sys.path.insert(0, str(REPO))
-from ratrixcam_naming import NOTES_FILENAME, RUN_METADATA_DIRNAME, STILLS_DIRNAME  # noqa: E402
+from ratrixcam_naming import NOTES_FILENAME, RUN_METADATA_DIRNAME, STILLS_DIRNAME, manifests_dir  # noqa: E402
 from ratrixcam_run_metadata import RunMetadata  # noqa: E402
 from ratrixcam_utils import Config, stills_dir  # noqa: E402
 
@@ -95,6 +95,7 @@ def test_collect_at_shutdown_gathers_loose_temp_files_and_stills(tmp_path):
     temp = Path(config.temp_path)
     (Path(stills_dir(config.temp_path)) / "cam_cam1_status.png").write_bytes(b"png")
     (temp / "Screenshot 2026-01-02.png").write_bytes(b"shot")
+    (temp / "subj001_cam1_manifest.csv").write_text("path,subjID,view,clip_start,row_written,crf\n")
     (temp / ".DS_Store").write_bytes(b"")
     run.log_path.write_text("fake terminal log\n")
     empty_cam_dir = temp / "Test_cam1"
@@ -109,6 +110,8 @@ def test_collect_at_shutdown_gathers_loose_temp_files_and_stills(tmp_path):
     assert (run.run_dir / STILLS_DIRNAME / "cam_cam1_status.png").read_bytes() == b"png"
     assert (run.run_dir / "Screenshot 2026-01-02.png").exists()
     assert (run.run_dir / run.log_path.name).read_text() == "fake terminal log\n"
+    assert (manifests_dir(config.save_path, run.run_id) / "subj001_cam1_manifest.csv").read_text().startswith("path,")
+    assert not (run.run_dir / "subj001_cam1_manifest.csv").exists()  # manifests go to their own folder
     assert not (temp / "Screenshot 2026-01-02.png").exists()
     assert not (Path(stills_dir(config.temp_path)) / "cam_cam1_status.png").exists()  # moved, not copied
     assert not Path(stills_dir(config.temp_path)).exists()  # emptied stills folder removed

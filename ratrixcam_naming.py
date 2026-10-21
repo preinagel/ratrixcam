@@ -10,6 +10,9 @@ Folder layout for a recording run's metadata (GitHub #34):
         notes.txt                   template for the human's notes
         stills/                     the per-camera status stills as they were at shutdown
         <anything else>             other files found in the temp folder at shutdown
+
+    <save_path>/manifests_<run_id>/
+        <camera name>_manifest.csv  one row per clip the camera closed during the run
 """
 
 import os
@@ -22,6 +25,8 @@ RUN_METADATA_DIRNAME = "ratrixcam_run_metadata"
 NOTES_FILENAME = "notes.txt"
 STILLS_DIRNAME = "stills"
 NOTES_TEMPLATE = "Notes for this recording run (free text; edit by hand).\n"
+MANIFESTS_DIRNAME_PREFIX = "manifests_"
+MANIFEST_SUFFIX = "_manifest.csv"
 
 
 def code_version(anchor: Path | None = None) -> str:
@@ -56,6 +61,15 @@ def run_metadata_dir(save_path: str | Path, run_id_: str) -> Path:
 
 def terminal_log_filename(run_id_: str) -> str:
     return f"terminal_{run_id_}.log"
+
+
+def manifests_dir(save_path: str | Path, run_id_: str) -> Path:
+    """Where a run's per-camera manifests are collected at shutdown."""
+    return Path(save_path) / f"{MANIFESTS_DIRNAME_PREFIX}{run_id_}"
+
+
+def manifest_filename(camera_name_: str) -> str:
+    return f"{camera_name_}{MANIFEST_SUFFIX}"
 
 
 def still_path(stills_path: str, camera_name: str) -> str:

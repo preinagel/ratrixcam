@@ -16,6 +16,7 @@ import cv2
 from cv2.typing import MatLike
 from pydantic import BaseModel
 
+from ratrixcam_manifest import ManifestMetadata
 from ratrixcam_naming import camera_name, clip_filename, still_path
 from ratrixcam_utils import Config, ensure_dir_exists, load_settings, stills_dir
 
@@ -143,10 +144,12 @@ class WriterState(NamedTuple):
     save_dir: str
     temp_dir: str
     file_name: str
+    started: datetime  # time of the first frame written to this clip
 
 
-def close_writer(writer_state: WriterState, file_transfer_processes: list[Process]):
+def close_writer(writer_state: WriterState, file_transfer_processes: list[Process], manifest: ManifestMetadata):
     writer_state.writer.release()
+    manifest.append(os.path.basename(writer_state.save_dir), writer_state.file_name, writer_state.started)
 
     temp_video_path = os.path.join(writer_state.temp_dir, writer_state.file_name)
     out_path = os.path.join(writer_state.save_dir, writer_state.file_name)
@@ -170,6 +173,7 @@ def run(config: Config, device_id: int, stop_event: Event):
         crf=(camera.crf if camera.crf is not None else config.default_crf),
     )
     label: str = f"{config.study_label}_{params.name}"
+    manifest = ManifestMetadata(config.temp_path, params.name, camera.subjID, camera.view, params.crf)
     #ifi: float=1/params.fps #nominal interframe interval
 
     temp_dir = os.path.join(config.temp_path, label)
@@ -225,7 +229,7 @@ def run(config: Config, device_id: int, stop_event: Event):
 
             # close the old writer
             if writer_state is not None:
-                close_writer(writer_state, file_transfer_processes)
+                close_writer(writer_state, file_transfer_processes, manifest)
             filecount += 1
 
             # open a new writer
@@ -247,6 +251,7 @@ def run(config: Config, device_id: int, stop_event: Event):
                 current_save_dir,
                 temp_dir,
                 current_file_name,
+                current_datetime,
             )
             print(f"Cam_server: Camera {params.name} will now stream to {current_file_name}")
 
@@ -294,7 +299,7 @@ def run(config: Config, device_id: int, stop_event: Event):
             is not None
         ):
             pass
-        close_writer(writer_state, file_transfer_processes)
+        close_writer(writer_state, file_transfer_processes, manifest)
 
     file_transfer_processes = [p for p in file_transfer_processes if p.is_alive()]
     print(
