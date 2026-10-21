@@ -5,6 +5,7 @@ import re
 import sys
 from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
 
 from helpers import VIDEOPROC_DIR
 
@@ -41,3 +42,38 @@ def test_write_failure_warns_and_returns_false(tmp_path, monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "WARNING" in out and "clip.mp4" in out and "3 attempts" in out
     assert not Path(m.path).exists()
+
+
+def test_retry_succeeds_once_the_folder_appears(tmp_path, monkeypatch, capsys):
+    folder = tmp_path / "late_folder"
+    monkeypatch.setattr(ratrixcam_manifest, "time", SimpleNamespace(sleep=lambda _s: folder.mkdir()))
+    m = ManifestMetadata(str(folder), "rat999_home", "999", "home", 25)
+    assert m.append("Test_rat999_home_20261019", "clip.mp4", datetime.now()) is True
+    assert "WARNING" not in capsys.readouterr().out
+    assert Path(m.path).read_text().count("\n") == 2  # header + one row
+
+
+def test_close_writer_still_transfers_the_clip_when_the_manifest_fails(tmp_path, monkeypatch, capsys):
+    import ratrixcam_server
+
+    class StandInWriter:
+        def release(self):
+            pass
+
+    monkeypatch.setattr(ratrixcam_manifest, "RETRY_DELAY", 0)
+    temp_dir, save_dir = tmp_path / "temp" / "Test_rat999_home", tmp_path / "save" / "Test_rat999_home_20261021"
+    temp_dir.mkdir(parents=True)
+    save_dir.mkdir(parents=True)
+    (temp_dir / "clip.mp4").write_bytes(b"clip")
+    manifest = ManifestMetadata(str(tmp_path / "temp" / "no_such_folder"), "rat999_home", "999", "home", 25)
+    state = ratrixcam_server.WriterState(StandInWriter(), str(save_dir), str(temp_dir), "clip.mp4", datetime.now())
+    transfers = []
+
+    ratrixcam_server.close_writer(state, transfers, manifest)
+
+    assert "WARNING" in capsys.readouterr().out
+    assert len(transfers) == 1
+    transfers[0].join(30)
+    assert (save_dir / "clip.mp4").read_bytes() == b"clip"
+    assert not (temp_dir / "clip.mp4").exists()
+    assert not Path(manifest.path).exists()  # the clip is on disk with no manifest row
