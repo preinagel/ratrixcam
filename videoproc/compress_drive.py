@@ -373,7 +373,7 @@ def run_motion_detection(input_path: Path, motion_percentile: float, motion_thre
         print("     ", float(np.mean(over)), "of frames reached the motion threshold")
         return MotionResult(
             motion_perc,
-            motion_perc >= motion_threshold,
+            bool(motion_perc >= motion_threshold),  # a Python bool: the caller tests `is False`
             time.time() - start,
             float(np.mean(over)),
             motion_by_frame,
