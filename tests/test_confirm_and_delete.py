@@ -11,7 +11,7 @@ import pytest
 from helpers import (
     HOM_TIME, T11_DATE, T11_TIME, T12_TIME, TIMES, VIDEOPROC_DIR,
     add_manifest_row, dest_path, fname, is_true, latest_run_dir, manifest_path, place, place_clip, read_log, read_rows,
-    run_confirm_and_delete, session_folder_path, source_path,
+    run_compress_drive, run_confirm_and_delete, session_folder_path, source_path,
 )
 
 
@@ -92,16 +92,22 @@ def test_confirm_a_checks_only_listed_files(confirm_a):
     assert not (confirm_a["run_dir"] / "config.json").exists()
 
 
-def test_confirm_listed_file_missing_at_source_is_flagged(tmp_path, clips):
+def test_confirm_listed_file_missing_at_source_is_flagged_but_does_not_block_deletion(tmp_path, clips):
     source_root, dest_root = tmp_path / "source", tmp_path / "dest"
     dest_root.mkdir()
     place_clip(clips["R30"], source_root, "10-00-00")
+    assert run_compress_drive(source_root, dest_root, extra_args=["--n_threads", "4"]).returncode == 0
     add_manifest_row(source_root, "Longitudinal Study_rat901_home_20250101/missing.mp4", "901", "home", "2025-01-01 10:05:00")
-    result = run_confirm_and_delete(source_root, dest_root, extra_args=["--min_age_hours", "0"])
+    result = run_confirm_and_delete(source_root, dest_root, extra_args=["--min_age_hours", "0", "--no-decode"], delete=True)
     assert result.returncode == 0, result.stderr
-    log = read_log(latest_run_dir(dest_root, "confirm_"))
+    run_dir = latest_run_dir(dest_root, "confirm_")
+    log = read_log(run_dir)
     assert log["missing.mp4"]["status"] == "missing_source"
     assert is_true(log["missing.mp4"]["action_item"])
+    assert "no archive copy" in log["missing.mp4"]["skipped_reason"]
+    assert "REFUSING" not in result.stdout
+    assert not source_path(source_root, "10-00-00").exists()  # the verified clip was deleted anyway
+    assert len(read_rows(run_dir / "deletion_log.csv")) == 1
 
 
 def test_confirm_a_reports_only_nothing_deleted(confirm_a, cd_prepared):

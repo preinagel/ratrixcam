@@ -31,7 +31,7 @@ from classify import (
 )
 from compress_drive import append_index_row, start_terminal_log
 from manifest import SUMMARY_FILENAME, ManifestError, read_manifests, summarize_by_subject_and_view, write_summary
-from util import build_output_path, code_version
+from util import build_output_path, code_version, get_codec_nframes
 
 EXTRA_FIELDS = [
     "source_codec",
@@ -108,9 +108,10 @@ def print_summary(
     print(f"clips listed in the manifest(s): {n_listed}")
     print(f"rows logged for them: {len(rows)}")
     print(f"verified deletable ({checks}): {n_deletable}")
+    print(f"listed but not at the source (nothing to delete): {counts.get(STATUS_MISSING_SOURCE, 0)}")
     print("not deletable, by reason:")
     for status, count in sorted(counts.items()):
-        if status != STATUS_ALREADY_DONE:
+        if status not in (STATUS_ALREADY_DONE, STATUS_MISSING_SOURCE):
             print(f"    {status}: {count}")
     print(f"rows flagged for human review: {n_flagged} -> {action_items_path}")
 
@@ -189,12 +190,15 @@ def main(
             rows.append(row)
             print(f"checking {listed_row.path}")
             try:
-                if not input_path.is_file():
-                    raise SkipFile(STATUS_MISSING_SOURCE, "listed in the manifest but not found at the source", action_item=True)
                 output_path = build_output_path(
                     destination, subject_prefix, studyname, listed_row.subjID, listed_row.view, listed_row.clip_start, input_path.name
                 )
                 row["output_path"] = output_path
+                if not input_path.is_file():
+                    # nothing to delete; the row records whether the archive has the clip
+                    row["destination_codec"], _ = get_codec_nframes(output_path) if output_path.is_file() else (None, None)
+                    archived = "archive copy present" if row["destination_codec"] else "no archive copy"
+                    raise SkipFile(STATUS_MISSING_SOURCE, f"listed in the manifest but not found at the source; {archived}", action_item=True)
                 if source_resolved in output_path.resolve().parents:
                     raise SkipFile(
                         STATUS_ERROR, "computed destination path lies inside the source folder", action_item=True
@@ -242,8 +246,10 @@ def main(
         print_summary(rows, len(listed), min_age_hours, False, action_items_path)
 
         # ---- refusal gate: stop before decoding if the run cannot end in a deletion ----
+        # a file missing at the source cannot be deleted and does not block the others
+        n_missing = sum(1 for r in rows if r["status"] == STATUS_MISSING_SOURCE)
         candidates = [r for r in rows if r["deletable"]]
-        n_not_deletable = len(listed) - len(candidates)
+        n_not_deletable = len(listed) - len(candidates) - n_missing
         if delete and n_not_deletable and not delete_partial:
             print(
                 f"\nREFUSING to delete: {n_not_deletable} file(s) are not verified deletable "
@@ -278,7 +284,7 @@ def main(
             print("\nReport only: --delete not set, nothing was deleted.")
             return
         deletable = [(Path(r["input_path"]), Path(r["output_path"])) for r in rows if r["deletable"]]
-        n_not_deletable = len(listed) - len(deletable)
+        n_not_deletable = len(listed) - len(deletable) - n_missing
         if n_not_deletable and not delete_partial:
             print(
                 f"\nREFUSING to delete: {n_not_deletable} file(s) are not verified deletable "
