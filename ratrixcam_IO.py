@@ -157,40 +157,6 @@ def camera_image_update_loop(
     )
 
 
-def create_start_window(state: State, bgcolor: str, config: Config, stop_event: Event) -> tk.Tk:
-    """The launch window: nothing but the Start Recording button. The config is taken as
-    given on the command line and is not displayed, edited or saved here."""
-    window = tk.Tk()
-    _ = window.configure(background=bgcolor)
-    window.geometry("1024x600")
-    window.title("ratrixcam")
-
-    button_font = font.Font(family="Helvitica", size=15)
-
-    def start_recording():
-        state.camera_process = Process(
-            target=run_without_handlers, args=(config, stop_event)
-        )
-        state.camera_process.start()
-        if state.run_metadata is not None:
-            state.run_metadata.record_start()
-        window.destroy()
-
-    tk.Button(
-        window,
-        text="Start Recording",
-        bg="green",
-        fg="green",
-        bd=0,
-        height=3,
-        width=19,
-        font=button_font,
-        command=start_recording,
-    ).place(x=100, y=500)
-
-    return window
-
-
 # display cells for the eight camera positions, laid out  A B | E F  over  C D | G H
 # (grid column 2 is left empty as a gap between the two blocks)
 GRID_CELLS = {
@@ -482,23 +448,6 @@ def main():
     if os.environ.get("DISPLAY", "") == "":
         os.environ.__setitem__("DISPLAY", ":0.0")
 
-    state.current_window = create_start_window(state, bgcolor, config, stop_event)
-    # reestablish signal handlers since tkinter messes them up
-    _ = signal.signal(signal.SIGINT, int_handler)
-    _ = signal.signal(
-        signal.SIGTERM,
-        lambda sig, frame: graceful_shutdown(state, stop_event),
-    )
-
-    state.current_window.mainloop()
-    state.current_window = None
-
-    if state.camera_process is None:
-        print("Session Ended, cameras not started")
-        if state.run_metadata.terminal_log is not None:
-            state.run_metadata.terminal_log.stop()
-        return
-
     if not ensure_dir_exists(config.save_path):
         print("ERROR: Recording folder does not exist and could not be created")
         return
@@ -528,6 +477,10 @@ def main():
     # get rid of any old still images
     print("Removing any old still images")
     reset_stills(config)
+
+    state.camera_process = Process(target=run_without_handlers, args=(config, stop_event))
+    state.camera_process.start()
+    state.run_metadata.record_start()
 
     state.current_window = create_recording_window(state, bgcolor, config)
 
