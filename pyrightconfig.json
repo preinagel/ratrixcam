@@ -1,4 +1,6 @@
 {
+  "typeCheckingMode": "recommended",
+  "reportUnreachable": "error",
   "executionEnvironments": [
     {"root": "videoproc", "extraPaths": ["."]},
     {"root": "tests", "extraPaths": [".", "videoproc"]},
