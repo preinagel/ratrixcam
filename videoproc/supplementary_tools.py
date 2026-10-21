@@ -1,16 +1,58 @@
-"""Early-draft helpers for characterising and calibrating motion-detection criteria from the
+"""Stash of side-quest and deprecated code kept for future mining; nothing in the pipeline
+imports it and it is not maintained with the rest of videoproc.
+
+Early-draft helpers for characterising and calibrating motion-detection criteria from the
 motion_timeseries.csv files that compress_drive writes. Not a finished tool and not used by
 the pipeline; kept so the analysis behind the lab's threshold can be repeated or adapted
 (e.g. for a supplementary figure). Interfaces may change."""
 
 import csv
+import re
 from collections import defaultdict
+from datetime import date, datetime
 from pathlib import Path
 
 import numpy as np
 
 import detect_motion
-from util import parse_filenames
+
+# ---- the lab's strict clip-filename parser, as used on the legacy branch (videoproc/util.py
+# there); the pipeline no longer parses filenames, it reads manifests
+SUBJECT_IDS = frozenset(f"rat{n}" for n in range(556, 564))  # rat556 .. rat563
+VIEWS = frozenset(("face", "lid", "buddy", "home"))
+RECORDING_DATE_FIRST = date(2025, 6, 27)
+RECORDING_DATE_LAST = date(2025, 8, 29)
+VIDEO_EXT = ".mp4"
+STANDARD_STEM = re.compile(r"(rat\d{3})_([a-z]+)_(\d{8})_(\d{2}-\d{2}-\d{2})")
+
+
+def parse_recording_datetime(filming_date: str, filming_time: str) -> datetime | None:
+    try:
+        return datetime.strptime(f"{filming_date}_{filming_time}", "%Y%m%d_%H-%M-%S")
+    except ValueError:
+        return None
+
+
+def parse_filenames(video_fname: Path) -> tuple[str, str, str, str] | None:
+    """Split a clip filename into (subjectID, view, YYYYMMDD, HH-MM-SS).
+
+    The standard name is rat<ID>_<view>_<YYYYMMDD>_<HH-MM-SS>.mp4 with the subject in
+    SUBJECT_IDS, the view in VIEWS, a real date within the experiment's recording dates
+    and a real time; anything else is None."""
+    stem = video_fname.stem
+    if video_fname.suffix == VIDEO_EXT:
+        m = STANDARD_STEM.fullmatch(stem)
+        if m:
+            subj_ID, camera_view, filming_date, filming_time = m.groups()
+            recorded = parse_recording_datetime(filming_date, filming_time)
+            if (
+                subj_ID in SUBJECT_IDS
+                and camera_view in VIEWS
+                and recorded is not None
+                and RECORDING_DATE_FIRST <= recorded.date() <= RECORDING_DATE_LAST
+            ):
+                return subj_ID, camera_view, filming_date, filming_time
+    return None
 
 
 def read_motion_timeseries(run_dir: Path) -> dict[str, np.ndarray]:
