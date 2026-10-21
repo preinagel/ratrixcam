@@ -4,7 +4,6 @@ import argparse
 import concurrent.futures
 import contextlib
 import csv
-import json
 import os
 import shutil
 import socket
@@ -24,36 +23,26 @@ import numpy as np
 
 from classify import (
     ACTION_COPY,
-    MAX_LISTED_PATTERN_MISMATCHES,
     STATUS_COMPRESSED,
     STATUS_COPIED,
     STATUS_ERROR,
+    STATUS_MISSING_SOURCE,
     STATUS_NOT_ATTEMPTED,
     STATUS_OUTPUT_INVALID,
-    STATUS_PATTERN_MISMATCH,
-    STATUS_UNPARSEABLE,
     Logger,
     SkipFile,
     classify_file,
-    find_unmatched_files,
-    log_unmatched_files,
 )
-from run_metadata_transfer import destination_for, find_run_metadata_dirs, transfer
-
-#sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "legacy"))  # path to legacy handling code, to be removed with the legacy backlog
-#from legacy_rules import legacy_crf  # noqa: E402
-
-from util import (
-    RAW_CODEC,
-    code_version,
-    get_codec_nframes,
+from manifest import (
+    DEFAULT_CRF,
+    SUMMARY_FILENAME,
+    ManifestError,
+    ManifestRow,
+    read_manifests,
+    summarize_by_subject_and_view,
+    write_summary,
 )
-
-from ratrixcam_naming import (
-    build_output_path,
-    parse_filenames,
-    parse_recording_datetime,
-)
+from util import build_output_path, code_version, get_codec_nframes
 
 # NON-NEGOTIABLE HARDWIRED CONSTANTS DEFINED HERE
 # connectivity-loss handling: if the input/output root becomes unreachable (e.g. a
@@ -83,56 +72,12 @@ MOTION_REVIEW_FIELDS = [
     "still_path",
 ]
 
-def build_manifest(input_paths: list[Path]) -> list[dict]:
-    """
-    Scan input paths once and summarize, per (subjID, view) stream found, the date/time
-    range covered and how many files were seen. Records what a compression run's input
-    scope was, independent of whatever folder-naming convention the source data uses.
-    Unparseable files are counted separately and excluded from date-range stats.
-    """
-    streams: dict[tuple[str, str], dict] = {}
-    unparseable_count = 0
-
-    for path in input_paths:
-        parsed = parse_filenames(path)
-        if parsed is None:
-            unparseable_count += 1
-            continue
-        subj_ID, view, filming_date, filming_time = parsed
-        recorded_at = parse_recording_datetime(filming_date, filming_time)
-
-        stream = streams.setdefault(
-            (subj_ID, view), {"subj_ID": subj_ID, "view": view, "start": None, "end": None, "file_count": 0}
-        )
-        stream["file_count"] += 1
-        if recorded_at is not None:
-            if stream["start"] is None or recorded_at < stream["start"]:
-                stream["start"] = recorded_at
-            if stream["end"] is None or recorded_at > stream["end"]:
-                stream["end"] = recorded_at
-
-    manifest = sorted(streams.values(), key=lambda s: (s["subj_ID"], s["view"]))
-    for stream in manifest:
-        stream["start"] = stream["start"].strftime("%Y-%m-%d %H:%M:%S") if stream["start"] else ""
-        stream["end"] = stream["end"].strftime("%Y-%m-%d %H:%M:%S") if stream["end"] else ""
-    if unparseable_count:
-        print(f"WARNING: {unparseable_count} input file(s) could not be parsed; excluded from manifest")
-
-    return manifest
-
-
-def write_manifest(manifest_path: Path, manifest: list[dict]) -> None:
-    manifest_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(manifest_path, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=["subj_ID", "view", "start", "end", "file_count"])
-        writer.writeheader()
-        writer.writerows(manifest)
-
-
 INDEX_LOCK_TIMEOUT_SECONDS = 300  # how long a run waits for index.csv before giving up on it
 INDEX_LOCK_STALE_SECONDS = 600  # a lock is held for milliseconds; one this old belongs to a dead run
 INDEX_LOCK_POLL_SECONDS = 0.5
-INDEX_FIELDS = ["run_id", "subjects", "range_start", "range_end", "n_streams", "n_files"]
+INDEX_FIELDS = [
+    "run_id", "subjects", "range_start", "range_end", "n_streams", "n_files", "motion_detection", "motion_threshold",
+]
 
 
 @contextlib.contextmanager
@@ -171,22 +116,27 @@ def _file_lock(
         lock_path.unlink(missing_ok=True)
 
 
-def index_row(run_id: str, manifest: list[dict]) -> dict:
-    """The one-line summary of a run that goes into index.csv (derivable from the run folder's
-    manifest.csv, so the index can always be rebuilt; see rebuild_index.py)."""
-    starts = [s["start"] for s in manifest if s["start"]]
-    ends = [s["end"] for s in manifest if s["end"]]
+def index_row(run_id: str, summary: list[dict], motion_detection: bool | None = None, motion_threshold: float | None = None) -> dict:
+    """The one-line summary of a run that goes into index.csv. The scope columns derive from
+    the run folder's summary_by_subj_and_view.csv (see rebuild_index.py); the motion columns
+    are a compression run's settings, blank for a confirm run."""
+    starts = [s["start"] for s in summary if s["start"]]
+    ends = [s["end"] for s in summary if s["end"]]
     return {
         "run_id": run_id,
-        "subjects": "_".join(sorted({s["subj_ID"] for s in manifest})),
+        "subjects": "_".join(sorted({s["subjID"] for s in summary})),
         "range_start": min(starts) if starts else "",
         "range_end": max(ends) if ends else "",
-        "n_streams": len(manifest),
-        "n_files": sum(s["file_count"] for s in manifest),
+        "n_streams": len(summary),
+        "n_files": sum(s["file_count"] for s in summary),
+        "motion_detection": "" if motion_detection is None else motion_detection,
+        "motion_threshold": "" if motion_threshold is None else motion_threshold,
     }
 
 
-def append_index_row(index_path: Path, run_id: str, manifest: list[dict]) -> bool:
+def append_index_row(
+    index_path: Path, run_id: str, summary: list[dict], motion_detection: bool | None = None, motion_threshold: float | None = None
+) -> bool:
     """Append one summary line for this run to the top-level run index (creating it with a
     header on first use), so later lookups don't require opening every run's own folder.
     Locked so concurrent runs sharing the same output root, on one or several machines,
@@ -194,7 +144,7 @@ def append_index_row(index_path: Path, run_id: str, manifest: list[dict]) -> boo
     if the index stayed locked for the whole timeout; the run itself continues, since its
     own folder is the complete record and the index can be rebuilt from it."""
     index_path.parent.mkdir(parents=True, exist_ok=True)
-    row = index_row(run_id, manifest)
+    row = index_row(run_id, summary, motion_detection, motion_threshold)
     lock_path = index_path.with_suffix(index_path.suffix + ".lock")
     try:
         with _file_lock(lock_path):
@@ -430,10 +380,11 @@ def compress_video(
         return False, e.stderr.decode("utf-8"), compression_time
 
 
-def log_not_attempted(logger: Logger, remaining: list[Path]) -> None:
-    for path in remaining:
+def log_not_attempted(logger: Logger, remaining: list[ManifestRow], input_root: Path) -> None:
+    for row in remaining:
         logger.reset()
-        logger.input_path = path
+        logger.input_path = input_root / row.path
+        logger.subjID, logger.view = row.subjID, row.view
         logger.status = STATUS_NOT_ATTEMPTED
         logger.action_item = True
         logger.skipped_reason = "run aborted before this file was attempted"
@@ -446,27 +397,20 @@ def log_not_attempted(logger: Logger, remaining: list[Path]) -> None:
 
 def print_summary(
     logger: Logger,
-    n_matched: int,
-    n_unmatched_mp4: int,
-    n_other: int,
-    n_unrecognized_view: int,
+    n_listed: int,
     motion_detection: bool,
-    # n_motion_skipped_compressed_source: int,  # pending a decision on already-compressed sources
-    aux_summary: str = "",
     motion_review: bool = False,
     n_no_motion: int = 0,
     flagged_by_view: Counter | None = None,
 ) -> None:
     n_rows = sum(logger.status_counts.values())
     print("\n==== run summary ====")
-    print(f"files matching --pattern: {n_matched}")
-    print(f"rows logged for them: {n_rows - logger.status_counts[STATUS_PATTERN_MISMATCH]}")
+    print(f"clips listed in the manifest(s): {n_listed}")
+    print(f"rows logged for them: {n_rows}")
     for status, count in sorted(logger.status_counts.items()):
         print(f"    {status}: {count}")
     if motion_detection:
         print("motion detection: on")
-        # pending a decision on already-compressed sources:
-        # print(f"    skipped for {n_motion_skipped_compressed_source} clip(s) from already-compressed sources")
         if motion_review:
             print(f"no-motion clips: {n_no_motion}; peak still saved for each in {NO_MOTION_STILLS_DIRNAME}/")
             n_flagged = sum(flagged_by_view.values()) if flagged_by_view else 0
@@ -477,45 +421,15 @@ def print_summary(
             )
     else:
         print("motion detection: off")
-    if n_unrecognized_view:
-        print(
-            f"WARNING: {n_unrecognized_view} file(s) had an unrecognized camera view name and were compressed "
-            "with the minimally lossy setting -- check for misnamed files (see WARNING lines above)"
-        )
-    unlisted = " (not listed individually; review by hand)" if n_unmatched_mp4 > MAX_LISTED_PATTERN_MISMATCHES else ""
-    print(f".mp4 files not matching --pattern (not checked or copied): {n_unmatched_mp4}{unlisted}")
-    print(f"non-.mp4 files in source (not checked or copied): {n_other}")
-    if aux_summary:
-        print(aux_summary)
     print(f"rows flagged for human review: {logger.n_action_items} -> {logger.action_items_path}")
-
-
-def transfer_run_metadata(source: Path, destination: Path) -> str:
-    """Copy every ratrixcam run-metadata folder found under the source to the archive, never
-    overwriting a destination file that differs. Returns the summary line for the run."""
-    run_dirs = find_run_metadata_dirs(source)
-    if not run_dirs:
-        return ""
-    n_files = 0
-    problems: list[str] = []
-    for run_dir in run_dirs:
-        dest_dir = destination_for(run_dir, destination)
-        n_copied, differing = transfer(run_dir, dest_dir)
-        n_files += n_copied
-        problems += [f"{run_dir.name}/{rel}" for rel in differing]
-        print(f"run metadata {run_dir.name}: {n_copied} file(s) copied to {dest_dir}")
-        for rel in differing:
-            print(f"    WARNING: {rel} already exists at the destination with a different size; not overwritten")
-    line = f"ratrixcam run-metadata folders transferred: {len(run_dirs)} ({n_files} file(s) copied)"
-    if problems:
-        line += f"; WARNING: {len(problems)} file(s) differ at the destination and were not overwritten"
-    return line
 
 
 def main(
     input: Path,
     output: Path,
-    pattern: str,
+    manifest: list[Path],
+    studyname: str | None,
+    subject_prefix: str,
     motion_percentile: float,
     motion_threshold: float,
     n_threads: int,
@@ -523,13 +437,10 @@ def main(
     recompress: bool,
     overwrite_raw: bool,
     overwrite_compressed: bool,
-    output_studyname: str,
     motion_detection: bool,
     motion_review: bool,
 ):
-    """(optional motion detection) -> compression."""
-
-    kwargs = locals()
+    """(optional motion detection) -> compression, for every clip the manifest(s) list."""
 
     # confirm both roots are reachable before creating the run's metadata folder or
     # writing anything else under `output`
@@ -544,10 +455,10 @@ def main(
     # random suffix) -- what subjects/views/dates it covers is recorded inside, not encoded
     # into the folder name itself. Computed first, and the terminal log started immediately,
     # so the log captures the run from its very first message.
-    run_id = f"videoproc_{datetime.now():%Y%m%d_%H%M%S}_{uuid.uuid4().hex[:8]}"
+    run_id = f"compression_{datetime.now():%Y%m%d_%H%M%S}_{uuid.uuid4().hex[:8]}"
     run_metadata_dir = output / "videoproc_run_metadata" / run_id
     log_file = start_terminal_log(run_metadata_dir / "terminal.log")
-    print(f"Starting videoproc run {run_id}")
+    print(f"Starting compression run {run_id} -- code version {code_version()}")
     print(f"Call: python3 {' '.join(sys.argv)}")
 
     try:
@@ -559,26 +470,21 @@ def main(
         else:
             print(f"ffmpeg found at {ffmpeg_cmd}")
 
-        input_paths: list[Path] = sorted(input.glob(pattern))
-        if not input_paths:  # check if input_paths is empty
-            print(f"no video files found in {input.resolve()} matching pattern '{pattern}'. Exiting.")
+        try:
+            rows = read_manifests(manifest)
+        except ManifestError as e:
+            print(f"ERROR: {e}. Exiting.")
             return
-        print("found", len(input_paths), "video files in", input.resolve())
+        if not rows:
+            print("the manifest(s) list no clips. Exiting.")
+            return
+        print(f"{len(rows)} clip(s) listed in {len(manifest)} manifest(s); source root {input.resolve()}")
 
-        manifest = build_manifest(input_paths)
-        write_manifest(run_metadata_dir / "manifest.csv", manifest)
+        summary = summarize_by_subject_and_view(rows)
+        write_summary(run_metadata_dir / SUMMARY_FILENAME, summary)
         index_path = output / "videoproc_run_metadata" / "index.csv"
-        indexed = append_index_row(index_path, run_id, manifest)
+        indexed = append_index_row(index_path, run_id, summary, motion_detection, motion_threshold)
 
-        config = dict(kwargs)
-        config["code_version"] = code_version()
-        config["motion_detection"] = {
-            "enabled": motion_detection,
-            "percentile": motion_percentile,
-            "threshold": motion_threshold,
-            "review": motion_review,
-            **detect_motion.PARAMETERS,
-        }
         if motion_detection:
             print("motion detection ON: clips with no detected motion will be aggressively compressed")
             print(f"    threshold {motion_threshold} at the {motion_percentile}th percentile")
@@ -590,53 +496,41 @@ def main(
             else:
                 print("motion review OFF: no stills; time series kept for every clip")
         else:
-            print("motion detection OFF: all clips will be compressed according to camera policy regardless of motion")
-        config_path = run_metadata_dir / "compression_config.json"
-        config_path.parent.mkdir(parents=True, exist_ok=True)
-        config_path.write_text(json.dumps(config, indent=4, default=str))
+            print("motion detection OFF: all clips will be compressed at their manifest crf regardless of motion")
 
-        log_path = run_metadata_dir / "log.csv"
+        log_path = run_metadata_dir / "compression_log.csv"
         motion_timeseries_path = run_metadata_dir / "motion_timeseries.csv"
 
         logger = Logger(log_path, run_metadata_dir / "action_items.csv")
 
-        unmatched_mp4, n_other_files = find_unmatched_files(input, input_paths)
-        log_unmatched_files(logger, unmatched_mp4, n_other_files, pattern)
-        aux_summary = transfer_run_metadata(input, output)
-
-        n_unrecognized_view = 0
-        # n_motion_skipped_compressed_source = 0  # pending a decision on already-compressed sources
         n_no_motion = 0
         flagged_by_view: Counter = Counter()
-        for i, input_path in enumerate(input_paths):
+        for i, row in enumerate(rows):
             if not wait_for_connectivity(input, output):
                 print(
                     f"ABORTING: {input} or {output} still unreachable after "
                     f"{CONNECTIVITY_TOTAL_TIMEOUT_HOURS} hours -- stopping run rather than "
                     "continuing to fail on every remaining file"
                 )
-                log_not_attempted(logger, input_paths[i:])
+                log_not_attempted(logger, rows[i:], input)
                 break
 
+            input_path = input / row.path
+            view = row.view
             logger.reset()
             logger.start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             logger.input_path = input_path
-            print(f"processing {input_path.name} at {logger.start_time}.")
+            logger.subjID, logger.view = row.subjID, row.view
+            print(f"processing {row.path} at {logger.start_time}.")
 
             try:
-                # (1) parse input path
-                parsed = parse_filenames(input_path)
-                if parsed is None:
-                    raise SkipFile(
-                        STATUS_UNPARSEABLE,
-                        "could not parse filename (unrecognized modern or legacy shape)",
-                        action_item=True,
-                    )
-                subj_ID, view, recording_date, recording_time = parsed
+                # (1) the file must be where the manifest says
+                if not input_path.is_file():
+                    raise SkipFile(STATUS_MISSING_SOURCE, "listed in the manifest but not found at the source", action_item=True)
 
                 # (2) create output path
                 output_path = build_output_path(
-                    output, output_studyname, subj_ID, view, recording_date, recording_time
+                    output, subject_prefix, studyname, row.subjID, row.view, row.clip_start, input_path.name
                 )
                 logger.output_path = output_path
 
@@ -668,13 +562,6 @@ def main(
 
                 # (6) motion detection -- only when requested
                 found_motion = None
-
-                # PR 261014 this condition intentionally removed pending more discussion
-                # never on an already-compressed source, whose compression artifacts register as motion
-                #if motion_detection and decision.input_codec != RAW_CODEC:
-                #    n_motion_skipped_compressed_source += 1
-                #    print(f"    source is already compressed ({decision.input_codec}); motion detection skipped")
- 
                 if motion_detection:
                     res = run_motion_detection(input_path, motion_percentile, motion_threshold)
                     # too few frames to score: treated as motion, i.e. the conservative encoding
@@ -720,20 +607,13 @@ def main(
                             append_motion_timeseries(motion_timeseries_path, input_path.name, res.motion_by_frame)
                 # (7) choose the encoding: if motion detection is in use, a motionless clip gets the
                 # fixed aggressive setting; otherwise, or when motion was detected, the CRF comes
-                # from the camera policy in force
-                unrecognized_view = False
+                # from the manifest (DEFAULT_CRF if the row has none)
                 if found_motion is False:
                     crf, gop = CRF_NO_MOTION, GOP_NO_MOTION
                     print("    no motion, highly lossy compression will be used")
                 else:
-                    gop = None
-                    if 0:
-                        pass  # placeholder: per-camera compression setting from the config file (format TBD)
-                    else:
-                        #crf, unrecognized_view = legacy_crf(view)
-                        crf=25
-                        unrecognized_view=1
-                n_unrecognized_view += unrecognized_view
+                    crf, gop = (row.crf if row.crf is not None else DEFAULT_CRF), None
+                logger.crf = crf
 
                 # (8) video compression
                 success, err_msg, compression_time = compress_video(
@@ -783,19 +663,14 @@ def main(
 
         print_summary(
             logger,
-            len(input_paths),
-            len(unmatched_mp4),
-            n_other_files,
-            n_unrecognized_view,
+            len(rows),
             motion_detection,
-            # n_motion_skipped_compressed_source,  # pending a decision on already-compressed sources
-            aux_summary,
             motion_review,
             n_no_motion,
             flagged_by_view,
         )
         if not indexed:
-            append_index_row(index_path, run_id, manifest)
+            append_index_row(index_path, run_id, summary, motion_detection, motion_threshold)
 
     finally:
         # flush and restore stdout/stderr and close the log file, even on an early return
@@ -810,21 +685,34 @@ def main(
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(
-        description="compress and transfer videos", formatter_class=argparse.ArgumentDefaultsHelpFormatter
+        description="compress and transfer the videos listed in a manifest",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     # positional arguments: required
-    parser.add_argument("input", type=Path, help="source path")
-    parser.add_argument("output", type=Path, help="destination path")
+    parser.add_argument("input", type=Path, help="source root; manifest paths are relative to it")
+    parser.add_argument("output", type=Path, help="destination root")
     parser.add_argument(
-        "--output_studyname",
-        type=str,
+        "--manifest",
+        type=Path,
+        action="append",
         required=True,
-        help="study-name prefix for compressed output folders/filenames "
-        "(independent of whatever prefix the source videos use; no default -- must be set explicitly)",
+        help="manifest CSV listing the clips to process (path, subjID, view, clip_start[, crf]); "
+        "repeat the option to process several manifests as one run",
     )
 
     # keyword arguments: optional
-    parser.add_argument("--pattern", default="**/LS*/*.mp4", type=str, help="pattern to match")
+    parser.add_argument(
+        "--studyname",
+        type=str,
+        default=None,
+        help="study-name prefix for the destination day folders; omitted, the folders have no prefix",
+    )
+    parser.add_argument(
+        "--subject_prefix",
+        type=str,
+        default="subj",
+        help="prefix joined to the manifest's subjID to form the subject name in destination paths; '' for none",
+    )
     parser.add_argument(
         "--motion_detection",
         action="store_true",
@@ -894,6 +782,10 @@ if __name__ == "__main__":
 
     if kwargs["input"].resolve() == kwargs["output"].resolve():
         raise ValueError("input and output paths cannot be the same")
+
+    for m in kwargs["manifest"]:
+        if not m.is_file():
+            raise FileNotFoundError(f"manifest {m} not found")
 
     # confirm configuration with user
     print("\nconfiguration:")

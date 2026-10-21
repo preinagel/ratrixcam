@@ -15,7 +15,7 @@ import pytest
 
 from helpers import (
     HOM_TIME, T11_DATE, T11_TIME, TIMES, VIDEOPROC_DIR,
-    dest_path, latest_run_dir, place, read_log, run_compress_drive, session_folder, source_path,
+    dest_path, latest_run_dir, place, place_clip, read_log, run_compress_drive, session_folder,
 )
 
 sys.path.insert(0, str(VIDEOPROC_DIR))
@@ -127,8 +127,8 @@ def clips(tmp_path_factory) -> dict:
 
 @pytest.fixture(scope="session")
 def layout(tmp_path_factory, clips):
-    """Builds the source/destination tree for compress_drive run 1 (t01-t11, the misspelt
-    camera view, the pattern-mismatch strays, and the non-.mp4 file)."""
+    """Builds the source/destination tree and the manifest for compress_drive run 1 (t01-t11,
+    the 'hom' view, and files present in the source but not listed in the manifest)."""
     source_root = tmp_path_factory.mktemp("cd_source")
     dest_root = tmp_path_factory.mktemp("cd_dest")
 
@@ -138,7 +138,7 @@ def layout(tmp_path_factory, clips):
         "t09": clips["junk"], "t10": clips["R30_corrupt"],
     }
     for key, clip in sources.items():
-        place(clip, source_path(source_root, TIMES[key]))
+        place_clip(clip, source_root, TIMES[key])
 
     predest = {
         "t03": clips["R30"], "t04": clips["C20"], "t05": clips["junk"],
@@ -147,16 +147,16 @@ def layout(tmp_path_factory, clips):
     for key, clip in predest.items():
         place(clip, dest_path(dest_root, TIMES[key]))
 
-    place(clips["R30"], session_folder(source_root) / "weird_clip.mp4")
+    place(clips["R30"], session_folder(source_root) / "weird_clip.mp4")  # present, not in the manifest
 
-    place(clips["C30"], source_path(source_root, T11_TIME, date=T11_DATE))
+    place_clip(clips["C30"], source_root, T11_TIME, date=T11_DATE)
     t11_dest_dir = dest_path(dest_root, T11_TIME, date=T11_DATE).parent
     t11_dest_dir.mkdir(parents=True)
     t11_dest_dir.chmod(0o555)
 
-    place(clips["R30"], source_path(source_root, HOM_TIME, view="hom"))
+    place_clip(clips["R30"], source_root, HOM_TIME, view="hom")
 
-    stray_dir = source_root / "not_a_session_folder"
+    stray_dir = source_root / "not_a_session_folder"  # present, not in the manifest
     stray_dir.mkdir()
     place(clips["R30"], stray_dir / "stray_one.mp4")
     place(clips["R30"], stray_dir / "stray_two.mp4")
@@ -173,7 +173,7 @@ def run1(layout):
         "--n_threads", "4", "--motion_detection", "--motion_threshold", "0.001",
     ])
     assert result.returncode == 0, result.stderr
-    run_dir = latest_run_dir(dest_root, "videoproc_")
+    run_dir = latest_run_dir(dest_root, "compression_")
     return {"result": result, "run_dir": run_dir, "log": read_log(run_dir)}
 
 
@@ -185,7 +185,7 @@ def run2(run1, layout):
         "--n_threads", "4", "--motion_detection", "--motion_threshold", "0.001", "--overwrite_raw",
     ])
     assert result.returncode == 0, result.stderr
-    run_dir = latest_run_dir(dest_root, "videoproc_")
+    run_dir = latest_run_dir(dest_root, "compression_")
     return {"result": result, "run_dir": run_dir, "log": read_log(run_dir)}
 
 
@@ -196,5 +196,5 @@ def run3(run2, layout):
         "--n_threads", "4", "--motion_detection", "--motion_threshold", "0.001", "--overwrite_compressed",
     ])
     assert result.returncode == 0, result.stderr
-    run_dir = latest_run_dir(dest_root, "videoproc_")
+    run_dir = latest_run_dir(dest_root, "compression_")
     return {"result": result, "run_dir": run_dir, "log": read_log(run_dir)}

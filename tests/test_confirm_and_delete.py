@@ -9,8 +9,8 @@ import sys
 import pytest
 
 from helpers import (
-    HOM_TIME, STUDYNAME, T11_DATE, T11_TIME, T12_TIME, TIMES, VIDEOPROC_DIR,
-    dest_path, fname, is_true, latest_run_dir, place, read_log, read_rows,
+    HOM_TIME, T11_DATE, T11_TIME, T12_TIME, TIMES, VIDEOPROC_DIR,
+    add_manifest_row, dest_path, fname, is_true, latest_run_dir, manifest_path, place, place_clip, read_log, read_rows,
     run_confirm_and_delete, session_folder_path, source_path,
 )
 
@@ -19,7 +19,7 @@ from helpers import (
 def cd_prepared(run3, layout, clips):
     source_root, dest_root, _ = layout
 
-    place(clips["R30"], source_path(source_root, T12_TIME))
+    place_clip(clips["R30"], source_root, T12_TIME)
     place(clips["R30"], dest_path(dest_root, T12_TIME))
 
     place(clips["C30_corrupt"], dest_path(dest_root, TIMES["t01"]))
@@ -85,8 +85,23 @@ def test_confirm_a_clean_copy_decodes_and_is_deletable(confirm_a):
     assert is_true(row["deletable"])
 
 
-def test_confirm_a_unparseable_filename_is_flagged(confirm_a):
-    assert confirm_a["log"]["weird_clip.mp4"]["status"] == "unparseable"
+def test_confirm_a_checks_only_listed_files(confirm_a):
+    assert "weird_clip.mp4" not in confirm_a["log"]
+    assert "stray_one.mp4" not in confirm_a["log"]
+    assert (confirm_a["run_dir"] / "inspection_log.csv").exists()
+    assert not (confirm_a["run_dir"] / "config.json").exists()
+
+
+def test_confirm_listed_file_missing_at_source_is_flagged(tmp_path, clips):
+    source_root, dest_root = tmp_path / "source", tmp_path / "dest"
+    dest_root.mkdir()
+    place_clip(clips["R30"], source_root, "10-00-00")
+    add_manifest_row(source_root, "Longitudinal Study_rat901_home_20250101/missing.mp4", "901", "home", "2025-01-01 10:05:00")
+    result = run_confirm_and_delete(source_root, dest_root, extra_args=["--min_age_hours", "0"])
+    assert result.returncode == 0, result.stderr
+    log = read_log(latest_run_dir(dest_root, "confirm_"))
+    assert log["missing.mp4"]["status"] == "missing_source"
+    assert is_true(log["missing.mp4"]["action_item"])
 
 
 def test_confirm_a_reports_only_nothing_deleted(confirm_a, cd_prepared):
@@ -125,7 +140,7 @@ def test_confirm_b_deletes_nothing(confirm_b, cd_prepared):
 def test_confirm_destination_inside_own_source_is_an_error(tmp_path, clips):
     dest2 = tmp_path / "dest2"
     source_c = dest2 / "rat903"
-    place(clips["R30"], source_path(source_c, "10-00-00", subject="rat903"))
+    place_clip(clips["R30"], source_c, "10-00-00", subj_id="903")
 
     result = run_confirm_and_delete(source_c, dest2, extra_args=["--min_age_hours", "0"])
     assert result.returncode == 0, result.stderr
@@ -141,7 +156,7 @@ def test_destination_equal_to_source_is_rejected_before_running(tmp_path):
     same_dir = tmp_path / "same"
     same_dir.mkdir()
     result = subprocess.run(
-        [sys.executable, "confirm_and_delete.py", str(same_dir), str(same_dir), "--output_studyname", STUDYNAME],
+        [sys.executable, "confirm_and_delete.py", str(same_dir), str(same_dir), "--manifest", str(manifest_path(same_dir))],
         cwd=VIDEOPROC_DIR, capture_output=True, text=True, timeout=30,
     )
     assert result.returncode != 0
@@ -153,7 +168,7 @@ def test_destination_inside_source_is_rejected_before_running(tmp_path):
     dest_dir = source_dir / "nested_dest"
     dest_dir.mkdir(parents=True)
     result = subprocess.run(
-        [sys.executable, "confirm_and_delete.py", str(source_dir), str(dest_dir), "--output_studyname", STUDYNAME],
+        [sys.executable, "confirm_and_delete.py", str(source_dir), str(dest_dir), "--manifest", str(manifest_path(source_dir))],
         cwd=VIDEOPROC_DIR, capture_output=True, text=True, timeout=30,
     )
     assert result.returncode != 0
@@ -181,19 +196,23 @@ def test_confirm_d_deletes_exactly_the_three_verified_clips(confirm_d, cd_prepar
     assert not source_path(source_root, HOM_TIME, view="hom").exists()
 
 
+def test_confirm_d_leaves_folders_and_unlisted_files_in_place(confirm_d, cd_prepared):
+    source_root, _ = cd_prepared
+    assert session_folder_path(source_root, date=T11_DATE).exists()  # emptied, not removed (that is the wrapper's job)
+    assert (session_folder_path(source_root) / "weird_clip.mp4").exists()
+    assert source_path(source_root, TIMES["t01"]).exists()
+
+
+MOVED_TO_WRAPPER = "source sweep (empty folders, leftovers report) moves to process_ratrixcam_output (part B)"
+
+
+@pytest.mark.skip(reason=MOVED_TO_WRAPPER)
 def test_confirm_d_removes_emptied_session_folders(confirm_d, cd_prepared):
     source_root, _ = cd_prepared
     assert not session_folder_path(source_root, date=T11_DATE).exists()
     assert not session_folder_path(source_root, view="hom").exists()
 
 
-def test_confirm_d_keeps_session_folder_with_leftovers(confirm_d, cd_prepared):
-    source_root, _ = cd_prepared
-    default_folder = session_folder_path(source_root)
-    assert default_folder.exists()
-    assert any(default_folder.iterdir())
-    assert source_path(source_root, TIMES["t01"]).exists()
-
-
+@pytest.mark.skip(reason=MOVED_TO_WRAPPER)
 def test_confirm_d_reports_remaining_files(confirm_d):
     assert "remain under" in confirm_d["result"].stdout

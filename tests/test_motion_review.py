@@ -1,11 +1,10 @@
 """Motion review: peak stills for no-motion clips, the review flag for no-motion clips with
 a sampled frame at the threshold, and which clips keep a motion time series."""
 
-import json
 from pathlib import Path
 
 from helpers import (
-    fname, is_true, latest_run_dir, place, read_log, read_rows, run_compress_drive, source_path,
+    fname, is_true, last_index_row, latest_run_dir, place_clip, read_log, read_rows, run_compress_drive,
 )
 
 MOVING, STATIC, BLIP = "10-00-00", "10-01-00", "10-02-00"
@@ -17,12 +16,12 @@ ARGS = ["--n_threads", "4", "--motion_detection", "--motion_threshold", "0.001",
 def _run(tmp_path, clips, extra=()):
     source_root, dest_root = tmp_path / "source", tmp_path / "dest"
     dest_root.mkdir()
-    place(clips["R30"], source_path(source_root, MOVING))
-    place(clips["R30_static"], source_path(source_root, STATIC))
-    place(clips["R30_blip"], source_path(source_root, BLIP))
+    place_clip(clips["R30"], source_root, MOVING)
+    place_clip(clips["R30_static"], source_root, STATIC)
+    place_clip(clips["R30_blip"], source_root, BLIP)
     result = run_compress_drive(source_root, dest_root, extra_args=[*ARGS, *extra])
     assert result.returncode == 0, result.stderr
-    return result, latest_run_dir(dest_root, "videoproc_")
+    return result, latest_run_dir(dest_root, "compression_")
 
 
 def test_review_classifies_moving_static_and_blip(tmp_path, clips):
@@ -53,8 +52,7 @@ def test_review_classifies_moving_static_and_blip(tmp_path, clips):
 
     assert "no-motion clips: 2" in result.stdout
     assert "flagged for review (>= 1 sampled frame at the threshold): 1 (home 1)" in result.stdout
-    config = json.loads((run_dir / "compression_config.json").read_text())
-    assert config["motion_detection"]["review"] is True
+    assert "motion review ON" in result.stdout
 
 
 def test_review_off_keeps_every_timeseries_and_no_stills(tmp_path, clips):
@@ -66,5 +64,4 @@ def test_review_off_keeps_every_timeseries_and_no_stills(tmp_path, clips):
     log = read_log(run_dir)
     assert log[fname(BLIP)]["motion_review_flag"] == ""
     assert "motion review OFF" in result.stdout
-    config = json.loads((run_dir / "compression_config.json").read_text())
-    assert config["motion_detection"]["review"] is False
+    assert last_index_row(run_dir.parents[1])["motion_threshold"] == "0.001"

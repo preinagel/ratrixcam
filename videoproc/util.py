@@ -1,28 +1,25 @@
-"""Naming, path and video-probe helpers shared by the videoproc tools.
-
-Intended to become the module shared with ratrixcam, so that both tools build and parse
-file and folder names with one convention."""
+"""Helper functions needed only by videoproc, not used during recording"""
 
 import sys
+from datetime import datetime
 from pathlib import Path
 
 import cv2
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repo root; the shared module moves next (#26)
-from ratrixcam_naming import (  # noqa: E402
-    build_output_path,
-    code_version as _code_version,
-)
+from ratrixcam_naming import code_version as _code_version  # noqa: E402
 
 
 def code_version() -> str:
-    """Git commit of the videoproc checkout ('+dirty' if edited), recorded in every run's
-    config.json so settings hardwired in code can be recovered later."""
+    """Git commit of the videoproc checkout ('+dirty' if edited), printed at the start of
+    every run's terminal log."""
     return _code_version(Path(__file__))
+
 
 # FourCC ratrixcam writes when it records; any other openable codec has been through
 # downstream processing and is treated as "compressed"
 RAW_CODEC = "FMP4"
+
 
 def get_codec_nframes(path: Path):
     """(FourCC string, frame count) of a video, or (None, None) if it cannot be opened."""
@@ -35,3 +32,22 @@ def get_codec_nframes(path: Path):
     n_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     cap.release()
     return codec, n_frames
+
+
+def build_output_path(
+    output_root: Path,
+    subject_prefix: str,
+    studyname: str | None,
+    subjID: str,
+    view: str,
+    clip_start: datetime,
+    filename: str,
+) -> Path:
+    """Where a clip goes in the archive: <output_root>/<subject>/<day folder>/<filename>, with
+    subject = subject_prefix + subjID and day folder = [studyname_]subject_view_YYYYMMDD.
+    The file keeps its name."""
+    subject = f"{subject_prefix}{subjID}"
+    day_folder = f"{subject}_{view}_{clip_start:%Y%m%d}"
+    if studyname:
+        day_folder = f"{studyname}_{day_folder}"
+    return Path(output_root) / subject / day_folder / filename

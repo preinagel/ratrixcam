@@ -5,7 +5,6 @@ from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
-from run_metadata_transfer import is_run_metadata_path
 from util import RAW_CODEC, get_codec_nframes
 
 # fixed vocabulary for the log's `status` column
@@ -15,8 +14,7 @@ STATUS_ALREADY_DONE = "already_done"
 STATUS_RAW_AT_DESTINATION = "raw_at_destination"
 STATUS_COLLISION = "collision"
 STATUS_INVALID_SOURCE = "invalid_source"
-STATUS_UNPARSEABLE = "unparseable"
-STATUS_PATTERN_MISMATCH = "pattern_mismatch"
+STATUS_MISSING_SOURCE = "missing_source"  # listed in the manifest, not found at the source
 STATUS_OUTPUT_INVALID = "output_invalid"
 STATUS_ERROR = "error"
 STATUS_NOT_ATTEMPTED = "not_attempted"
@@ -29,11 +27,11 @@ STATUS_DECODE_FAILED = "decode_failed"
 ACTION_COPY = "copy"
 ACTION_COMPRESS = "compress"
 
-MAX_LISTED_PATTERN_MISMATCHES = 10
-
 LOG_FIELDS = [
     "input_path",
     "output_path",
+    "subjID",
+    "view",
     "start_time",
     "status",
     "action_item",
@@ -46,6 +44,7 @@ LOG_FIELDS = [
     "motion_max",
     "n_frames_over_threshold",
     "motion_review_flag",
+    "crf",
     "compression_ratio",
     "compression_success",
     "compression_time",
@@ -186,41 +185,3 @@ def classify_file(
 
     action = ACTION_COPY if (not input_is_raw and not recompress) else ACTION_COMPRESS
     return decision(action=action, note=note)
-
-
-def find_unmatched_files(input_root: Path, matched: list[Path]) -> tuple[list[Path], int]:
-    """Everything under input_root that `--pattern` did not select: the .mp4 files
-    individually, plus a count of all other files, so nothing in the source tree goes
-    unaccounted for when the user decides whether it is safe to delete. Files inside
-    ratrixcam run-metadata folders are handled as a unit elsewhere and not counted here."""
-    matched_set = set(matched)
-    unmatched_mp4: list[Path] = []
-    n_other = 0
-    for path in input_root.rglob("*"):
-        if not path.is_file() or path in matched_set or is_run_metadata_path(path, input_root):
-            continue
-        if path.suffix.lower() == ".mp4":
-            unmatched_mp4.append(path)
-        else:
-            n_other += 1
-    return sorted(unmatched_mp4), n_other
-
-
-def log_unmatched_files(logger: Logger, unmatched_mp4: list[Path], n_other: int, pattern: str) -> None:
-    n = len(unmatched_mp4)
-    if 0 < n <= MAX_LISTED_PATTERN_MISMATCHES:
-        for path in unmatched_mp4:
-            logger.reset()
-            logger.input_path = path
-            logger.status = STATUS_PATTERN_MISMATCH
-            logger.action_item = True
-            logger.skipped_reason = f"does not match --pattern '{pattern}'; not checked or copied"
-            logger.append()
-    if n:
-        detail = "listed in log.csv" if n <= MAX_LISTED_PATTERN_MISMATCHES else "too many to list individually"
-        print(
-            f"WARNING: {n} .mp4 file(s) in source do not match --pattern '{pattern}' "
-            f"and were not checked or copied ({detail})"
-        )
-    if n_other:
-        print(f"NOTE: {n_other} non-.mp4 file(s) in source were not checked or copied")

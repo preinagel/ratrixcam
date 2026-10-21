@@ -14,9 +14,11 @@ from pathlib import Path
 import pytest
 
 from helpers import (
-    PATTERN, STUDYNAME, VIDEOPROC_DIR,
-    dest_path, fname, latest_run_dir, place, read_rows, run_compress_drive, run_confirm_and_delete, source_path,
+    VIDEOPROC_DIR,
+    dest_path, fname, latest_run_dir, place, place_clip, read_rows, run_compress_drive, run_confirm_and_delete, source_path,
 )
+
+MOVED_TO_WRAPPER = "carrying ratrixcam run-metadata folders moves to process_ratrixcam_output (part B)"
 
 REPO = VIDEOPROC_DIR.parent
 sys.path.insert(0, str(REPO))
@@ -197,6 +199,7 @@ def source_with_run_metadata(tmp_path, clips):
     return source_root, dest_root, run_dir
 
 
+@pytest.mark.skip(reason=MOVED_TO_WRAPPER)
 def test_compress_drive_transfers_run_metadata_and_counts_nothing_else(source_with_run_metadata):
     source_root, dest_root, run_dir = source_with_run_metadata
     result = run_compress_drive(source_root, dest_root, extra_args=["--n_threads", "4"])
@@ -211,6 +214,7 @@ def test_compress_drive_transfers_run_metadata_and_counts_nothing_else(source_wi
     assert "ratrixcam run-metadata folders transferred: 1 (0 file(s) copied)" in result2.stdout
 
 
+@pytest.mark.skip(reason=MOVED_TO_WRAPPER)
 def test_compress_drive_never_overwrites_a_differing_destination_file(source_with_run_metadata):
     source_root, dest_root, run_dir = source_with_run_metadata
     dest_run = dest_root / RUN_METADATA_DIRNAME / run_dir.name
@@ -222,6 +226,7 @@ def test_compress_drive_never_overwrites_a_differing_destination_file(source_wit
     assert "1 file(s) differ at the destination and were not overwritten" in result.stdout
 
 
+@pytest.mark.skip(reason=MOVED_TO_WRAPPER)
 def test_confirm_and_delete_verifies_blocks_and_finally_deletes_run_metadata(source_with_run_metadata):
     source_root, dest_root, run_dir = source_with_run_metadata
     assert run_compress_drive(source_root, dest_root, extra_args=["--n_threads", "4"]).returncode == 0

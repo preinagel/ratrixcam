@@ -117,10 +117,3 @@ def clip_filename(camera_name_: str, started: datetime) -> str:
     """<camera name>_<YYYYMMDD>_<HH-MM-SS>.mp4 for a clip that started at `started`."""
     return f"{camera_name_}_{started:%Y%m%d_%H-%M-%S}{VIDEO_EXT}"
 
-
-def build_output_path(
-    output_root: Path, output_studyname: str, subj_ID: str, view: str, recording_date: str, recording_time: str
-) -> Path:
-    """Standard final-destination path for a compressed clip."""
-    new_filename = f"{subj_ID}_{view}_{recording_date}_{recording_time}.mp4"
-    return output_root / subj_ID / f"{output_studyname}_{subj_ID}_{view}_{recording_date}" / new_filename

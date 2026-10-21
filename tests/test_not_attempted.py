@@ -6,7 +6,7 @@ import sys
 
 import pytest
 
-from helpers import PATTERN, STUDYNAME, VIDEOPROC_DIR, latest_run_dir, place, read_log, source_path
+from helpers import STUDYNAME, SUBJECT_PREFIX, VIDEOPROC_DIR, latest_run_dir, manifest_path, place_clip, read_log
 
 sys.path.insert(0, str(VIDEOPROC_DIR))
 compress_drive = pytest.importorskip("compress_drive", exc_type=ImportError)
@@ -16,7 +16,7 @@ def test_connectivity_lost_after_start_logs_every_file_not_attempted(tmp_path, c
     source_root, dest_root = tmp_path / "source", tmp_path / "dest"
     dest_root.mkdir()
     for time in ("10-01-00", "10-02-00", "10-03-00"):
-        place(clips["R30"], source_path(source_root, time))
+        place_clip(clips["R30"], source_root, time)
 
     calls = {"n": 0}
 
@@ -27,14 +27,15 @@ def test_connectivity_lost_after_start_logs_every_file_not_attempted(tmp_path, c
     monkeypatch.setattr(compress_drive, "wait_for_connectivity", fake_wait_for_connectivity)
 
     compress_drive.main(
-        input=source_root, output=dest_root, pattern=PATTERN,
+        input=source_root, output=dest_root, manifest=[manifest_path(source_root)],
+        studyname=STUDYNAME, subject_prefix=SUBJECT_PREFIX,
         motion_percentile=99.9, motion_threshold=0.0, n_threads=4,
         compress_spd="veryfast", recompress=False,
         overwrite_raw=False, overwrite_compressed=False,
-        output_studyname=STUDYNAME, motion_detection=False, motion_review=True,
+        motion_detection=False, motion_review=True,
     )
 
-    run_dir = latest_run_dir(dest_root, "videoproc_")
+    run_dir = latest_run_dir(dest_root, "compression_")
     log = read_log(run_dir)
 
     assert len(log) == 3

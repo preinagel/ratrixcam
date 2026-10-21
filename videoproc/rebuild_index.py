@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Regenerate <destination>/videoproc_run_metadata/index.csv from the run folders themselves.
 
-Every run folder's manifest.csv carries what its index line summarizes, so the index can be
-rebuilt whenever a line is missing (a run could not get the index lock) or duplicated.
-The existing index.csv is kept as index.csv.bak."""
+Every run folder's summary_by_subj_and_view.csv carries the scope its index line summarizes,
+so the index can be rebuilt whenever a line is missing (a run could not get the index lock)
+or duplicated. The motion-detection columns are not recoverable from that file and are left
+blank; the run's terminal.log records them. The existing index.csv is kept as index.csv.bak."""
 
 import argparse
 import csv
@@ -11,6 +12,7 @@ import shutil
 from pathlib import Path
 
 from compress_drive import INDEX_FIELDS, _file_lock, index_row
+from manifest import SUMMARY_FILENAME
 
 
 def rebuild(metadata_root: Path) -> int:
@@ -18,14 +20,12 @@ def rebuild(metadata_root: Path) -> int:
     # chronological: run ids are <kind>_<YYYYMMDD>_<HHMMSS>_<random>
     run_dirs = sorted((p for p in metadata_root.iterdir() if p.is_dir()), key=lambda p: p.name.split("_", 1)[-1])
     for run_dir in run_dirs:
-        manifest_path = run_dir / "manifest.csv"
-        if not manifest_path.exists():
+        summary_path = run_dir / SUMMARY_FILENAME
+        if not summary_path.exists():
             continue
-        with open(manifest_path, newline="") as f:
-            manifest = [
-                {**r, "file_count": int(r["file_count"])} for r in csv.DictReader(f)
-            ]
-        rows.append(index_row(run_dir.name, manifest))
+        with open(summary_path, newline="") as f:
+            summary = [{**r, "file_count": int(r["file_count"])} for r in csv.DictReader(f)]
+        rows.append(index_row(run_dir.name, summary))
 
     index_path = metadata_root / "index.csv"
     with _file_lock(index_path.with_suffix(".csv.lock")):
