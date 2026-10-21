@@ -21,6 +21,7 @@ from helpers import (
 REPO = VIDEOPROC_DIR.parent
 sys.path.insert(0, str(REPO))
 from ratrixcam_naming import NOTES_FILENAME, RUN_METADATA_DIRNAME, STILLS_DIRNAME, manifest_warning, manifests_dir  # noqa: E402
+import ratrixcam_run_metadata  # noqa: E402
 from ratrixcam_run_metadata import RunMetadata  # noqa: E402
 from ratrixcam_utils import Config, stills_dir  # noqa: E402
 
@@ -148,6 +149,19 @@ def test_collect_at_shutdown_adds_rows_the_cameras_could_not_write(tmp_path, cap
     assert len(rows2) == 1 and rows2[0]["view"] == "cam2" and rows2[0]["crf"] == "30"
     assert "Manifest rows added at cleanup: 3" in capsys.readouterr().out
     assert not temp.exists()
+
+
+def test_start_terminal_log_fails_after_retries_when_the_log_cannot_be_created(tmp_path, monkeypatch, capsys):
+    config, config_path = make_config(tmp_path)
+    monkeypatch.setattr(ratrixcam_run_metadata, "LOG_START_RETRY_DELAY", 0)
+    run = RunMetadata(config, config_path)
+    run.log_path.mkdir()  # a folder where the log file should go: every open fails
+    assert run.start_terminal_log() is False
+    assert run.terminal_log is None
+    assert "ERROR" in capsys.readouterr().out
+    run.log_path.rmdir()
+    assert run.start_terminal_log() is True
+    run.terminal_log.stop()
 
 
 def test_collect_at_shutdown_removes_an_emptied_temp_folder(tmp_path):

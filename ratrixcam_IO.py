@@ -467,11 +467,15 @@ def main():
         return
     if not cameras_are_distinct(config):
         return
+    if not ensure_dir_exists(config.temp_path):
+        print("ERROR: temp folder unavailable")
+        sys.exit(1)
 
     # from here on, everything printed by this process and the camera processes it spawns
     # also goes to a log file in the temp folder; it moves to the output drive at shutdown
     state.run_metadata = RunMetadata(config, config_path)
-    state.run_metadata.start_terminal_log()
+    if not state.run_metadata.start_terminal_log():
+        sys.exit(1)
 
     # GUI
     bgcolor = "#3b0a0a"

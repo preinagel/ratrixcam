@@ -9,6 +9,7 @@ import platform
 import shutil
 import subprocess
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -27,6 +28,9 @@ from ratrixcam_naming import (
     terminal_log_filename,
 )
 from ratrixcam_utils import Config, ensure_dir_exists, stills_dir
+
+LOG_START_ATTEMPTS = 3
+LOG_START_RETRY_DELAY = 0.5  # seconds
 
 
 def computer_identity() -> str:
@@ -51,6 +55,7 @@ class TerminalLog:
     def __init__(self, path: Path):
         self.path = path
         path.parent.mkdir(parents=True, exist_ok=True)
+        open(path, "a").close()  # fail here, before touching the file descriptors, if the log cannot be written
         sys.stdout.flush()
         sys.stderr.flush()
         self._saved = (os.dup(1), os.dup(2))
@@ -96,14 +101,25 @@ class RunMetadata:
         self.terminal_log: TerminalLog | None = None
         self._collected = False
 
-    def start_terminal_log(self) -> None:
+    def start_terminal_log(self) -> bool:
+        """Start the tee into the log file; False if the temp folder or the log file cannot be
+        created after LOG_START_ATTEMPTS tries. The caller treats False as a hard stop."""
         if not ensure_dir_exists(self.config.temp_path):
-            print("WARNING: temp folder unavailable; terminal output will not be logged to a file")
-            return
-        self.terminal_log = TerminalLog(self.log_path)
+            print("ERROR: temp folder unavailable")
+            return False
+        for attempt in range(LOG_START_ATTEMPTS):
+            try:
+                self.terminal_log = TerminalLog(self.log_path)
+                break
+            except OSError as e:
+                if attempt == LOG_START_ATTEMPTS - 1:
+                    print(f"ERROR: cannot create terminal log {self.log_path}: {e}")
+                    return False
+                time.sleep(LOG_START_RETRY_DELAY)
         print(f"ratrixcam run {self.run_id} -- code version {code_version()} -- computer {computer_identity()}")
         print(f"Launched as: {sys.executable} {' '.join(sys.argv)}  (working folder {os.getcwd()})")
         print(f"Terminal output is being copied to {self.log_path}")
+        return True
 
     def record_start(self) -> None:
         """Called when recording starts: copy the config actually in use (after any edits in
