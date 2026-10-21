@@ -12,6 +12,7 @@ from helpers import VIDEOPROC_DIR
 sys.path.insert(0, str(VIDEOPROC_DIR.parent))
 import ratrixcam_manifest  # noqa: E402
 from ratrixcam_manifest import MANIFEST_COLUMNS, ManifestMetadata  # noqa: E402
+from ratrixcam_naming import manifest_warning, parse_manifest_warning  # noqa: E402
 
 TIME = re.compile(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}")
 
@@ -42,6 +43,25 @@ def test_write_failure_warns_and_returns_false(tmp_path, monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "WARNING" in out and "clip.mp4" in out and "3 attempts" in out
     assert not Path(m.path).exists()
+    tagged = [parse_manifest_warning(line) for line in out.splitlines()]
+    tagged = [t for t in tagged if t is not None]
+    assert len(tagged) == 1
+    assert tagged[0]["manifest"] == "rat999_home_manifest.csv"
+    assert tagged[0]["path"] == "Test_rat999_home_20261019/clip.mp4"
+    assert tagged[0]["crf"] == "25"
+
+
+def test_manifest_warning_round_trip():
+    line = manifest_warning("rat999_home_manifest.csv", "Test_rat999_home_20261021/rat999_home_20261021_08-51-48.mp4", "999", "home", "2026-10-21 08:51:48.297", 25)
+    assert line.startswith("WARNING MANIFEST_ROW_NOT_WRITTEN ")
+    assert parse_manifest_warning(line) == {
+        "manifest": "rat999_home_manifest.csv",
+        "path": "Test_rat999_home_20261021/rat999_home_20261021_08-51-48.mp4",
+        "subjID": "999", "view": "home", "clip_start": "2026-10-21 08:51:48.297", "crf": "25",
+    }
+    assert parse_manifest_warning("prefix from another process " + line + "\n") is not None  # interleaved output
+    assert parse_manifest_warning("WARNING: could not add clip.mp4 to the manifest after 3 attempts") is None
+    assert parse_manifest_warning("Manifest rows added at cleanup: 2") is None
 
 
 def test_retry_succeeds_once_the_folder_appears(tmp_path, monkeypatch, capsys):

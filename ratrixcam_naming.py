@@ -15,6 +15,8 @@ Folder layout for a recording run's metadata (GitHub #34):
         <camera name>_manifest.csv  one row per clip the camera closed during the run
 """
 
+import csv
+import io
 import os
 import subprocess
 import uuid
@@ -70,6 +72,32 @@ def manifests_dir(save_path: str | Path, run_id_: str) -> Path:
 
 def manifest_filename(camera_name_: str) -> str:
     return f"{camera_name_}{MANIFEST_SUFFIX}"
+
+
+MANIFEST_WARNING_TAG = "MANIFEST_ROW_NOT_WRITTEN"
+MANIFEST_WARNING_FIELDS = ["manifest", "path", "subjID", "view", "clip_start", "crf"]
+
+
+def manifest_warning(manifest_filename_: str, path: str, subjID: str, view: str, clip_start: str, crf: int) -> str:
+    """The terminal-log line a camera prints when a clip's manifest row could not be written:
+    'WARNING <tag> ' followed by the row's fields in CSV form, so the shutdown cleanup can
+    add the row from the log (parse_manifest_warning)."""
+    out = io.StringIO()
+    csv.writer(out, lineterminator="").writerow([manifest_filename_, path, subjID, view, clip_start, crf])
+    return f"WARNING {MANIFEST_WARNING_TAG} {out.getvalue()}"
+
+
+def parse_manifest_warning(line: str) -> dict[str, str] | None:
+    """The fields of a line written by manifest_warning, keyed by MANIFEST_WARNING_FIELDS, or
+    None for any other line."""
+    marker = f"WARNING {MANIFEST_WARNING_TAG} "
+    start = line.find(marker)
+    if start < 0:
+        return None
+    values = next(csv.reader([line[start + len(marker):].rstrip("\r\n")]))
+    if len(values) != len(MANIFEST_WARNING_FIELDS):
+        return None
+    return dict(zip(MANIFEST_WARNING_FIELDS, values))
 
 
 def still_path(stills_path: str, camera_name: str) -> str:

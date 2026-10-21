@@ -12,6 +12,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+from ratrixcam_manifest import write_row
 from ratrixcam_naming import (
     MANIFEST_SUFFIX,
     NOTES_FILENAME,
@@ -20,6 +21,7 @@ from ratrixcam_naming import (
     STILLS_DIRNAME,
     code_version,
     manifests_dir,
+    parse_manifest_warning,
     run_id,
     run_metadata_dir,
     terminal_log_filename,
@@ -119,8 +121,10 @@ class RunMetadata:
             print(f"WARNING: could not write run metadata to {self.run_dir}: {e}")
 
     def collect_at_shutdown(self) -> None:
-        """After the cameras have stopped: move the per-camera manifests from the temp folder
-        to manifests_<run_id> on the save drive; move the status stills and every other loose
+        """After the cameras have stopped: add to the per-camera manifests every row the
+        cameras reported they could not write (read back from this run's terminal log); move
+        the manifests from the temp folder to manifests_<run_id> on the save drive; move the
+        status stills and every other loose
         file from the temp folder (screenshots, anything the user dropped there) into the run's
         metadata folder; remove per-camera temp folders that are empty; and report. The
         terminal log is closed and moved last, so the report itself is in it. Folders that
@@ -137,6 +141,7 @@ class RunMetadata:
             return
         temp = Path(self.config.temp_path)
         moved, kept, manifests = [], [], []
+        self._add_unwritten_manifest_rows()
         try:
             manifests_dst = manifests_dir(self.config.save_path, self.run_id)
             for f in sorted(temp.glob(f"*{MANIFEST_SUFFIX}")):
@@ -180,6 +185,29 @@ class RunMetadata:
                 print(f"WARNING: could not move the terminal log into {self.run_dir}: {e}")
         if not kept and temp.is_dir() and _remove_if_empty(temp):
             print("Temp folder removed")
+
+
+    def _add_unwritten_manifest_rows(self) -> None:
+        """Every manifest-warning line in this run's terminal log becomes a row in that
+        camera's manifest in the temp folder (created with its header if the camera never
+        managed to write one), with row_written = now."""
+        if not self.log_path.exists():
+            print("WARNING: no terminal log for this run; manifest rows reported as unwritten cannot be added")
+            return
+        added, failed = 0, 0
+        with open(self.log_path, errors="replace") as log:
+            for line in log:
+                fields = parse_manifest_warning(line)
+                if fields is None:
+                    continue
+                manifest_path = os.path.join(self.config.temp_path, fields["manifest"])
+                try:
+                    write_row(manifest_path, fields["path"], fields["subjID"], fields["view"], fields["clip_start"], fields["crf"])
+                    added += 1
+                except OSError as e:
+                    failed += 1
+                    print(f"WARNING: could not add {fields['path']} to {manifest_path} at cleanup: {e}")
+        print(f"Manifest rows added at cleanup: {added}" + (f" ({failed} could not be added)" if failed else ""))
 
 
 def _remove_if_empty(folder: Path) -> bool:

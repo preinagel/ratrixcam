@@ -20,7 +20,7 @@ from helpers import (
 
 REPO = VIDEOPROC_DIR.parent
 sys.path.insert(0, str(REPO))
-from ratrixcam_naming import NOTES_FILENAME, RUN_METADATA_DIRNAME, STILLS_DIRNAME, manifests_dir  # noqa: E402
+from ratrixcam_naming import NOTES_FILENAME, RUN_METADATA_DIRNAME, STILLS_DIRNAME, manifest_warning, manifests_dir  # noqa: E402
 from ratrixcam_run_metadata import RunMetadata  # noqa: E402
 from ratrixcam_utils import Config, stills_dir  # noqa: E402
 
@@ -118,6 +118,36 @@ def test_collect_at_shutdown_gathers_loose_temp_files_and_stills(tmp_path):
     assert not empty_cam_dir.exists()
     assert (busy_cam_dir / "cam2_20260102_03-04-05.mp4").exists()  # never touched
     assert temp.exists()  # kept because a camera folder still holds a file
+
+
+def test_collect_at_shutdown_adds_rows_the_cameras_could_not_write(tmp_path, capsys):
+    config, config_path = make_config(tmp_path)
+    run = RunMetadata(config, config_path)
+    run.record_start()
+    temp = Path(config.temp_path)
+    (temp / "subj001_cam1_manifest.csv").write_text(
+        "path,subjID,view,clip_start,row_written,crf\nTest_subj001_cam1_20260102/a.mp4,001,cam1,2026-01-02 03:04:05.000,2026-01-02 03:05:05.000,25\n"
+    )
+    run.log_path.write_text(
+        "some output\n"
+        "WARNING: could not add b.mp4 to the manifest after 3 attempts: boom\n"
+        + manifest_warning("subj001_cam1_manifest.csv", "Test_subj001_cam1_20260102/b.mp4", "001", "cam1", "2026-01-02 03:05:05.000", 25) + "\n"
+        + manifest_warning("subj001_cam1_manifest.csv", "Test_subj001_cam1_20260102/c.mp4", "001", "cam1", "2026-01-02 03:06:05.000", 25) + "\n"
+        + manifest_warning("subj002_cam2_manifest.csv", "Test_subj002_cam2_20260102/z.mp4", "002", "cam2", "2026-01-02 03:04:05.000", 30) + "\n"
+        "WARNING: temp folder 'x' still contains files\n"
+    )
+
+    run.collect_at_shutdown()
+
+    folder = manifests_dir(config.save_path, run.run_id)
+    rows = list(csv.DictReader(open(folder / "subj001_cam1_manifest.csv", newline="")))
+    assert [r["path"].rsplit("/", 1)[1] for r in rows] == ["a.mp4", "b.mp4", "c.mp4"]
+    assert rows[1]["clip_start"] == "2026-01-02 03:05:05.000" and rows[1]["crf"] == "25"
+    assert rows[1]["row_written"] > rows[0]["row_written"]  # written at cleanup, later than the camera's row
+    rows2 = list(csv.DictReader(open(folder / "subj002_cam2_manifest.csv", newline="")))  # created at cleanup
+    assert len(rows2) == 1 and rows2[0]["view"] == "cam2" and rows2[0]["crf"] == "30"
+    assert "Manifest rows added at cleanup: 3" in capsys.readouterr().out
+    assert not temp.exists()
 
 
 def test_collect_at_shutdown_removes_an_emptied_temp_folder(tmp_path):
