@@ -201,6 +201,9 @@ def test_confirm_reports_the_listed_clips_of_each_run(tmp_path, clips):
     assert all(row["status"] == "already_done" and row["deletable"] == "True" for row in log.values())
     assert "nothing was deleted" in result.stdout and "runs processed: 1 of 1" in result.stdout
     assert (root / f"{STUDY}_{SUBJECT}_home_{DATE}" / fname("10-00-00")).exists()
+    terminal = (runs[0] / "terminal.log").read_text()
+    assert "run folder verified byte for byte" in terminal and "run folder kept: --delete not set" in terminal
+    assert (root / "ratrixcam_run_metadata" / RUN_ID / "notes.txt").exists()
 
 
 def test_confirm_delete_asks_once_per_run_and_deletes_only_listed_clips(tmp_path, clips):
@@ -211,16 +214,53 @@ def test_confirm_delete_asks_once_per_run_and_deletes_only_listed_clips(tmp_path
     add_run(root, clips, second, ("11-00-00",), view="face")
     assert run_wrapper(root, dest).returncode == 0
 
-    result = run_confirm(root, dest, extra_args=["--min_age_hours", "0", "--no-decode", "--delete"], n_delete_prompts=2)
+    result = run_confirm(root, dest, extra_args=["--min_age_hours", "0", "--no-decode", "--delete"], n_delete_prompts=4)
     assert result.returncode == 0, result.stderr + result.stdout
-    assert result.stdout.count("Type DELETE to proceed") == 2
+    assert result.stdout.count("Type DELETE to proceed") == 4  # clips, then the run folder, for each run
     assert not (root / f"{STUDY}_{SUBJECT}_home_{DATE}" / fname("10-00-00")).exists()
     assert not (root / f"{STUDY}_{SUBJECT}_face_{DATE}" / fname("11-00-00", view="face")).exists()
     assert (root / "not_a_day_folder" / "stray.mp4").exists()  # not listed: untouched
-    assert (root / "ratrixcam_run_metadata" / RUN_ID / "notes.txt").exists()  # run folders: untouched
+    assert not (root / "ratrixcam_run_metadata" / RUN_ID).exists()  # verified, clips gone: deleted
+    assert not (root / "ratrixcam_run_metadata" / second).exists()
+    assert (dest / "ratrixcam_run_metadata" / RUN_ID / "notes.txt").exists()  # destination copy untouched
     runs = confirm_runs(dest)
     assert len(runs) == 2
-    assert all(len(read_rows(run / "deletion_log.csv")) == 1 for run in runs)
+    for run in runs:
+        rows = read_rows(run / "deletion_log.csv")
+        assert len(rows) == 2 and rows[1]["input_path"].endswith(("/" + RUN_ID, "/" + second))  # clip, then folder
+        assert "Run folder deleted" in (run / "terminal.log").read_text()
+
+
+def test_confirm_keeps_the_run_folder_when_a_listed_clip_remains(tmp_path, clips):
+    root, dest = tmp_path / "drive", tmp_path / "dest"
+    dest.mkdir()
+    make_drive(root, clips)  # two clips listed
+    assert run_wrapper(root, dest).returncode == 0
+    (dest / SUBJECT / f"{STUDY}_{SUBJECT}_home_{DATE}" / fname("10-01-00")).unlink()  # one destination copy gone
+
+    result = run_confirm(
+        root, dest, extra_args=["--min_age_hours", "0", "--no-decode", "--delete", "--delete_partial"], n_delete_prompts=1
+    )
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert result.stdout.count("Type DELETE to proceed") == 1  # the clips only; no folder prompt
+    assert not (root / f"{STUDY}_{SUBJECT}_home_{DATE}" / fname("10-00-00")).exists()
+    assert (root / f"{STUDY}_{SUBJECT}_home_{DATE}" / fname("10-01-00")).exists()
+    assert (root / "ratrixcam_run_metadata" / RUN_ID / "notes.txt").exists()
+    assert "run folder kept: 1 of its 2 listed clip(s) remain at the source" in result.stdout
+
+
+def test_confirm_keeps_a_run_folder_whose_destination_copy_differs(tmp_path, clips):
+    root, dest = tmp_path / "drive", tmp_path / "dest"
+    dest.mkdir()
+    make_drive(root, clips)
+    assert run_wrapper(root, dest).returncode == 0
+    (dest / "ratrixcam_run_metadata" / RUN_ID / "notes.txt").write_text("edited\n")  # same size, different bytes
+
+    result = run_confirm(root, dest, extra_args=["--min_age_hours", "0", "--no-decode", "--delete"], n_delete_prompts=2)
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert result.stdout.count("Type DELETE to proceed") == 1
+    assert "run folder NOT verified" in result.stdout and "differs: notes.txt" in result.stdout
+    assert (root / "ratrixcam_run_metadata" / RUN_ID / "notes.txt").exists()
 
 
 def test_confirm_delete_refuses_when_a_listed_clip_is_not_at_the_destination(tmp_path, clips):

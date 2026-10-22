@@ -13,12 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from helpers import (
-    VIDEOPROC_DIR,
-    dest_path, fname, latest_run_dir, place, place_clip, read_rows, run_compress_drive, run_confirm_and_delete, source_path,
-)
-
-MOVED_TO_WRAPPER = "carrying ratrixcam run-metadata folders moves to process_ratrixcam_output (part B)"
+from helpers import VIDEOPROC_DIR
 
 REPO = VIDEOPROC_DIR.parent
 sys.path.insert(0, str(REPO))
@@ -185,46 +180,3 @@ def test_collect_at_shutdown_removes_an_emptied_temp_folder(tmp_path):
     assert (run.run_dir / STILLS_DIRNAME / "cam_cam1_status.png").exists()
     assert (run.run_dir / run.log_path.name).read_text() == "fake terminal log\n"
     assert not temp.exists()
-
-
-# ----------------------------------------------------------------- videoproc side
-
-@pytest.fixture
-def source_with_run_metadata(tmp_path, clips):
-    source_root, dest_root = tmp_path / "source", tmp_path / "dest"
-    dest_root.mkdir()
-    place(clips["R30"], source_path(source_root, "10-00-00"))
-    run_dir = source_root / RUN_METADATA_DIRNAME / "20260102_030405_Test_Rack"
-    (run_dir / STILLS_DIRNAME).mkdir(parents=True)
-    (run_dir / "camera_config.json").write_text('{"rack_name": "Test Rack"}')
-    (run_dir / NOTES_FILENAME).write_text("notes\n")
-    (run_dir / "terminal_20260102_030405_Test_Rack.log").write_text("log\n")
-    (run_dir / STILLS_DIRNAME / "cam_cam1_status.png").write_bytes(b"png")
-    return source_root, dest_root, run_dir
-
-
-@pytest.mark.skip(reason=MOVED_TO_WRAPPER)
-def test_confirm_and_delete_verifies_blocks_and_finally_deletes_run_metadata(source_with_run_metadata):
-    source_root, dest_root, run_dir = source_with_run_metadata
-    assert run_compress_drive(source_root, dest_root, extra_args=["--n_threads", "4"]).returncode == 0
-    dest_run = dest_root / RUN_METADATA_DIRNAME / run_dir.name
-
-    # a tampered archive copy blocks deletion
-    (dest_run / NOTES_FILENAME).write_text("tampered, different size\n")
-    blocked = run_confirm_and_delete(source_root, dest_root, extra_args=["--min_age_hours", "0"], delete=True)
-    assert "1 NOT verified (block deletion)" in blocked.stdout
-    assert "REFUSING to delete" in blocked.stdout
-    assert run_dir.exists() and source_path(source_root, "10-00-00").exists()
-
-    # restored archive copy: verified, and deleted together with the sources
-    (dest_run / NOTES_FILENAME).write_text("notes\n")
-    done = run_confirm_and_delete(source_root, dest_root, extra_args=["--min_age_hours", "0", "--no-decode"], delete=True)
-    assert done.returncode == 0, done.stderr
-    assert "ratrixcam run-metadata folders: 1 verified at the archive" in done.stdout
-    assert "and 1 run-metadata folder(s)" in done.stdout
-    assert not run_dir.exists()
-    assert not (source_root / RUN_METADATA_DIRNAME).exists()
-    assert not source_root.exists()  # nothing left: whole source folder removed
-    rows = read_rows(latest_run_dir(dest_root, "confirm_") / "deletion_log.csv")
-    assert len(rows) == 2 and rows[1]["input_path"].endswith(run_dir.name)
-    assert dest_run.exists()  # archive copy untouched

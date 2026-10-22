@@ -14,6 +14,7 @@ import subprocess
 import sys
 import time
 import uuid
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from pprint import pprint
@@ -45,6 +46,28 @@ EXTRA_FIELDS = [
 LOG_FIELDS = BASE_LOG_FIELDS + EXTRA_FIELDS
 DELETION_FIELDS = ["input_path", "output_path", "input_size_bytes", "deleted_at"]
 Row = dict[str, Any]  # one inspection_log.csv line, keyed by LOG_FIELDS
+
+
+@dataclass
+class Outcome:
+    """What a run did with the listed clips, for a caller that acts on the result."""
+
+    run_dir: Path
+    n_listed: int
+    n_deleted: int
+    n_remaining: int  # listed clips still at the source, plus those missing with no destination copy
+
+
+def append_deletion_rows(run_dir: Path, rows: list[list[object]]) -> Path:
+    """Append rows to the run's deletion_log.csv, creating it with its header if needed."""
+    deletion_log = run_dir / "deletion_log.csv"
+    new = not deletion_log.exists()
+    with open(deletion_log, "a", newline="") as f:
+        writer = csv.writer(f)
+        if new:
+            writer.writerow(DELETION_FIELDS)
+        writer.writerows(rows)
+    return deletion_log
 
 
 def destination_inside_source(source: Path, destination: Path) -> bool:
@@ -135,9 +158,9 @@ def remove_emptied_folders(source_root: Path, folders: set[Path]) -> int:
     return removed
 
 
-def delete_sources(source_root: Path, deletable: list[tuple[Path, Path]], run_dir: Path) -> None:
+def delete_sources(source_root: Path, deletable: list[tuple[Path, Path]], run_dir: Path) -> int:
     """Delete verified source files one by one, logging each; then remove the folders this
-    left empty."""
+    left empty. Returns the number of files deleted."""
     print(f"\nAbout to permanently delete {len(deletable)} verified source file(s) under {source_root}")
     try:
         answer = input("Type DELETE to proceed, anything else to abort: ")
@@ -145,22 +168,19 @@ def delete_sources(source_root: Path, deletable: list[tuple[Path, Path]], run_di
         answer = ""
     if answer.strip() != "DELETE":
         print("Aborted; nothing deleted.")
-        return
+        return 0
 
-    deletion_log = run_dir / "deletion_log.csv"
-    n_deleted = 0
-    with open(deletion_log, "w", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerow(DELETION_FIELDS)
-        for src, dst in deletable:
-            size = src.stat().st_size
-            src.unlink()
-            writer.writerow([src, dst, size, datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
-            n_deleted += 1
-    print(f"Deleted {n_deleted} file(s); record in {deletion_log}")
+    deleted: list[list[object]] = []
+    for src, dst in deletable:
+        size = src.stat().st_size
+        src.unlink()
+        deleted.append([src, dst, size, datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
+    deletion_log = append_deletion_rows(run_dir, deleted)
+    print(f"Deleted {len(deleted)} file(s); record in {deletion_log}")
     n_folders = remove_emptied_folders(source_root, {src.parent for src, _ in deletable})
     if n_folders:
         print(f"Removed {n_folders} source folder(s) left empty")
+    return len(deleted)
 
 
 def main(
@@ -173,10 +193,10 @@ def main(
     decode: bool | None,
     delete: bool,
     delete_partial: bool,
-) -> Path | None:
+) -> Outcome | None:
     """Verify, and with --delete remove, the clips the manifest(s) list. `decode` None means
-    the default: on with --delete, off otherwise. Returns the run's metadata folder, or None
-    if the run stopped before checking anything."""
+    the default: on with --delete, off otherwise. Returns the run's outcome, or None if the
+    run stopped before checking anything."""
     if decode is None:
         decode = delete
     run_id = f"confirm_{datetime.now():%Y%m%d_%H%M%S}_{uuid.uuid4().hex[:8]}"
@@ -273,6 +293,11 @@ def main(
         write_rows(rows, log_path, action_items_path)
         print_summary(rows, len(listed), min_age_hours, False, action_items_path)
 
+        def outcome(n_deleted: int = 0) -> Outcome:
+            unresolved = sum(1 for r in rows if r["status"] == STATUS_MISSING_SOURCE and not r["destination_codec"])
+            present = sum(1 for r in rows if r["status"] != STATUS_MISSING_SOURCE)
+            return Outcome(run_dir, len(listed), n_deleted, present - n_deleted + unresolved)
+
         # ---- refusal gate: stop before decoding if the run cannot end in a deletion ----
         # a file missing at the source cannot be deleted and does not block the others
         n_missing = sum(1 for r in rows if r["status"] == STATUS_MISSING_SOURCE)
@@ -283,10 +308,10 @@ def main(
                 f"\nREFUSING to delete: {n_not_deletable} file(s) are not verified deletable "
                 "and --delete_partial is not set. Decode check skipped."
             )
-            return run_dir
+            return outcome()
         if not delete and not decode:
             print("\nReport only: --delete not set, nothing was deleted.")
-            return run_dir
+            return outcome()
 
         # ---- pass 2: full decode of the candidates ----
         if decode:
@@ -310,7 +335,7 @@ def main(
 
         if not delete:
             print("\nReport only: --delete not set, nothing was deleted.")
-            return run_dir
+            return outcome()
         deletable = [(Path(r["input_path"]), Path(r["output_path"])) for r in rows if r["deletable"]]
         n_not_deletable = len(listed) - len(deletable) - n_missing
         if n_not_deletable and not delete_partial:
@@ -318,12 +343,11 @@ def main(
                 f"\nREFUSING to delete: {n_not_deletable} file(s) are not verified deletable "
                 "and --delete_partial is not set."
             )
-            return run_dir
+            return outcome()
         if not deletable:
             print("\nNothing verified deletable; nothing deleted.")
-            return run_dir
-        delete_sources(source, deletable, run_dir)
-        return run_dir
+            return outcome()
+        return outcome(delete_sources(source, deletable, run_dir))
 
     finally:
         sys.stdout.flush()
