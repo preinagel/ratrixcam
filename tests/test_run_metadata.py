@@ -201,33 +201,6 @@ def source_with_run_metadata(tmp_path, clips):
 
 
 @pytest.mark.skip(reason=MOVED_TO_WRAPPER)
-def test_compress_drive_transfers_run_metadata_and_counts_nothing_else(source_with_run_metadata):
-    source_root, dest_root, run_dir = source_with_run_metadata
-    result = run_compress_drive(source_root, dest_root, extra_args=["--n_threads", "4"])
-    assert result.returncode == 0, result.stderr
-    dest_run = dest_root / RUN_METADATA_DIRNAME / run_dir.name
-    assert (dest_run / "camera_config.json").exists()
-    assert (dest_run / STILLS_DIRNAME / "cam_cam1_status.png").exists()
-    assert "ratrixcam run-metadata folders transferred: 1 (4 file(s) copied)" in result.stdout
-    assert "non-.mp4 files in source (not checked or copied): 0" in result.stdout
-    # second run: everything already there, nothing copied, nothing overwritten
-    result2 = run_compress_drive(source_root, dest_root, extra_args=["--n_threads", "4"])
-    assert "ratrixcam run-metadata folders transferred: 1 (0 file(s) copied)" in result2.stdout
-
-
-@pytest.mark.skip(reason=MOVED_TO_WRAPPER)
-def test_compress_drive_never_overwrites_a_differing_destination_file(source_with_run_metadata):
-    source_root, dest_root, run_dir = source_with_run_metadata
-    dest_run = dest_root / RUN_METADATA_DIRNAME / run_dir.name
-    dest_run.mkdir(parents=True)
-    (dest_run / NOTES_FILENAME).write_text("a different, longer note\n")
-    result = run_compress_drive(source_root, dest_root, extra_args=["--n_threads", "4"])
-    assert result.returncode == 0, result.stderr
-    assert (dest_run / NOTES_FILENAME).read_text() == "a different, longer note\n"
-    assert "1 file(s) differ at the destination and were not overwritten" in result.stdout
-
-
-@pytest.mark.skip(reason=MOVED_TO_WRAPPER)
 def test_confirm_and_delete_verifies_blocks_and_finally_deletes_run_metadata(source_with_run_metadata):
     source_root, dest_root, run_dir = source_with_run_metadata
     assert run_compress_drive(source_root, dest_root, extra_args=["--n_threads", "4"]).returncode == 0

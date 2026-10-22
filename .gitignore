@@ -12,5 +12,3 @@ custom_filename_parser.py
 # pytest
 .pytest_cache/
 
-# scratch for the ratrixcam-specific videoproc wrapper, until it is designed
-videoproc/process_ratrixcam_output.py

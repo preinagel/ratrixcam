@@ -447,8 +447,9 @@ def main(
     overwrite_compressed: bool,
     motion_detection: bool,
     motion_review: bool,
-):
-    """(optional motion detection) -> compression, for every clip the manifest(s) list."""
+) -> Path | None:
+    """(optional motion detection) -> compression, for every clip the manifest(s) list.
+    Returns the run's metadata folder, or None if the run stopped before processing."""
 
     # confirm both roots are reachable before creating the run's metadata folder or
     # writing anything else under `output`
@@ -680,6 +681,7 @@ def main(
         )
         if not indexed:
             append_index_row(index_path, run_id, summary, motion_detection, motion_threshold)
+        return run_metadata_dir
 
     finally:
         # flush and restore stdout/stderr and close the log file, even on an early return
@@ -691,37 +693,10 @@ def main(
         log_file.close()
 
 
-if __name__ == "__main__":
-
-    parser = argparse.ArgumentParser(
-        description="compress and transfer the videos listed in a manifest",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-    )
-    # positional arguments: required
-    parser.add_argument("input", type=Path, help="source root; manifest paths are relative to it")
-    parser.add_argument("output", type=Path, help="destination root")
-    parser.add_argument(
-        "--manifest",
-        type=Path,
-        action="append",
-        required=True,
-        help="manifest CSV listing the clips to process (path, subjID, view, clip_start[, crf]); "
-        "repeat the option to process several manifests as one run",
-    )
-
-    # keyword arguments: optional
-    parser.add_argument(
-        "--studyname",
-        type=str,
-        default=None,
-        help="study-name prefix for the destination day folders; omitted, the folders have no prefix",
-    )
-    parser.add_argument(
-        "--subject_prefix",
-        type=str,
-        default="subj",
-        help="prefix joined to the manifest's subjID to form the subject name in destination paths; '' for none",
-    )
+def add_processing_arguments(parser: argparse.ArgumentParser) -> None:
+    """The options that control how each clip is processed, shared with the ratrixcam wrapper
+    (process_ratrixcam_output.py); the source, destination and manifest arguments are the
+    caller's."""
     parser.add_argument(
         "--motion_detection",
         action="store_true",
@@ -780,6 +755,40 @@ if __name__ == "__main__":
         action="store_true",
         help="replace a compressed video already at the destination with a fresh processing of the source",
     )
+
+
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser(
+        description="compress and transfer the videos listed in a manifest",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    # positional arguments: required
+    parser.add_argument("input", type=Path, help="source root; manifest paths are relative to it")
+    parser.add_argument("output", type=Path, help="destination root")
+    parser.add_argument(
+        "--manifest",
+        type=Path,
+        action="append",
+        required=True,
+        help="manifest CSV listing the clips to process (path, subjID, view, clip_start[, crf]); "
+        "repeat the option to process several manifests as one run",
+    )
+
+    # keyword arguments: optional
+    parser.add_argument(
+        "--studyname",
+        type=str,
+        default=None,
+        help="study-name prefix for the destination day folders; omitted, the folders have no prefix",
+    )
+    parser.add_argument(
+        "--subject_prefix",
+        type=str,
+        default="subj",
+        help="prefix joined to the manifest's subjID to form the subject name in destination paths; '' for none",
+    )
+    add_processing_arguments(parser)
     kwargs = vars(parser.parse_args())
 
     # argument validation

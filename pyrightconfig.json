@@ -7,7 +7,6 @@
     {"root": "."}
   ],
   "exclude": [
-    "videoproc/process_ratrixcam_output.py",
     "videoproc/supplementary_tools.py",
     "**/__pycache__"
   ]
