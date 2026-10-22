@@ -116,8 +116,28 @@ def print_summary(
     print(f"rows flagged for human review: {n_flagged} -> {action_items_path}")
 
 
+def remove_emptied_folders(source_root: Path, folders: set[Path]) -> int:
+    """Remove each of `folders`, and then its parents, while they hold nothing (a lone
+    .DS_Store counts as nothing), stopping below source_root. Returns the number removed."""
+    source_root = source_root.resolve()
+    removed = 0
+    for folder in sorted({f.resolve() for f in folders}, key=lambda p: len(p.parts), reverse=True):
+        while folder != source_root and source_root in folder.parents:
+            entries = list(folder.iterdir())
+            if len(entries) == 1 and entries[0].name == ".DS_Store":
+                entries[0].unlink()
+                entries = []
+            if entries:
+                break
+            folder.rmdir()
+            removed += 1
+            folder = folder.parent
+    return removed
+
+
 def delete_sources(source_root: Path, deletable: list[tuple[Path, Path]], run_dir: Path) -> None:
-    """Delete verified source files one by one, logging each."""
+    """Delete verified source files one by one, logging each; then remove the folders this
+    left empty."""
     print(f"\nAbout to permanently delete {len(deletable)} verified source file(s) under {source_root}")
     try:
         answer = input("Type DELETE to proceed, anything else to abort: ")
@@ -138,6 +158,9 @@ def delete_sources(source_root: Path, deletable: list[tuple[Path, Path]], run_di
             writer.writerow([src, dst, size, datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
             n_deleted += 1
     print(f"Deleted {n_deleted} file(s); record in {deletion_log}")
+    n_folders = remove_emptied_folders(source_root, {src.parent for src, _ in deletable})
+    if n_folders:
+        print(f"Removed {n_folders} source folder(s) left empty")
 
 
 def main(
@@ -147,10 +170,15 @@ def main(
     studyname: str | None,
     subject_prefix: str,
     min_age_hours: float,
-    decode: bool,
+    decode: bool | None,
     delete: bool,
     delete_partial: bool,
-):
+) -> Path | None:
+    """Verify, and with --delete remove, the clips the manifest(s) list. `decode` None means
+    the default: on with --delete, off otherwise. Returns the run's metadata folder, or None
+    if the run stopped before checking anything."""
+    if decode is None:
+        decode = delete
     run_id = f"confirm_{datetime.now():%Y%m%d_%H%M%S}_{uuid.uuid4().hex[:8]}"
     run_dir = destination / "videoproc_run_metadata" / run_id
     log_path = run_dir / "inspection_log.csv"
@@ -195,9 +223,9 @@ def main(
                 )
                 row["output_path"] = output_path
                 if not input_path.is_file():
-                    # nothing to delete; the row records whether the archive has the clip
+                    # nothing to delete; the row records whether the destination has the clip
                     row["destination_codec"], _ = get_codec_nframes(output_path) if output_path.is_file() else (None, None)
-                    archived = "archive copy present" if row["destination_codec"] else "no archive copy"
+                    archived = "destination copy present" if row["destination_codec"] else "no destination copy"
                     raise SkipFile(STATUS_MISSING_SOURCE, f"listed in the manifest but not found at the source; {archived}", action_item=True)
                 if source_resolved in output_path.resolve().parents:
                     raise SkipFile(
@@ -255,10 +283,10 @@ def main(
                 f"\nREFUSING to delete: {n_not_deletable} file(s) are not verified deletable "
                 "and --delete_partial is not set. Decode check skipped."
             )
-            return
+            return run_dir
         if not delete and not decode:
             print("\nReport only: --delete not set, nothing was deleted.")
-            return
+            return run_dir
 
         # ---- pass 2: full decode of the candidates ----
         if decode:
@@ -282,7 +310,7 @@ def main(
 
         if not delete:
             print("\nReport only: --delete not set, nothing was deleted.")
-            return
+            return run_dir
         deletable = [(Path(r["input_path"]), Path(r["output_path"])) for r in rows if r["deletable"]]
         n_not_deletable = len(listed) - len(deletable) - n_missing
         if n_not_deletable and not delete_partial:
@@ -290,11 +318,12 @@ def main(
                 f"\nREFUSING to delete: {n_not_deletable} file(s) are not verified deletable "
                 "and --delete_partial is not set."
             )
-            return
+            return run_dir
         if not deletable:
             print("\nNothing verified deletable; nothing deleted.")
-            return
+            return run_dir
         delete_sources(source, deletable, run_dir)
+        return run_dir
 
     finally:
         sys.stdout.flush()
@@ -304,28 +333,10 @@ def main(
         log_file.close()
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="verify compressed copies exist and are sound, then optionally delete the raw sources",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-    )
-    parser.add_argument("source", type=Path, help="source root of the raw videos you are considering deleting; manifest paths are relative to it")
-    parser.add_argument(
-        "destination", type=Path, help="root of the compressed archive (same as compress_drive's output)"
-    )
-    parser.add_argument(
-        "--manifest",
-        type=Path,
-        action="append",
-        required=True,
-        help="manifest CSV listing the clips to check (the same one(s) given to compress_drive); repeatable",
-    )
-    parser.add_argument(
-        "--studyname", type=str, default=None, help="study-name prefix of the destination day folders, as given to compress_drive"
-    )
-    parser.add_argument(
-        "--subject_prefix", type=str, default="subj", help="subject prefix of the destination paths, as given to compress_drive"
-    )
+def add_processing_arguments(parser: argparse.ArgumentParser) -> None:
+    """The options that control the verification and the deletion, shared with the ratrixcam
+    wrapper (process_ratrixcam_output.py); the source, destination and manifest arguments are
+    the caller's."""
     parser.add_argument(
         "--min_age_hours",
         default=24.0,
@@ -352,6 +363,31 @@ if __name__ == "__main__":
         help="with --delete: proceed even if some files are not verified deletable (they are left in place). "
         "Without it, any unverified file blocks all deletion",
     )
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="verify compressed copies exist and are sound, then optionally delete the raw sources",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument("source", type=Path, help="source root of the raw videos you are considering deleting; manifest paths are relative to it")
+    parser.add_argument(
+        "destination", type=Path, help="destination root (same as compress_drive's output)"
+    )
+    parser.add_argument(
+        "--manifest",
+        type=Path,
+        action="append",
+        required=True,
+        help="manifest CSV listing the clips to check (the same one(s) given to compress_drive); repeatable",
+    )
+    parser.add_argument(
+        "--studyname", type=str, default=None, help="study-name prefix of the destination day folders, as given to compress_drive"
+    )
+    parser.add_argument(
+        "--subject_prefix", type=str, default="subj", help="subject prefix of the destination paths, as given to compress_drive"
+    )
+    add_processing_arguments(parser)
     kwargs = vars(parser.parse_args())
 
     if not kwargs["source"].is_dir():
@@ -362,8 +398,6 @@ if __name__ == "__main__":
         raise ValueError("destination must not be the source folder or lie inside it")
     if destination_inside_source(kwargs["source"], kwargs["destination"] / "videoproc_run_metadata"):
         raise ValueError("the run-metadata folder under destination would lie inside the source folder")
-    if kwargs["decode"] is None:
-        kwargs["decode"] = kwargs["delete"]
     for m in kwargs["manifest"]:
         if not m.is_file():
             raise FileNotFoundError(f"manifest {m} not found")

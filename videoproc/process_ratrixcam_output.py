@@ -4,6 +4,8 @@ tools, and carry the run metadata the tools themselves ignore.
 
     process_ratrixcam_output.py compress <root> <destination> [--studyname S] [--subject_prefix P]
                                          [compress_drive options]
+    process_ratrixcam_output.py confirm  <root> <destination> [--studyname S] [--subject_prefix P]
+                                         [confirm_and_delete options]
 
 compress: every folder under <root>/ratrixcam_run_metadata/ is a recording run; its manifests/
 subfolder holds the per-camera manifests and its camera-config copy gives the study label and
@@ -14,6 +16,10 @@ log, the run's folder is copied whole to <destination>/ratrixcam_run_metadata/<r
 overwriting a destination file that differs in size. Run folders that could not be processed
 are carried the same way afterwards and reported on the terminal only. Files under <root>
 outside the run folders are neither inspected nor touched; nothing under <root> is deleted.
+
+confirm: the same run by run, with confirm_and_delete: each run's listed clips are verified
+against the destination and, with --delete, the verified ones are deleted after the tool's
+own typed confirmation, once per run. Only the clips the manifests list are considered.
 """
 
 import argparse
@@ -29,6 +35,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repo root; the s
 from ratrixcam_naming import MANIFEST_SUFFIX, MANIFESTS_DIRNAME, RUN_METADATA_DIRNAME  # noqa: E402
 
 import compress_drive  # noqa: E402
+import confirm_and_delete  # noqa: E402
 
 
 # ----------------------------------------------------------------------------- the runs in the folder
@@ -124,7 +131,7 @@ def transfer_folders(label: str, folders: list[Path], destination_of: Callable[[
     return line
 
 
-# ----------------------------------------------------------------------------- compress
+# ----------------------------------------------------------------------------- the two commands
 
 class AppendedSection:
     """Reopen a compression run's terminal log so that what is printed inside the block is
@@ -148,6 +155,27 @@ class AppendedSection:
             self._log_file.close()
 
 
+def runs_to_process(
+    root: Path, studyname: str | None, subject_prefix: str | None, problems: list[str]
+) -> list[tuple[RatrixcamRun, str, str]]:
+    """The runs under root that can be processed, each with its effective study label and
+    subject prefix; the others are explained in `problems`."""
+    ready: list[tuple[RatrixcamRun, str, str]] = []
+    for run in find_runs(root):
+        run_studyname = studyname if studyname is not None else run.studyname
+        run_prefix = subject_prefix if subject_prefix is not None else run.subject_prefix
+        if run_studyname is None or run_prefix is None:
+            problems.append(
+                f"ERROR: run {run.run_id} skipped: study label and subject prefix unknown "
+                "(see WARNING above; --studyname and --subject_prefix override the config copy)"
+            )
+        elif not run.manifests:
+            problems.append(f"WARNING: run {run.run_id} skipped: no manifest in its {MANIFESTS_DIRNAME}/ folder")
+        else:
+            ready.append((run, run_studyname, run_prefix))
+    return ready
+
+
 def compress(
     root: Path, destination: Path, studyname: str | None = None, subject_prefix: str | None = None, **options: Any
 ) -> int:
@@ -156,25 +184,13 @@ def compress(
     and `subject_prefix`, when given, apply to every run in place of its config copy.
     `options` are compress_drive's processing options as parsed by add_processing_arguments.
     Returns the exit code."""
-    runs = find_runs(root)
-    if not runs:
-        print(f"ERROR: no run folder under {root / RUN_METADATA_DIRNAME}; nothing to process")
+    if not (root / RUN_METADATA_DIRNAME).is_dir():
+        print(f"ERROR: no {RUN_METADATA_DIRNAME} folder under {root}; nothing to process")
         return 1
-
     problems: list[str] = []
+    ready = runs_to_process(root, studyname, subject_prefix, problems)
     processed: set[str] = set()
-    for run in runs:
-        run_studyname = studyname if studyname is not None else run.studyname
-        run_prefix = subject_prefix if subject_prefix is not None else run.subject_prefix
-        if run_studyname is None or run_prefix is None:
-            problems.append(
-                f"ERROR: run {run.run_id} skipped: study label and subject prefix unknown "
-                "(see WARNING above; --studyname and --subject_prefix override the config copy)"
-            )
-            continue
-        if not run.manifests:
-            problems.append(f"WARNING: run {run.run_id} skipped: no manifest in its {MANIFESTS_DIRNAME}/ folder")
-            continue
+    for run, run_studyname, run_prefix in ready:
         run_dir = compress_drive.main(
             input=root, output=destination, manifest=run.manifests,
             studyname=run_studyname, subject_prefix=run_prefix, **options,
@@ -195,7 +211,39 @@ def compress(
         print(transfer_folders("ratrixcam run-metadata (not processed)", others, lambda d: metadata_destination(d, destination)))
     if not problems:
         print("none")
-    print(f"runs processed: {len(processed)} of {len(runs)}")
+    print(f"runs processed: {len(processed)} of {len(ready) + len(problems)}")
+    return 1 if problems or not processed else 0
+
+
+def confirm(
+    root: Path, destination: Path, studyname: str | None = None, subject_prefix: str | None = None, **options: Any
+) -> int:
+    """confirm_and_delete once per run found under root, on that run's listed clips only;
+    then the runs that could not be processed, reported on the terminal only. `options` are
+    confirm_and_delete's options as parsed by its add_processing_arguments. Returns the
+    exit code."""
+    if not (root / RUN_METADATA_DIRNAME).is_dir():
+        print(f"ERROR: no {RUN_METADATA_DIRNAME} folder under {root}; nothing to process")
+        return 1
+    problems: list[str] = []
+    ready = runs_to_process(root, studyname, subject_prefix, problems)
+    processed = 0
+    for run, run_studyname, run_prefix in ready:
+        run_dir = confirm_and_delete.main(
+            source=root, destination=destination, manifest=run.manifests,
+            studyname=run_studyname, subject_prefix=run_prefix, **options,
+        )
+        if run_dir is None:
+            problems.append(f"ERROR: confirm_and_delete stopped before checking run {run.run_id}")
+            continue
+        processed += 1
+
+    print(f"\n==== ratrixcam folder {root}: runs not processed ====")
+    for line in problems:
+        print(line)
+    if not problems:
+        print("none")
+    print(f"runs processed: {processed} of {len(ready) + len(problems)}")
     return 1 if problems or not processed else 0
 
 
@@ -207,17 +255,24 @@ if __name__ == "__main__":
         help="compress_drive once per run in the folder, each followed by its run metadata folder",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    p.add_argument("root", type=Path, help="folder written by ratrixcam: a save_path drive, or a copy of one")
-    p.add_argument("destination", type=Path, help="destination root, as for compress_drive")
-    p.add_argument(
-        "--studyname", type=str, default=None,
-        help="study-name prefix for the destination day folders of every run, in place of each run's config copy",
+    c = commands.add_parser(
+        "confirm",
+        help="confirm_and_delete once per run in the folder, on the clips its manifests list",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    p.add_argument(
-        "--subject_prefix", type=str, default=None,
-        help="subject prefix for the destination paths of every run, in place of each run's config copy; '' for none",
-    )
+    for sub in (p, c):
+        sub.add_argument("root", type=Path, help="folder written by ratrixcam: a save_path drive, or a copy of one")
+        sub.add_argument("destination", type=Path, help="destination root, as for compress_drive")
+        sub.add_argument(
+            "--studyname", type=str, default=None,
+            help="study-name prefix of the destination day folders of every run, in place of each run's config copy",
+        )
+        sub.add_argument(
+            "--subject_prefix", type=str, default=None,
+            help="subject prefix of the destination paths of every run, in place of each run's config copy; '' for none",
+        )
     compress_drive.add_processing_arguments(p)
+    confirm_and_delete.add_processing_arguments(c)
     kwargs = vars(parser.parse_args())
     command = kwargs.pop("command")
 
@@ -227,9 +282,14 @@ if __name__ == "__main__":
         raise NotADirectoryError(f"{kwargs['destination']} is not a valid directory")
     if kwargs["root"].resolve() == kwargs["destination"].resolve():
         raise ValueError("root and destination cannot be the same")
+    if command == "confirm":
+        if confirm_and_delete.destination_inside_source(kwargs["root"], kwargs["destination"]):
+            raise ValueError("destination must not be the root folder or lie inside it")
+        if confirm_and_delete.destination_inside_source(kwargs["root"], kwargs["destination"] / "videoproc_run_metadata"):
+            raise ValueError("the run-metadata folder under destination would lie inside the root folder")
 
-    print("\nconfiguration:")
+    print(f"\nconfiguration ({command}):")
     pprint(kwargs, sort_dicts=False)
     input("\n[enter] to continue: ")
 
-    sys.exit(compress(**kwargs))
+    sys.exit({"compress": compress, "confirm": confirm}[command](**kwargs))

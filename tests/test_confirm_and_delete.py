@@ -104,7 +104,7 @@ def test_confirm_listed_file_missing_at_source_is_flagged_but_does_not_block_del
     log = read_log(run_dir)
     assert log["missing.mp4"]["status"] == "missing_source"
     assert is_true(log["missing.mp4"]["action_item"])
-    assert "no archive copy" in log["missing.mp4"]["skipped_reason"]
+    assert "no destination copy" in log["missing.mp4"]["skipped_reason"]
     assert "REFUSING" not in result.stdout
     assert not source_path(source_root, "10-00-00").exists()  # the verified clip was deleted anyway
     assert len(read_rows(run_dir / "deletion_log.csv")) == 1
@@ -202,21 +202,17 @@ def test_confirm_d_deletes_exactly_the_three_verified_clips(confirm_d, cd_prepar
     assert not source_path(source_root, HOM_TIME, view="hom").exists()
 
 
-def test_confirm_d_leaves_folders_and_unlisted_files_in_place(confirm_d, cd_prepared):
+def test_confirm_d_removes_the_folders_it_emptied_and_keeps_the_others(confirm_d, cd_prepared):
     source_root, _ = cd_prepared
-    assert session_folder_path(source_root, date=T11_DATE).exists()  # emptied, not removed (that is the wrapper's job)
-    assert (session_folder_path(source_root) / "weird_clip.mp4").exists()
-    assert source_path(source_root, TIMES["t01"]).exists()
-
-
-MOVED_TO_WRAPPER = "source sweep (empty folders, leftovers report) moves to process_ratrixcam_output (part B)"
-
-
-@pytest.mark.skip(reason=MOVED_TO_WRAPPER)
-def test_confirm_d_removes_emptied_session_folders(confirm_d, cd_prepared):
-    source_root, _ = cd_prepared
-    assert not session_folder_path(source_root, date=T11_DATE).exists()
+    assert not session_folder_path(source_root, date=T11_DATE).exists()  # emptied by this run: removed
     assert not session_folder_path(source_root, view="hom").exists()
+    assert "Removed 2 source folder(s) left empty" in confirm_d["result"].stdout
+    assert (session_folder_path(source_root) / "weird_clip.mp4").exists()  # unlisted file keeps its folder
+    assert source_path(source_root, TIMES["t01"]).exists()
+    assert source_root.exists()
+
+
+MOVED_TO_WRAPPER = "leftovers report moves to process_ratrixcam_output (part B)"
 
 
 @pytest.mark.skip(reason=MOVED_TO_WRAPPER)
