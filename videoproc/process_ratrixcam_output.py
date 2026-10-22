@@ -4,16 +4,16 @@ tools, and carry everything else such a folder holds that the tools themselves i
 
     process_ratrixcam_output.py compress <root> <destination> [compress_drive options]
 
-compress: every manifests_<run id>/ folder at the top of <root> names a recording run; the run's
-camera-config copy in ratrixcam_run_metadata/<run id>/ gives the study label and the subject
-prefix. compress_drive runs once per recording run with that run's manifests, <root> as the
-source root and <destination> as the output root; then, appended to that compression run's own
-terminal log, the run's ratrixcam_run_metadata/<run id>/ and manifests_<run id>/ folders are
-copied to the same place under <destination>, never overwriting a destination file that
-differs in size. After the last run, appended to its records: run-metadata folders that belong
-to no processed run are carried the same way, video files under <root> that no manifest lists
-are logged as not_in_manifest rows in the compression log (the first ten individually) and
-flagged for review, and other files are counted. Nothing under <root> is deleted.
+compress: every folder under <root>/ratrixcam_run_metadata/ is a recording run; its manifests/
+subfolder holds the per-camera manifests and its camera-config copy gives the study label and
+the subject prefix. compress_drive runs once per recording run with that run's manifests,
+<root> as the source root and <destination> as the output root; then, appended to that
+compression run's own terminal log, the run's folder is copied whole to
+<destination>/ratrixcam_run_metadata/<run id>/, never overwriting a destination file that
+differs in size. After the last run, appended to its records: run folders that could not be
+processed are carried the same way, video files under <root> that no manifest lists are logged
+as not_in_manifest rows in the compression log (the first ten individually) and flagged for
+review, and other files are counted. Nothing under <root> is deleted.
 """
 
 import argparse
@@ -27,7 +27,7 @@ from pprint import pprint
 from typing import IO, Any, Callable
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repo root; the shared module moves next (#26)
-from ratrixcam_naming import MANIFEST_SUFFIX, MANIFESTS_DIRNAME_PREFIX, RUN_METADATA_DIRNAME  # noqa: E402
+from ratrixcam_naming import MANIFEST_SUFFIX, MANIFESTS_DIRNAME, RUN_METADATA_DIRNAME  # noqa: E402
 
 import compress_drive  # noqa: E402
 from classify import LOG_FIELDS  # noqa: E402
@@ -43,39 +43,35 @@ VIDEO_SUFFIX = ".mp4"
 @dataclass
 class RatrixcamRun:
     run_id: str
-    manifests_dir: Path
-    manifests: list[Path]
-    metadata_dir: Path | None  # ratrixcam_run_metadata/<run id>, if present
+    run_dir: Path  # <root>/ratrixcam_run_metadata/<run id>
+    manifests: list[Path]  # the files in its manifests/ subfolder
     studyname: str | None  # from the config copy; None when it could not be read
     subject_prefix: str | None
 
 
 def find_runs(root: Path) -> list[RatrixcamRun]:
-    """One entry per manifests_<run id>/ folder at the top of root, with the study label and
+    """One entry per run folder under <root>/ratrixcam_run_metadata/, with the study label and
     subject prefix read from the run's config copy. Problems are printed, not raised."""
     runs: list[RatrixcamRun] = []
-    for folder in sorted(root.glob(f"{MANIFESTS_DIRNAME_PREFIX}*")):
-        if not folder.is_dir():
-            continue
-        run_id = folder.name[len(MANIFESTS_DIRNAME_PREFIX):]
-        manifests = sorted(p for p in folder.glob(f"*{MANIFEST_SUFFIX}") if p.is_file())
-        metadata_dir: Path | None = root / RUN_METADATA_DIRNAME / run_id
+    container = root / RUN_METADATA_DIRNAME
+    if not container.is_dir():
+        return runs
+    for run_dir in sorted(p for p in container.iterdir() if p.is_dir()):
+        run_id = run_dir.name
+        manifests_dir = run_dir / MANIFESTS_DIRNAME
+        manifests = sorted(p for p in manifests_dir.glob(f"*{MANIFEST_SUFFIX}") if p.is_file()) if manifests_dir.is_dir() else []
         studyname = prefix = None
-        if metadata_dir is not None and metadata_dir.is_dir():
-            configs = sorted(metadata_dir.glob("*.json"))
-            if len(configs) != 1:
-                print(f"WARNING: run {run_id}: expected one camera config copy in {metadata_dir}, found {len(configs)}")
-            else:
-                try:
-                    config = json.loads(configs[0].read_text())
-                    studyname = config["study_label"]
-                    prefix = config.get("subject_prefix", "subj")
-                except (OSError, ValueError, KeyError) as e:
-                    print(f"WARNING: run {run_id}: could not read study label from {configs[0]}: {e}")
+        configs = sorted(run_dir.glob("*.json"))
+        if len(configs) != 1:
+            print(f"WARNING: run {run_id}: expected one camera config copy in {run_dir}, found {len(configs)}")
         else:
-            print(f"WARNING: run {run_id}: no {RUN_METADATA_DIRNAME}/{run_id} folder under {root}")
-            metadata_dir = None
-        runs.append(RatrixcamRun(run_id, folder, manifests, metadata_dir, studyname, prefix))
+            try:
+                config = json.loads(configs[0].read_text())
+                studyname = config["study_label"]
+                prefix = config.get("subject_prefix", "subj")
+            except (OSError, ValueError, KeyError) as e:
+                print(f"WARNING: run {run_id}: could not read study label from {configs[0]}: {e}")
+        runs.append(RatrixcamRun(run_id, run_dir, manifests, studyname, prefix))
     return runs
 
 
@@ -138,14 +134,13 @@ def transfer_folders(label: str, folders: list[Path], destination_of: Callable[[
 # ----------------------------------------------------------------------------- files outside the manifests
 
 def is_expected_structure(path: Path, root: Path) -> bool:
-    """True for files inside the run-metadata and manifests folders, which are carried as units."""
-    parts = path.relative_to(root).parts
-    return RUN_METADATA_DIRNAME in parts or parts[0].startswith(MANIFESTS_DIRNAME_PREFIX)
+    """True for files inside run-metadata folders, which are carried as units."""
+    return RUN_METADATA_DIRNAME in path.relative_to(root).parts
 
 
 def inventory_unlisted(root: Path, listed: set[Path]) -> tuple[list[Path], int]:
     """(video files under root that no manifest lists, count of other files), ignoring the
-    run-metadata and manifests folders and .DS_Store."""
+    run-metadata folders and .DS_Store."""
     videos: list[Path] = []
     n_other = 0
     for path in root.rglob("*"):
@@ -217,7 +212,7 @@ def compress(root: Path, destination: Path, **options: Any) -> int:
     the exit code."""
     runs = find_runs(root)
     if not runs:
-        print(f"ERROR: no {MANIFESTS_DIRNAME_PREFIX}<run id> folder at the top of {root}; nothing to process")
+        print(f"ERROR: no run folder under {root / RUN_METADATA_DIRNAME}; nothing to process")
         return 1
 
     problems: list[str] = []
@@ -229,7 +224,7 @@ def compress(root: Path, destination: Path, **options: Any) -> int:
             problems.append(f"ERROR: run {run.run_id} skipped: study label and subject prefix unknown (see WARNING above)")
             continue
         if not run.manifests:
-            problems.append(f"WARNING: run {run.run_id} skipped: its manifests folder holds no manifest")
+            problems.append(f"WARNING: run {run.run_id} skipped: no manifest in its {MANIFESTS_DIRNAME}/ folder")
             continue
         try:
             listed.update((root / row.path).resolve() for row in read_manifests(run.manifests))
@@ -244,10 +239,8 @@ def compress(root: Path, destination: Path, **options: Any) -> int:
             continue
         processed.add(run.run_id)
         last_run_dir = run_dir
-        with AppendedSection(run_dir, f"ratrixcam run {run.run_id}: run metadata and manifests"):
-            if run.metadata_dir is not None:
-                print(transfer_folders("ratrixcam run-metadata", [run.metadata_dir], lambda d: metadata_destination(d, destination)))
-            print(transfer_folders("manifests", [run.manifests_dir], lambda d: destination / d.name))
+        with AppendedSection(run_dir, f"ratrixcam run {run.run_id}: run metadata folder"):
+            print(transfer_folders("ratrixcam run-metadata", [run.run_dir], lambda d: metadata_destination(d, destination)))
 
     for line in problems:
         print(line)
@@ -260,7 +253,7 @@ def compress(root: Path, destination: Path, **options: Any) -> int:
             print(line)
         others = [d for d in find_run_metadata_dirs(root) if d.name not in processed]
         if others:
-            print(transfer_folders("ratrixcam run-metadata (no processed run)", others, lambda d: metadata_destination(d, destination)))
+            print(transfer_folders("ratrixcam run-metadata (not processed)", others, lambda d: metadata_destination(d, destination)))
         videos, n_other = inventory_unlisted(root, listed)
         append_unlisted_rows(last_run_dir, videos)
         report_unlisted(videos, n_other, root)
@@ -272,7 +265,7 @@ if __name__ == "__main__":
     commands = parser.add_subparsers(dest="command", required=True)
     p = commands.add_parser(
         "compress",
-        help="compress_drive once per run in the folder, each followed by its metadata and manifests folders",
+        help="compress_drive once per run in the folder, each followed by its run metadata folder",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     p.add_argument("root", type=Path, help="folder written by ratrixcam: a save_path drive, or a copy of one")

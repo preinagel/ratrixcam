@@ -26,6 +26,7 @@ from ratrixcam_naming import (
     parse_manifest_warning,
     run_id,
     run_metadata_dir,
+    temp_manifests_dir,
     terminal_log_filename,
 )
 from ratrixcam_utils import Config, ensure_dir_exists, stills_dir
@@ -143,7 +144,7 @@ class RunMetadata:
     def collect_at_shutdown(self) -> None:
         """After the cameras have stopped: add to the per-camera manifests every row the
         cameras reported they could not write (read back from this run's terminal log); move
-        the manifests from the temp folder to manifests_<run_id> on the save drive; move the
+        the manifests from the temp folder into the run's metadata folder; move the
         status stills and every other loose
         file from the temp folder (screenshots, anything the user dropped there) into the run's
         metadata folder; remove per-camera temp folders that are empty; and report. The
@@ -163,8 +164,9 @@ class RunMetadata:
         moved, kept, manifests = [], [], []
         self._add_unwritten_manifest_rows()
         try:
+            manifests_src = temp_manifests_dir(self.config.temp_path)
             manifests_dst = manifests_dir(self.config.save_path, self.run_id)
-            for f in sorted(temp.glob(f"*{MANIFEST_SUFFIX}")):
+            for f in sorted(manifests_src.glob(f"*{MANIFEST_SUFFIX}")) if manifests_src.is_dir() else []:
                 if f.is_file():
                     manifests_dst.mkdir(parents=True, exist_ok=True)
                     shutil.move(str(f), str(manifests_dst / f.name))
@@ -220,7 +222,7 @@ class RunMetadata:
                 fields = parse_manifest_warning(line)
                 if fields is None:
                     continue
-                manifest_path = os.path.join(self.config.temp_path, fields["manifest"])
+                manifest_path = str(temp_manifests_dir(self.config.temp_path) / fields["manifest"])
                 try:
                     write_row(manifest_path, fields["path"], fields["subjID"], fields["view"], fields["clip_start"], fields["crf"])
                     added += 1

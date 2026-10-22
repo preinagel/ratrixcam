@@ -19,7 +19,7 @@ TIME = re.compile(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}")
 
 def test_header_once_then_one_row_per_clip(tmp_path):
     m = ManifestMetadata(str(tmp_path), "rat999_home", "999", "home", 25)
-    assert Path(m.path) == tmp_path / "rat999_home_manifest.csv"
+    assert Path(m.path) == tmp_path / "manifests" / "rat999_home_manifest.csv"
     assert m.append("Test_rat999_home_20261019", "rat999_home_20261019_15-23-29.mp4", datetime(2026, 10, 19, 15, 23, 29, 123456))
     assert m.append("Test_rat999_home_20261019", "rat999_home_20261019_15-24-29.mp4", datetime(2026, 10, 19, 15, 24, 29))
 
@@ -38,7 +38,8 @@ def test_header_once_then_one_row_per_clip(tmp_path):
 
 def test_write_failure_warns_and_returns_false(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(ratrixcam_manifest, "RETRY_DELAY", 0)
-    m = ManifestMetadata(str(tmp_path / "no_such_folder"), "rat999_home", "999", "home", 25)
+    (tmp_path / "blocked").write_text("a file where the temp folder should be")
+    m = ManifestMetadata(str(tmp_path / "blocked"), "rat999_home", "999", "home", 25)
     assert m.append("Test_rat999_home_20261019", "clip.mp4", datetime.now()) is False
     out = capsys.readouterr().out
     assert "WARNING" in out and "clip.mp4" in out and "3 attempts" in out
@@ -64,10 +65,11 @@ def test_manifest_warning_round_trip():
     assert parse_manifest_warning("Manifest rows added at cleanup: 2") is None
 
 
-def test_retry_succeeds_once_the_folder_appears(tmp_path, monkeypatch, capsys):
-    folder = tmp_path / "late_folder"
-    monkeypatch.setattr(ratrixcam_manifest, "time", SimpleNamespace(sleep=lambda _s: folder.mkdir()))
-    m = ManifestMetadata(str(folder), "rat999_home", "999", "home", 25)
+def test_retry_succeeds_once_the_obstacle_is_gone(tmp_path, monkeypatch, capsys):
+    blocker = tmp_path / "temp"
+    blocker.write_text("a file where the temp folder should be")
+    monkeypatch.setattr(ratrixcam_manifest, "time", SimpleNamespace(sleep=lambda _s: blocker.unlink()))
+    m = ManifestMetadata(str(blocker), "rat999_home", "999", "home", 25)
     assert m.append("Test_rat999_home_20261019", "clip.mp4", datetime.now()) is True
     assert "WARNING" not in capsys.readouterr().out
     assert Path(m.path).read_text().count("\n") == 2  # header + one row
@@ -85,7 +87,8 @@ def test_close_writer_still_transfers_the_clip_when_the_manifest_fails(tmp_path,
     temp_dir.mkdir(parents=True)
     save_dir.mkdir(parents=True)
     (temp_dir / "clip.mp4").write_bytes(b"clip")
-    manifest = ManifestMetadata(str(tmp_path / "temp" / "no_such_folder"), "rat999_home", "999", "home", 25)
+    (tmp_path / "temp" / "blocked").write_text("a file where the temp folder should be")
+    manifest = ManifestMetadata(str(tmp_path / "temp" / "blocked"), "rat999_home", "999", "home", 25)
     state = ratrixcam_server.WriterState(
         StandInWriter(),  # pyright: ignore[reportArgumentType]  (only release() is called)
         str(save_dir), str(temp_dir), "clip.mp4", datetime.now(),

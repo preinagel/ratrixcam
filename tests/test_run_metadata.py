@@ -98,7 +98,8 @@ def test_collect_at_shutdown_gathers_loose_temp_files_and_stills(tmp_path):
     temp = Path(config.temp_path)
     (Path(stills_dir(config.temp_path)) / "cam_cam1_status.png").write_bytes(b"png")
     (temp / "Screenshot 2026-01-02.png").write_bytes(b"shot")
-    (temp / "subj001_cam1_manifest.csv").write_text("path,subjID,view,clip_start,row_written,crf\n")
+    (temp / "manifests").mkdir()
+    (temp / "manifests" / "subj001_cam1_manifest.csv").write_text("path,subjID,view,clip_start,row_written,crf\n")
     (temp / ".DS_Store").write_bytes(b"")
     run.log_path.write_text("fake terminal log\n")
     empty_cam_dir = temp / "Test_cam1"
@@ -113,8 +114,9 @@ def test_collect_at_shutdown_gathers_loose_temp_files_and_stills(tmp_path):
     assert (run.run_dir / STILLS_DIRNAME / "cam_cam1_status.png").read_bytes() == b"png"
     assert (run.run_dir / "Screenshot 2026-01-02.png").exists()
     assert (run.run_dir / run.log_path.name).read_text() == "fake terminal log\n"
-    assert (manifests_dir(config.save_path, run.run_id) / "subj001_cam1_manifest.csv").read_text().startswith("path,")
-    assert not (run.run_dir / "subj001_cam1_manifest.csv").exists()  # manifests go to their own folder
+    assert manifests_dir(config.save_path, run.run_id) == run.run_dir / "manifests"
+    assert (run.run_dir / "manifests" / "subj001_cam1_manifest.csv").read_text().startswith("path,")
+    assert not (temp / "manifests").exists()  # emptied and removed with the rest of temp
     assert not (temp / "Screenshot 2026-01-02.png").exists()
     assert not (Path(stills_dir(config.temp_path)) / "cam_cam1_status.png").exists()  # moved, not copied
     assert not Path(stills_dir(config.temp_path)).exists()  # emptied stills folder removed
@@ -128,7 +130,8 @@ def test_collect_at_shutdown_adds_rows_the_cameras_could_not_write(tmp_path, cap
     run = RunMetadata(config, config_path)
     run.record_start()
     temp = Path(config.temp_path)
-    (temp / "subj001_cam1_manifest.csv").write_text(
+    (temp / "manifests").mkdir()
+    (temp / "manifests" / "subj001_cam1_manifest.csv").write_text(
         "path,subjID,view,clip_start,row_written,crf\nTest_subj001_cam1_20260102/a.mp4,001,cam1,2026-01-02 03:04:05.000,2026-01-02 03:05:05.000,25\n"
     )
     run.log_path.write_text(

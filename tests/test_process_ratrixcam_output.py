@@ -15,10 +15,12 @@ STUDY = "LS"
 
 
 def add_run(root: Path, clips: dict[str, Path], run_id: str, times, study=STUDY, view="home") -> Path:
-    """One recording run as ratrixcam leaves it: a day folder with the clips, the run's
-    manifests folder, its run-metadata folder with the config copy. Returns the manifests folder."""
+    """One recording run as ratrixcam leaves it: a day folder with the clips, and the run's
+    metadata folder holding the config copy, notes, log, stills and manifests. Returns the
+    manifests folder."""
     day = root / f"{study}_{SUBJECT}_{view}_{DATE}"
-    manifests = root / f"manifests_{run_id}"
+    meta = root / "ratrixcam_run_metadata" / run_id
+    manifests = meta / "manifests"
     manifests.mkdir(parents=True)
     with open(manifests / f"{SUBJECT}_{view}_manifest.csv", "w", newline="") as f:
         w = csv.writer(f)
@@ -26,7 +28,6 @@ def add_run(root: Path, clips: dict[str, Path], run_id: str, times, study=STUDY,
         for t in times:
             place(clips["R30"], day / fname(t, view=view))
             w.writerow([f"{day.name}/{fname(t, view=view)}", "901", view, clip_start(t), clip_start(t), 25])
-    meta = root / "ratrixcam_run_metadata" / run_id
     (meta / "stills").mkdir(parents=True)
     (meta / "camera_config_test.json").write_text(json.dumps({"study_label": study, "subject_prefix": "rat", "cameras": []}))
     (meta / "notes.txt").write_text("notes\n")
@@ -60,9 +61,8 @@ def test_compress_processes_listed_clips_and_carries_the_folders(tmp_path, clips
     assert (dest / SUBJECT / f"{STUDY}_{SUBJECT}_home_{DATE}" / fname("10-00-00")).exists()
     assert (dest / "ratrixcam_run_metadata" / RUN_ID / "camera_config_test.json").exists()
     assert (dest / "ratrixcam_run_metadata" / RUN_ID / "stills" / "cam_rat901_home_status.png").exists()
-    assert (dest / f"manifests_{RUN_ID}" / f"{SUBJECT}_home_manifest.csv").exists()
-    assert "ratrixcam run-metadata folders transferred: 1 (4 file(s) copied)" in result.stdout
-    assert "manifests folders transferred: 1 (1 file(s) copied)" in result.stdout
+    assert (dest / "ratrixcam_run_metadata" / RUN_ID / "manifests" / f"{SUBJECT}_home_manifest.csv").exists()
+    assert "ratrixcam run-metadata folders transferred: 1 (5 file(s) copied)" in result.stdout
 
     run_dir = latest_run_dir(dest, "compression_")
     log = read_log(run_dir)
@@ -72,15 +72,14 @@ def test_compress_processes_listed_clips_and_carries_the_folders(tmp_path, clips
     assert "1 video file(s) under" in result.stdout and "other files under" in result.stdout
     terminal = (run_dir / "terminal.log").read_text()
     assert "==== run summary ====" in terminal
-    assert f"ratrixcam run {RUN_ID}: run metadata and manifests" in terminal
+    assert f"ratrixcam run {RUN_ID}: run metadata folder" in terminal
     assert "everything outside the processed runs" in terminal
-    assert terminal.index("==== run summary ====") < terminal.index("run metadata and manifests") < terminal.index("outside the processed runs")
+    assert terminal.index("==== run summary ====") < terminal.index("run metadata folder") < terminal.index("outside the processed runs")
     assert (root / "not_a_day_folder" / "stray.mp4").exists() and (root / "readme.txt").exists()  # untouched
 
     # second run: everything already there, nothing copied, nothing overwritten
     result2 = run_wrapper(root, dest)
     assert "ratrixcam run-metadata folders transferred: 1 (0 file(s) copied)" in result2.stdout
-    assert "manifests folders transferred: 1 (0 file(s) copied)" in result2.stdout
 
 
 def test_compress_never_overwrites_a_differing_destination_file(tmp_path, clips):
@@ -111,26 +110,28 @@ def test_each_recording_run_is_its_own_compression_run(tmp_path, clips):
     assert (dest / SUBJECT / f"Pilot_{SUBJECT}_face_{DATE}" / fname("11-00-00", view="face")).exists()
     terminals = {p: (p / "terminal.log").read_text() for p in runs}
     # each compression run carries its own run's folders ...
-    assert sum(f"ratrixcam run {RUN_ID}: run metadata and manifests" in t for t in terminals.values()) == 1
-    assert sum(f"ratrixcam run {second}: run metadata and manifests" in t for t in terminals.values()) == 1
+    assert sum(f"ratrixcam run {RUN_ID}: run metadata folder" in t for t in terminals.values()) == 1
+    assert sum(f"ratrixcam run {second}: run metadata folder" in t for t in terminals.values()) == 1
     assert (dest / "ratrixcam_run_metadata" / RUN_ID / "notes.txt").exists()
-    assert (dest / f"manifests_{second}" / f"{SUBJECT}_face_manifest.csv").exists()
+    assert (dest / "ratrixcam_run_metadata" / second / "manifests" / f"{SUBJECT}_face_manifest.csv").exists()
     # ... and the inventory of everything else is appended once, to the last one
     assert sum("outside the processed runs" in t for t in terminals.values()) == 1
 
 
-def test_a_run_metadata_folder_without_manifests_is_still_carried(tmp_path, clips):
+def test_a_run_folder_without_manifests_is_skipped_but_still_carried(tmp_path, clips):
     root, dest = tmp_path / "drive", tmp_path / "dest"
     dest.mkdir()
     add_run(root, clips, RUN_ID, ("10-00-00",))
     empty_run = root / "ratrixcam_run_metadata" / "ratrixcam_20250101_120000_00000000"
     empty_run.mkdir()
+    (empty_run / "camera_config_test.json").write_text(json.dumps({"study_label": STUDY, "subject_prefix": "rat"}))
     (empty_run / "notes.txt").write_text("recorded nothing\n")
 
     result = run_wrapper(root, dest)
-    assert result.returncode == 0, result.stderr + result.stdout
+    assert result.returncode == 1, result.stderr + result.stdout  # a skipped run is reported in the exit code
+    assert "skipped: no manifest" in result.stdout
     assert (dest / "ratrixcam_run_metadata" / "ratrixcam_20250101_120000_00000000" / "notes.txt").exists()
-    assert "ratrixcam run-metadata (no processed run) folders transferred: 1 (1 file(s) copied)" in result.stdout
+    assert "ratrixcam run-metadata (not processed) folders transferred: 1 (2 file(s) copied)" in result.stdout
 
 
 def test_compress_without_a_config_copy_skips_the_run(tmp_path, clips):
@@ -146,7 +147,7 @@ def test_compress_without_a_config_copy_skips_the_run(tmp_path, clips):
     assert not (dest / SUBJECT).exists()
 
 
-def test_compress_without_manifests_folders_stops(tmp_path):
+def test_compress_without_run_folders_stops(tmp_path):
     root, dest = tmp_path / "drive", tmp_path / "dest"
     root.mkdir()
     dest.mkdir()

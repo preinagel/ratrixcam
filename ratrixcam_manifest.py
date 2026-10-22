@@ -1,9 +1,9 @@
 """Per-clip manifest written by each camera server as it records: one CSV per camera in the
-temp folder, one row per closed clip, appended before the clip's transfer to the save drive
-starts. videoproc takes its list of clips from these files. A row that could not be written
-is announced in the terminal log (ratrixcam_naming.manifest_warning) and added by the
-shutdown cleanup, which then moves the run's manifests to <save_path>/manifests_<run_id>/
-(ratrixcam_run_metadata).
+temp folder's manifests/ subfolder, one row per closed clip, appended before the clip's
+transfer to the save drive starts. videoproc takes its list of clips from these files. A row
+that could not be written is announced in the terminal log (ratrixcam_naming.manifest_warning)
+and added by the shutdown cleanup, which then moves the run's manifests into the run's
+metadata folder on the save drive (ratrixcam_run_metadata).
 """
 
 import csv
@@ -11,7 +11,7 @@ import os
 import time
 from datetime import datetime
 
-from ratrixcam_naming import manifest_filename, manifest_warning
+from ratrixcam_naming import manifest_filename, manifest_warning, temp_manifests_dir
 
 MANIFEST_COLUMNS = ["path", "subjID", "view", "clip_start", "row_written", "crf"]
 TIME_FORMAT = "%Y-%m-%d %H:%M:%S.%f"  # trimmed to milliseconds by format_time
@@ -24,8 +24,9 @@ def format_time(t: datetime) -> str:
 
 
 def write_row(manifest_path: str, path: str, subjID: str, view: str, clip_start: str, crf: int | str) -> None:
-    """One attempt to append a row, with row_written = now; the header is written when the
-    file is created. Raises OSError on failure."""
+    """One attempt to append a row, with row_written = now; the folder and the header are
+    created with the file. Raises OSError on failure."""
+    os.makedirs(os.path.dirname(manifest_path), exist_ok=True)
     new = not os.path.exists(manifest_path) or os.path.getsize(manifest_path) == 0
     with open(manifest_path, "a", newline="") as f:
         writer = csv.writer(f)
@@ -40,7 +41,7 @@ class ManifestMetadata:
     """What one camera writes into every row of its manifest, and where that manifest is."""
 
     def __init__(self, temp_path: str, camera_name_: str, subjID: str, view: str, crf: int):
-        self.path = os.path.join(temp_path, manifest_filename(camera_name_))
+        self.path = str(temp_manifests_dir(temp_path) / manifest_filename(camera_name_))
         self.subjID = subjID
         self.view = view
         self.crf = crf
