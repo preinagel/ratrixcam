@@ -211,10 +211,3 @@ def test_confirm_d_removes_the_folders_it_emptied_and_keeps_the_others(confirm_d
     assert source_path(source_root, TIMES["t01"]).exists()
     assert source_root.exists()
 
-
-MOVED_TO_WRAPPER = "leftovers report moves to process_ratrixcam_output (part B)"
-
-
-@pytest.mark.skip(reason=MOVED_TO_WRAPPER)
-def test_confirm_d_reports_remaining_files(confirm_d):
-    assert "remain under" in confirm_d["result"].stdout

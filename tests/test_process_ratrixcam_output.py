@@ -176,9 +176,11 @@ def test_compress_without_run_folders_stops(tmp_path):
 
 # ----------------------------------------------------------------------------- confirm
 
-def run_confirm(root: Path, dest: Path, extra_args=(), n_delete_prompts=0, timeout=300) -> subprocess.CompletedProcess[str]:
+def run_confirm(
+    root: Path, dest: Path, extra_args=(), n_delete_prompts=0, write_leftovers="n", timeout=300
+) -> subprocess.CompletedProcess[str]:
     cmd = [sys.executable, "process_ratrixcam_output.py", "confirm", str(root), str(dest), *extra_args]
-    stdin = "\n" + "DELETE\n" * n_delete_prompts
+    stdin = "\n" + "DELETE\n" * n_delete_prompts + write_leftovers + "\n"
     return subprocess.run(cmd, cwd=VIDEOPROC_DIR, input=stdin, capture_output=True, text=True, timeout=timeout)
 
 
@@ -229,6 +231,13 @@ def test_confirm_delete_asks_once_per_run_and_deletes_only_listed_clips(tmp_path
         rows = read_rows(run / "deletion_log.csv")
         assert len(rows) == 2 and rows[1]["input_path"].endswith(("/" + RUN_ID, "/" + second))  # clip, then folder
         assert "Run folder deleted" in (run / "terminal.log").read_text()
+    # what remains: only the strays; the leftover files were declined
+    assert "listed clips left at the source: 0" in result.stdout
+    assert "run folders remaining: 0" in result.stdout
+    assert "video files not listed in any manifest: 1" in result.stdout and "stray.mp4" in result.stdout
+    assert "other ratrixcam-looking files outside the run folders: 1" in result.stdout  # readme.txt
+    assert "leftover files not written" in result.stdout
+    assert not list(root.glob("leftover_*.csv"))
 
 
 def test_confirm_keeps_the_run_folder_when_a_listed_clip_remains(tmp_path, clips):
@@ -239,7 +248,8 @@ def test_confirm_keeps_the_run_folder_when_a_listed_clip_remains(tmp_path, clips
     (dest / SUBJECT / f"{STUDY}_{SUBJECT}_home_{DATE}" / fname("10-01-00")).unlink()  # one destination copy gone
 
     result = run_confirm(
-        root, dest, extra_args=["--min_age_hours", "0", "--no-decode", "--delete", "--delete_partial"], n_delete_prompts=1
+        root, dest, extra_args=["--min_age_hours", "0", "--no-decode", "--delete", "--delete_partial"],
+        n_delete_prompts=1, write_leftovers="y",
     )
     assert result.returncode == 0, result.stderr + result.stdout
     assert result.stdout.count("Type DELETE to proceed") == 1  # the clips only; no folder prompt
@@ -247,6 +257,39 @@ def test_confirm_keeps_the_run_folder_when_a_listed_clip_remains(tmp_path, clips
     assert (root / f"{STUDY}_{SUBJECT}_home_{DATE}" / fname("10-01-00")).exists()
     assert (root / "ratrixcam_run_metadata" / RUN_ID / "notes.txt").exists()
     assert "run folder kept: 1 of its 2 listed clip(s) remain at the source" in result.stdout
+
+    # the leftovers, on the terminal and in the three files
+    assert "listed clips left at the source: 1" in result.stdout and "run folders remaining: 1" in result.stdout
+    clips = read_rows(root / "leftover_listed_clips.csv")
+    assert len(clips) == 1 and clips[0]["path"].endswith(fname("10-01-00"))
+    assert clips[0]["run_id"] == RUN_ID and clips[0]["status"] == "not_at_destination" and clips[0]["subjID"] == "901"
+    folders = read_rows(root / "leftover_run_folders.csv")
+    assert len(folders) == 1 and folders[0]["path"] == f"ratrixcam_run_metadata/{RUN_ID}" and folders[0]["n_files"] == "5"
+    assert "1 of its 2 listed clip(s) remain" in folders[0]["reason"]
+    unlisted = [r["path"] for r in read_rows(root / "leftover_unlisted_files.csv")]
+    assert unlisted == ["not_a_day_folder/stray.mp4", "readme.txt"]
+
+    # a second pass does not count its own leftover files as leftovers
+    again = run_confirm(root, dest, extra_args=["--min_age_hours", "0"], write_leftovers="n")
+    assert again.returncode == 0, again.stderr + again.stdout
+    assert "no other files; empty folders: 0" in again.stdout
+
+
+def test_confirm_lists_the_clips_of_a_skipped_run_as_not_checked(tmp_path, clips):
+    root, dest = tmp_path / "drive", tmp_path / "dest"
+    dest.mkdir()
+    make_drive(root, clips)
+    assert run_wrapper(root, dest).returncode == 0
+    (root / "ratrixcam_run_metadata" / RUN_ID / "camera_config_test.json").unlink()  # the run can no longer be read
+
+    result = run_confirm(root, dest, extra_args=["--min_age_hours", "0"], write_leftovers="y")
+    assert result.returncode == 1  # the skip is reported in the exit code
+    assert "listed clips left at the source: 2" in result.stdout
+    clips_left = read_rows(root / "leftover_listed_clips.csv")
+    assert {r["status"] for r in clips_left} == {"not checked"}
+    assert all("run skipped: study label and subject prefix unknown" in r["reason"] for r in clips_left)
+    folders = read_rows(root / "leftover_run_folders.csv")
+    assert len(folders) == 1 and folders[0]["reason"] == "study label and subject prefix unknown"
 
 
 def test_confirm_keeps_a_run_folder_whose_destination_copy_differs(tmp_path, clips):
