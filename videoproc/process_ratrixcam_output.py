@@ -51,6 +51,7 @@ from ratrixcam_naming import MANIFEST_SUFFIX, MANIFESTS_DIRNAME, NOTES_FILENAME,
 import compress_drive  # noqa: E402
 import confirm_and_delete  # noqa: E402
 from manifest import REQUIRED_COLUMNS, ManifestError, ManifestRow, read_manifests  # noqa: E402
+from util import equivalent_call, shorten  # noqa: E402
 
 MAX_LISTED = 10  # paths printed individually before a report falls back to a count
 VIDEO_SUFFIX = ".mp4"
@@ -169,8 +170,8 @@ def transfer_folders(label: str, folders: list[Path], destination_of: Callable[[
 # ----------------------------------------------------------------------------- the two commands
 
 class AppendedSection:
-    """Reopen a compression run's terminal log so that what is printed inside the block is
-    appended to it, as well as shown on the terminal."""
+    """Reopen a videoproc run's terminal log so that what is printed inside the block is
+    appended to it, as well as shown on the terminal; `title` opens the section."""
 
     def __init__(self, run_dir: Path, title: str):
         self.run_dir, self.title = run_dir, title
@@ -178,7 +179,7 @@ class AppendedSection:
 
     def __enter__(self):
         self._log_file = compress_drive.start_terminal_log(self.run_dir / "terminal.log")
-        print(f"\n==== {self.title} ====")
+        print(f"\n{self.title}")
         return self
 
     def __exit__(self, *_exc: object) -> None:
@@ -188,6 +189,11 @@ class AppendedSection:
         sys.stderr = sys.__stderr__
         if self._log_file is not None:
             self._log_file.close()
+
+
+def run_header(run_id: str) -> None:
+    """Printed before the tool's own output for a run, on the terminal only."""
+    print(f"\n==== ratrixcam run {run_id} ========")
 
 
 def runs_to_process(
@@ -230,6 +236,7 @@ def compress(
     ready, _skipped = runs_to_process(root, studyname, subject_prefix, problems)
     processed: set[str] = set()
     for run, run_studyname, run_prefix in ready:
+        run_header(run.run_id)
         run_dir = compress_drive.main(
             input=root, output=destination, manifest=run.manifests,
             studyname=run_studyname, subject_prefix=run_prefix, **options,
@@ -238,11 +245,11 @@ def compress(
             problems.append(f"ERROR: compress_drive stopped before processing run {run.run_id}")
             continue
         processed.add(run.run_id)
-        with AppendedSection(run_dir, f"ratrixcam run {run.run_id}: run metadata folder"):
+        with AppendedSection(run_dir, "run metadata folder:"):
             print(transfer_folders("ratrixcam run-metadata", [run.run_dir], lambda d: metadata_destination(d, destination)))
 
     # terminal only: what could not be processed, and the run folders carried regardless
-    print(f"\n==== ratrixcam folder {root}: runs not processed ====")
+    print(f"\n==== ratrixcam folder <source> = {root}: runs not processed ====")
     for line in problems:
         print(line)
     others = [d for d in find_run_metadata_dirs(root) if d.name not in processed]
@@ -254,27 +261,32 @@ def compress(
     return 1 if problems or not processed else 0
 
 
-def settle_run_folder(run: RatrixcamRun, outcome: confirm_and_delete.Outcome, destination: Path, delete: bool) -> str | None:
+def settle_run_folder(
+    run: RatrixcamRun, outcome: confirm_and_delete.Outcome, source: Path, destination: Path, delete: bool
+) -> str | None:
     """Compare the run folder with its destination copy byte for byte; with `delete`, remove a
     verified folder whose listed clips are all gone from the source, after a typed DELETE,
     and log it in the run's deletion_log.csv. Returns why the folder was kept, None if deleted."""
+    def short(path: Path) -> str:
+        return shorten(path, source, destination)
+
     dest_dir = metadata_destination(run.run_dir, destination)
     missing, differing = compare_bytes(run.run_dir, dest_dir)
     if missing or differing:
-        print(f"run folder NOT verified at {dest_dir}: {len(missing)} file(s) missing, {len(differing)} differing; kept")
+        print(f"run folder NOT verified at {short(dest_dir)}: {len(missing)} file(s) missing, {len(differing)} differing; kept")
         for rel in missing:
             print(f"    missing: {rel}")
         for rel in differing:
             print(f"    differs: {rel}")
         return f"not verified at the destination: {len(missing)} file(s) missing, {len(differing)} differing"
-    print(f"run folder verified byte for byte at {dest_dir}")
+    print(f"run folder verified byte for byte at {short(dest_dir)}")
     if not delete:
         print("run folder kept: --delete not set")
         return KEPT_NO_DELETE
     if outcome.n_remaining:
         print(f"run folder kept: {outcome.n_remaining} of its {outcome.n_listed} listed clip(s) remain at the source")
         return f"verified; {outcome.n_remaining} of its {outcome.n_listed} listed clip(s) remain at the source"
-    print(f"\nAbout to permanently delete the run folder {run.run_dir} ({outcome.n_listed} listed clip(s), all gone from the source)")
+    print(f"\nAbout to permanently delete the run folder {short(run.run_dir)} ({outcome.n_listed} listed clip(s), all gone from the source)")
     try:
         answer = input("Type DELETE to proceed, anything else to keep it: ")
     except EOFError:
@@ -287,7 +299,7 @@ def settle_run_folder(run: RatrixcamRun, outcome: confirm_and_delete.Outcome, de
     log = confirm_and_delete.append_deletion_rows(
         outcome.run_dir, [[run.run_dir, dest_dir, size, datetime.now().strftime("%Y-%m-%d %H:%M:%S")]]
     )
-    print(f"Run folder deleted; record in {log}")
+    print(f"Run folder deleted; record in {short(log)}")
     return None
 
 
@@ -390,7 +402,7 @@ def inventory_leftovers(
 
 def report_leftovers(root: Path, left: Leftovers) -> None:
     """What would still be at the root after a --delete --delete_partial run."""
-    print(f"\n==== ratrixcam folder {root}: what would remain after --delete --delete_partial ====")
+    print(f"\n==== ratrixcam folder <source> = {root}: what would remain after --delete --delete_partial ====")
     print(f"listed clips not deletable: {len(left.listed_clips)} (reasons in the run summaries above and in {LEFTOVER_LISTED_CLIPS})")
     print(f"run folders that would remain: {len(left.run_folders)}" + (f" (plus {left.deletable_run_folders} that --delete would remove)" if left.deletable_run_folders else ""))
     for row in left.run_folders:
@@ -421,19 +433,19 @@ def write_leftovers(root: Path, left: Leftovers) -> None:
             writer = csv.DictWriter(f, fieldnames=REQUIRED_COLUMNS + ["crf", "run_id", "status", "reason"])
             writer.writeheader()
             writer.writerows(left.listed_clips)
-        print(f"written: {root / LEFTOVER_LISTED_CLIPS}")
+        print(f"written: <source>/{LEFTOVER_LISTED_CLIPS}")
     if left.run_folders:
         with open(root / LEFTOVER_RUN_FOLDERS, "w", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=["path", "n_files", "bytes", "reason"])
             writer.writeheader()
             writer.writerows(left.run_folders)
-        print(f"written: {root / LEFTOVER_RUN_FOLDERS}")
+        print(f"written: <source>/{LEFTOVER_RUN_FOLDERS}")
     if left.videos or left.ratrixcam_like:
         with open(root / LEFTOVER_UNLISTED_FILES, "w", newline="") as f:
             writer = csv.writer(f)
             writer.writerow(["path"])
             writer.writerows([[rel.as_posix()] for rel in left.videos + left.ratrixcam_like])
-        print(f"written: {root / LEFTOVER_UNLISTED_FILES}")
+        print(f"written: <source>/{LEFTOVER_UNLISTED_FILES}")
 
 
 def read_statuses(run_dir: Path) -> dict[Path, tuple[str, str, bool]]:
@@ -477,6 +489,8 @@ def confirm(
                 input("\nPress Enter to continue to the next run: ")
             except EOFError:
                 pass
+            print("\n\n")
+        run_header(run.run_id)
         outcome = confirm_and_delete.main(
             source=root, destination=destination, manifest=run.manifests,
             studyname=run_studyname, subject_prefix=run_prefix, **options,
@@ -487,12 +501,12 @@ def confirm(
             continue
         processed += 1
         statuses.update(read_statuses(outcome.run_dir))
-        with AppendedSection(outcome.run_dir, f"ratrixcam run {run.run_id}: run metadata folder"):
-            kept = settle_run_folder(run, outcome, destination, delete=bool(options.get("delete")))
+        with AppendedSection(outcome.run_dir, "run metadata folder:"):
+            kept = settle_run_folder(run, outcome, root, destination, delete=bool(options.get("delete")))
         if kept is not None:
             kept_runs[run.run_id] = kept
 
-    print(f"\n==== ratrixcam folder {root}: runs not processed ====")
+    print(f"\n==== ratrixcam folder <source> = {root}: runs not processed ====")
     for line in problems:
         print(line)
     if not problems:
@@ -558,5 +572,7 @@ if __name__ == "__main__":
     print(f"\nconfiguration ({command}):")
     pprint(kwargs, sort_dicts=False)
     input("\n[enter] to continue: ")
+    print("Call: " + equivalent_call("process_ratrixcam_output.py", [command, kwargs["root"], kwargs["destination"]],
+                                     {k: v for k, v in kwargs.items() if k not in ("root", "destination")}))
 
     sys.exit({"compress": compress, "confirm": confirm}[command](**kwargs))

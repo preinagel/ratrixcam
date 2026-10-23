@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from pprint import pprint
-from typing import Any
+from typing import Any, Callable
 
 from classify import (
     LOG_FIELDS as BASE_LOG_FIELDS,
@@ -32,7 +32,7 @@ from classify import (
 )
 from compress_drive import append_index_row, start_terminal_log
 from manifest import SUMMARY_FILENAME, ManifestError, read_manifests, summarize_by_subject_and_view, write_summary
-from util import build_output_path, code_version, get_codec_nframes
+from util import build_output_path, code_version, equivalent_call, get_codec_nframes, shorten
 
 EXTRA_FIELDS = [
     "source_codec",
@@ -119,7 +119,7 @@ def print_summary(
     n_listed: int,
     min_age_hours: float,
     decoded: bool,
-    action_items_path: Path,
+    action_items_path: str,
 ) -> None:
     counts: dict[str, int] = {}
     for r in rows:
@@ -168,10 +168,13 @@ def remove_emptied_folders(source_root: Path, folders: set[Path]) -> int:
     return removed
 
 
-def delete_sources(source_root: Path, deletable: list[tuple[Path, Path]], run_dir: Path) -> int:
-    """Delete verified source files one by one, logging each; then remove the folders this
-    left empty. Returns the number of files deleted."""
-    print(f"\nAbout to permanently delete {len(deletable)} verified source file(s) under {source_root}")
+def delete_sources(
+    source_root: Path, deletable: list[tuple[Path, Path]], run_dir: Path, short: Callable[[Path | str], str] = str
+) -> int:
+    """Delete verified source files one by one, logging each as it goes so an interrupted run
+    leaves a complete record; then remove the folders this left empty. Returns the number of
+    files deleted."""
+    print(f"\nAbout to permanently delete {len(deletable)} verified source file(s) under {short(source_root)}")
     try:
         answer = input("Type DELETE to proceed, anything else to abort: ")
     except EOFError:
@@ -180,17 +183,24 @@ def delete_sources(source_root: Path, deletable: list[tuple[Path, Path]], run_di
         print("Aborted; nothing deleted.")
         return 0
 
-    deleted: list[list[object]] = []
-    for src, dst in deletable:
-        size = src.stat().st_size
-        src.unlink()
-        deleted.append([src, dst, size, datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
-    deletion_log = append_deletion_rows(run_dir, deleted)
-    print(f"Deleted {len(deleted)} file(s); record in {deletion_log}")
+    deletion_log = run_dir / "deletion_log.csv"
+    new = not deletion_log.exists()
+    n_deleted = 0
+    with open(deletion_log, "a", newline="") as f:
+        writer = csv.writer(f)
+        if new:
+            writer.writerow(DELETION_FIELDS)
+        for src, dst in deletable:
+            size = src.stat().st_size
+            src.unlink()
+            writer.writerow([src, dst, size, datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
+            f.flush()
+            n_deleted += 1
+    print(f"Deleted {n_deleted} file(s); record in {short(deletion_log)}")
     n_folders = remove_emptied_folders(source_root, {src.parent for src, _ in deletable})
     if n_folders:
         print(f"Removed {n_folders} source folder(s) left empty")
-    return len(deleted)
+    return n_deleted
 
 
 def main(
@@ -207,15 +217,25 @@ def main(
     """Verify, and with --delete remove, the clips the manifest(s) list. `decode` None means
     the default: on with --delete, off otherwise. Returns the run's outcome, or None if the
     run stopped before checking anything."""
+    call_options: dict[str, object] = {"manifest": manifest, "studyname": studyname, "subject_prefix": subject_prefix, "min_age_hours": min_age_hours}
+    if decode is not None:
+        call_options["decode" if decode else "no-decode"] = True
+    call_options.update(delete=delete, delete_partial=delete_partial)
     if decode is None:
         decode = delete
+
+    def short(path: Path | str) -> str:
+        return shorten(path, source, destination)
+
     run_id = f"confirm_{datetime.now():%Y%m%d_%H%M%S}_{uuid.uuid4().hex[:8]}"
     run_dir = destination / "videoproc_run_metadata" / run_id
     log_path = run_dir / "inspection_log.csv"
     action_items_path = run_dir / "action_items.csv"
     log_file = start_terminal_log(run_dir / "terminal.log")
     print(f"Starting confirm_and_delete run {run_id} -- code version {code_version()}")
-    print(f"Call: python3 {' '.join(sys.argv)}")
+    print("Call: " + equivalent_call("confirm_and_delete.py", [source, destination], call_options))
+    print(f"source root      {source.resolve()}")
+    print(f"destination root {destination.resolve()}")
 
     try:
         if decode and shutil.which("ffmpeg") is None:
@@ -230,7 +250,7 @@ def main(
         if not listed:
             print("the manifest(s) list no clips. Exiting.")
             return
-        print(f"{len(listed)} clip(s) listed in {len(manifest)} manifest(s); source root {source.resolve()}")
+        print(f"{len(listed)} clip(s) listed in {len(manifest)} manifest(s)")
 
         summary = summarize_by_subject_and_view(listed)
         write_summary(run_dir / SUMMARY_FILENAME, summary)
@@ -297,13 +317,13 @@ def main(
             except SkipFile as s:
                 mark_skipped(row, s)
                 label = "FLAGGED" if s.action_item else "NOT DELETABLE"
-                print(f"    {label} {input_path.resolve()}: {s}")
+                print(f"    {label} {short(input_path)}: {s}")
             except Exception as e:
                 row.update(status=STATUS_ERROR, action_item=True, error=str(e), deletable=False)
-                print(f"    ERROR {input_path.resolve()}: {e}")
+                print(f"    ERROR {short(input_path)}: {e}")
 
         write_rows(rows, log_path, action_items_path)
-        print_summary(rows, len(listed), min_age_hours, False, action_items_path)
+        print_summary(rows, len(listed), min_age_hours, False, short(action_items_path))
 
         def outcome(n_deleted: int = 0) -> Outcome:
             unresolved = sum(1 for r in rows if r["status"] == STATUS_MISSING_SOURCE and not r["destination_codec"])
@@ -339,11 +359,11 @@ def main(
                         error=err[:500],
                         deletable=False,
                     )
-                    print(f"    FLAGGED {r['input_path']}: decode failed")
+                    print(f"    FLAGGED {short(r['input_path'])}: decode failed")
                 if i % 100 == 0 or i == len(candidates):
                     print(f"    decoded {i}/{len(candidates)}")
             write_rows(rows, log_path, action_items_path)
-            print_summary(rows, len(listed), min_age_hours, True, action_items_path)
+            print_summary(rows, len(listed), min_age_hours, True, short(action_items_path))
 
         if not delete:
             print("\nReport only: --delete not set, nothing was deleted.")
@@ -359,7 +379,7 @@ def main(
         if not deletable:
             print("\nNothing verified deletable; nothing deleted.")
             return outcome()
-        return outcome(delete_sources(source, deletable, run_dir))
+        return outcome(delete_sources(source, deletable, run_dir, short))
 
     finally:
         sys.stdout.flush()

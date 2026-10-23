@@ -46,7 +46,7 @@ from manifest import (
     summarize_by_subject_and_view,
     write_summary,
 )
-from util import build_output_path, code_version, get_codec_nframes
+from util import build_output_path, code_version, equivalent_call, get_codec_nframes, shorten
 
 # NON-NEGOTIABLE HARDWIRED CONSTANTS DEFINED HERE
 # connectivity-loss handling: if the input/output root becomes unreachable (e.g. a
@@ -464,11 +464,22 @@ def main(
     # random suffix) -- what subjects/views/dates it covers is recorded inside, not encoded
     # into the folder name itself. Computed first, and the terminal log started immediately,
     # so the log captures the run from its very first message.
+    def short(path: Path | str) -> str:
+        return shorten(path, input, output)
+
+    call_options: dict[str, object] = {
+        "manifest": manifest, "studyname": studyname, "subject_prefix": subject_prefix,
+        "motion_detection": motion_detection, "motion_percentile": motion_percentile, "motion_threshold": motion_threshold,
+        "no-motion_review": not motion_review, "n_threads": n_threads, "compress_spd": compress_spd,
+        "recompress": recompress, "overwrite_raw": overwrite_raw, "overwrite_compressed": overwrite_compressed,
+    }
     run_id = f"compression_{datetime.now():%Y%m%d_%H%M%S}_{uuid.uuid4().hex[:8]}"
     run_metadata_dir = output / "videoproc_run_metadata" / run_id
     log_file = start_terminal_log(run_metadata_dir / "terminal.log")
     print(f"Starting compression run {run_id} -- code version {code_version()}")
-    print(f"Call: python3 {' '.join(sys.argv)}")
+    print("Call: " + equivalent_call("compress_drive.py", [input, output], call_options))
+    print(f"source root      {input.resolve()}")
+    print(f"destination root {output.resolve()}")
 
     try:
         # make sure ffmpeg exists as a shell command
@@ -487,7 +498,7 @@ def main(
         if not rows:
             print("the manifest(s) list no clips. Exiting.")
             return
-        print(f"{len(rows)} clip(s) listed in {len(manifest)} manifest(s); source root {input.resolve()}")
+        print(f"{len(rows)} clip(s) listed in {len(manifest)} manifest(s)")
 
         summary = summarize_by_subject_and_view(rows)
         write_summary(run_metadata_dir / SUMMARY_FILENAME, summary)
@@ -657,19 +668,19 @@ def main(
                 logger.action_item = s.action_item
                 logger.skipped_reason = str(s)
                 label = "FLAGGED" if s.action_item else "SKIPPED"
-                print(f"    {label} {input_path.resolve()}: {s}")
+                print(f"    {label} {short(input_path)}: {s}")
             except Exception as e:
                 logger.status = STATUS_ERROR
                 logger.action_item = True
                 logger.error = str(e)
-                print(f"    ERROR {input_path.resolve()}: {e}")
+                print(f"    ERROR {short(input_path)}: {e}")
 
             # one log row per file, whatever the outcome
             finally:
                 try:
                     logger.append()
                 except Exception as e:
-                    print(f"CRITICAL: Failed to write log row for {input_path.resolve()}: {e}")
+                    print(f"CRITICAL: Failed to write log row for {short(input_path)}: {e}")
 
         print_summary(
             logger,

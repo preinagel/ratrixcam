@@ -75,8 +75,12 @@ def test_compress_processes_listed_clips_and_carries_the_folders(tmp_path, clips
     assert "stray.mp4" not in log and "stray" not in result.stdout  # files outside the run folders are not inspected
     terminal = (run_dir / "terminal.log").read_text()
     assert "==== run summary ====" in terminal
-    assert f"ratrixcam run {RUN_ID}: run metadata folder" in terminal
-    assert terminal.index("==== run summary ====") < terminal.index("run metadata folder")
+    assert "run metadata folder:" in terminal
+    assert terminal.index("==== run summary ====") < terminal.index("run metadata folder:")
+    assert f"==== ratrixcam run {RUN_ID} ====" in result.stdout  # the header precedes the tool's output
+    assert result.stdout.index(f"==== ratrixcam run {RUN_ID} ====") < result.stdout.index("clip(s) listed in")
+    assert "Call: python3 compress_drive.py" in terminal and "--manifest" in terminal  # the run's own call
+    assert "source root" in terminal and "destination root" in terminal
     assert "runs not processed" not in terminal and "runs not processed" in result.stdout  # terminal only
     assert "runs processed: 1 of 1" in result.stdout
     assert (root / "not_a_day_folder" / "stray.mp4").exists() and (root / "readme.txt").exists()  # untouched
@@ -113,9 +117,9 @@ def test_each_recording_run_is_its_own_compression_run(tmp_path, clips):
     assert (dest / SUBJECT / f"{STUDY}_{SUBJECT}_home_{DATE}" / fname("10-00-00")).exists()
     assert (dest / SUBJECT / f"Pilot_{SUBJECT}_face_{DATE}" / fname("11-00-00", view="face")).exists()
     terminals = {p: (p / "terminal.log").read_text() for p in runs}
-    # each compression run carries its own run's folders ...
-    assert sum(f"ratrixcam run {RUN_ID}: run metadata folder" in t for t in terminals.values()) == 1
-    assert sum(f"ratrixcam run {second}: run metadata folder" in t for t in terminals.values()) == 1
+    # each compression run carries its own run's folder ...
+    assert all("run metadata folder:" in t for t in terminals.values())
+    assert f"==== ratrixcam run {RUN_ID} ====" in result.stdout and f"==== ratrixcam run {second} ====" in result.stdout
     assert (dest / "ratrixcam_run_metadata" / RUN_ID / "notes.txt").exists()
     assert (dest / "ratrixcam_run_metadata" / second / "manifests" / f"{SUBJECT}_face_manifest.csv").exists()
     assert "runs processed: 2 of 2" in result.stdout
