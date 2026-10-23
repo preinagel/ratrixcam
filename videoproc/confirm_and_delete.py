@@ -32,7 +32,7 @@ from classify import (
 )
 from compress_drive import append_index_row, start_terminal_log
 from manifest import SUMMARY_FILENAME, ManifestError, read_manifests, summarize_by_subject_and_view, write_summary
-from util import build_output_path, code_version, equivalent_call, get_codec_nframes, shorten
+from util import build_output_path, code_version, get_codec_nframes, shorten
 
 EXTRA_FIELDS = [
     "source_codec",
@@ -213,14 +213,12 @@ def main(
     decode: bool | None,
     delete: bool,
     delete_partial: bool,
+    call_note: str | None = None,
 ) -> Outcome | None:
     """Verify, and with --delete remove, the clips the manifest(s) list. `decode` None means
-    the default: on with --delete, off otherwise. Returns the run's outcome, or None if the
-    run stopped before checking anything."""
-    call_options: dict[str, object] = {"manifest": manifest, "studyname": studyname, "subject_prefix": subject_prefix, "min_age_hours": min_age_hours}
-    if decode is not None:
-        call_options["decode" if decode else "no-decode"] = True
-    call_options.update(delete=delete, delete_partial=delete_partial)
+    the default: on with --delete, off otherwise. `call_note`, given by a caller such as the
+    ratrixcam wrapper, is printed in place of the command line. Returns the run's outcome,
+    or None if the run stopped before checking anything."""
     if decode is None:
         decode = delete
 
@@ -233,7 +231,7 @@ def main(
     action_items_path = run_dir / "action_items.csv"
     log_file = start_terminal_log(run_dir / "terminal.log")
     print(f"Starting confirm_and_delete run {run_id} -- code version {code_version()}")
-    print("Call: " + equivalent_call("confirm_and_delete.py", [source, destination], call_options))
+    print(call_note if call_note else f"Call: python3 {' '.join(sys.argv)}")
     print(f"source root      {source.resolve()}")
     print(f"destination root {destination.resolve()}")
 

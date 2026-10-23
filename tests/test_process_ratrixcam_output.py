@@ -79,7 +79,7 @@ def test_compress_processes_listed_clips_and_carries_the_folders(tmp_path, clips
     assert terminal.index("==== run summary ====") < terminal.index("run metadata folder:")
     assert f"==== ratrixcam run {RUN_ID} ====" in result.stdout  # the header precedes the tool's output
     assert result.stdout.index(f"==== ratrixcam run {RUN_ID} ====") < result.stdout.index("clip(s) listed in")
-    assert "Call: python3 compress_drive.py" in terminal and "--manifest" in terminal  # the run's own call
+    assert f"processing the manifests of ratrixcam run {RUN_ID} (via process_ratrixcam_output.py compress)" in terminal
     assert "source root" in terminal and "destination root" in terminal
     assert "runs not processed" not in terminal and "runs not processed" in result.stdout  # terminal only
     assert "runs processed: 1 of 1" in result.stdout

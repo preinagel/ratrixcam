@@ -51,7 +51,7 @@ from ratrixcam_naming import MANIFEST_SUFFIX, MANIFESTS_DIRNAME, NOTES_FILENAME,
 import compress_drive  # noqa: E402
 import confirm_and_delete  # noqa: E402
 from manifest import REQUIRED_COLUMNS, ManifestError, ManifestRow, read_manifests  # noqa: E402
-from util import equivalent_call, shorten  # noqa: E402
+from util import shorten  # noqa: E402
 
 MAX_LISTED = 10  # paths printed individually before a report falls back to a count
 VIDEO_SUFFIX = ".mp4"
@@ -239,7 +239,9 @@ def compress(
         run_header(run.run_id)
         run_dir = compress_drive.main(
             input=root, output=destination, manifest=run.manifests,
-            studyname=run_studyname, subject_prefix=run_prefix, **options,
+            studyname=run_studyname, subject_prefix=run_prefix,
+            call_note=f"processing the manifests of ratrixcam run {run.run_id} (via process_ratrixcam_output.py compress)",
+            **options,
         )
         if run_dir is None:
             problems.append(f"ERROR: compress_drive stopped before processing run {run.run_id}")
@@ -493,7 +495,9 @@ def confirm(
         run_header(run.run_id)
         outcome = confirm_and_delete.main(
             source=root, destination=destination, manifest=run.manifests,
-            studyname=run_studyname, subject_prefix=run_prefix, **options,
+            studyname=run_studyname, subject_prefix=run_prefix,
+            call_note=f"processing the manifests of ratrixcam run {run.run_id} (via process_ratrixcam_output.py confirm)",
+            **options,
         )
         if outcome is None:
             problems.append(f"ERROR: confirm_and_delete stopped before checking run {run.run_id}")
@@ -572,7 +576,6 @@ if __name__ == "__main__":
     print(f"\nconfiguration ({command}):")
     pprint(kwargs, sort_dicts=False)
     input("\n[enter] to continue: ")
-    print("Call: " + equivalent_call("process_ratrixcam_output.py", [command, kwargs["root"], kwargs["destination"]],
-                                     {k: v for k, v in kwargs.items() if k not in ("root", "destination")}))
+    print(f"Call: python3 {' '.join(sys.argv)}")
 
     sys.exit({"compress": compress, "confirm": confirm}[command](**kwargs))

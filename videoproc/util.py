@@ -34,22 +34,6 @@ def get_codec_nframes(path: Path):
     return codec, n_frames
 
 
-def equivalent_call(script: str, positionals: list[object], options: dict[str, object]) -> str:
-    """The command line equivalent to a call of a tool's main(), for the run's terminal log:
-    True options as flags, lists repeated, None and False omitted."""
-    parts = ["python3", script, *(str(p) for p in positionals)]
-    for name, value in options.items():
-        if value is None or value is False:
-            continue
-        if value is True:
-            parts.append(f"--{name}")
-        elif isinstance(value, (list, tuple)):
-            parts += [f"--{name} {v}" for v in value]
-        else:
-            parts.append(f"--{name} {value}")
-    return " ".join(parts)
-
-
 def shorten(path: Path | str, source: Path, destination: Path) -> str:
     """A path for the terminal, with the source or destination root replaced by <source> or
     <destination>; other paths unchanged."""

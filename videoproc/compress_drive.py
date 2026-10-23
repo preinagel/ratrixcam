@@ -46,7 +46,7 @@ from manifest import (
     summarize_by_subject_and_view,
     write_summary,
 )
-from util import build_output_path, code_version, equivalent_call, get_codec_nframes, shorten
+from util import build_output_path, code_version, get_codec_nframes, shorten
 
 # NON-NEGOTIABLE HARDWIRED CONSTANTS DEFINED HERE
 # connectivity-loss handling: if the input/output root becomes unreachable (e.g. a
@@ -447,9 +447,12 @@ def main(
     overwrite_compressed: bool,
     motion_detection: bool,
     motion_review: bool,
+    call_note: str | None = None,
 ) -> Path | None:
     """(optional motion detection) -> compression, for every clip the manifest(s) list.
-    Returns the run's metadata folder, or None if the run stopped before processing."""
+    `call_note`, given by a caller such as the ratrixcam wrapper, is printed in place of the
+    command line. Returns the run's metadata folder, or None if the run stopped before
+    processing."""
 
     # confirm both roots are reachable before creating the run's metadata folder or
     # writing anything else under `output`
@@ -467,17 +470,11 @@ def main(
     def short(path: Path | str) -> str:
         return shorten(path, input, output)
 
-    call_options: dict[str, object] = {
-        "manifest": manifest, "studyname": studyname, "subject_prefix": subject_prefix,
-        "motion_detection": motion_detection, "motion_percentile": motion_percentile, "motion_threshold": motion_threshold,
-        "no-motion_review": not motion_review, "n_threads": n_threads, "compress_spd": compress_spd,
-        "recompress": recompress, "overwrite_raw": overwrite_raw, "overwrite_compressed": overwrite_compressed,
-    }
     run_id = f"compression_{datetime.now():%Y%m%d_%H%M%S}_{uuid.uuid4().hex[:8]}"
     run_metadata_dir = output / "videoproc_run_metadata" / run_id
     log_file = start_terminal_log(run_metadata_dir / "terminal.log")
     print(f"Starting compression run {run_id} -- code version {code_version()}")
-    print("Call: " + equivalent_call("compress_drive.py", [input, output], call_options))
+    print(call_note if call_note else f"Call: python3 {' '.join(sys.argv)}")
     print(f"source root      {input.resolve()}")
     print(f"destination root {output.resolve()}")
 
