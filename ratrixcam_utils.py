@@ -75,6 +75,14 @@ def ensure_config_file_exists(config_file: str):
 BLANK_IMAGE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "blanks", "offline_status.png")
 
 
+def temp_is_clear(temp_path: str) -> bool:
+    """True if the temp folder does not exist or holds nothing but .DS_Store files. A run must
+    start on a clear temp folder: leftovers of an earlier run would be mixed into this one."""
+    if not os.path.isdir(temp_path):
+        return True
+    return all(name == ".DS_Store" for name in os.listdir(temp_path))
+
+
 def stills_dir(temp_path: str) -> str:
     """Folder holding the most recent still from each camera, always inside the temp folder."""
     return os.path.join(temp_path, "status")

@@ -28,6 +28,7 @@ from ratrixcam_utils import (
     load_settings,
     reset_stills,
     stills_dir,
+    temp_is_clear,
 )
 
 
@@ -433,6 +434,10 @@ def main():
         return
     if not cameras_are_distinct(config):
         return
+    if not temp_is_clear(config.temp_path):
+        print(f"ERROR: temp folder is not empty: {config.temp_path}")
+        print("       it holds leftovers of an earlier run; rename it (for example temp_<date>) and relaunch")
+        sys.exit(1)
     if not ensure_dir_exists(config.temp_path):
         print("ERROR: temp folder unavailable")
         sys.exit(1)

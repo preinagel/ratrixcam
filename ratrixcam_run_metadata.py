@@ -16,17 +16,16 @@ from pathlib import Path
 
 from ratrixcam_manifest import write_row
 from ratrixcam_naming import (
-    MANIFEST_SUFFIX,
     NOTES_FILENAME,
     NOTES_TEMPLATE,
     RUN_METADATA_DIRNAME,
     STILLS_DIRNAME,
     code_version,
-    manifests_dir,
     parse_manifest_warning,
     run_id,
     run_metadata_dir,
     temp_manifests_dir,
+    temp_run_metadata_dir,
     terminal_log_filename,
 )
 from ratrixcam_utils import Config, ensure_dir_exists, stills_dir
@@ -94,7 +93,8 @@ class TerminalLog:
 
 
 class RunMetadata:
-    """One ratrixcam launch: its id, terminal log, and metadata folder on the output drive."""
+    """One ratrixcam launch: its id, terminal log, and metadata folder, born in the temp folder
+    and moved whole to the save drive at shutdown."""
 
     def __init__(self, config: Config, config_path: str | Path, started: datetime | None = None):
         self.config = config
@@ -102,7 +102,8 @@ class RunMetadata:
         self.started = started or datetime.now()
         self.run_id = run_id(self.started)
         self.log_path = Path(config.temp_path) / terminal_log_filename(self.run_id)
-        self.run_dir = run_metadata_dir(config.save_path, self.run_id)
+        self.temp_run_dir = temp_run_metadata_dir(config.temp_path)  # during the run
+        self.run_dir = run_metadata_dir(config.save_path, self.run_id)  # after shutdown
         self.terminal_log: TerminalLog | None = None
         self._collected = False
 
@@ -127,72 +128,72 @@ class RunMetadata:
         return True
 
     def record_start(self) -> None:
-        """Called when recording starts: copy the config actually in use (after any edits in
-        the configuration editor) to the output drive and lay down the notes template."""
-        if not ensure_dir_exists(str(self.run_dir)):
-            print(f"WARNING: could not create {self.run_dir}; run metadata will not be saved")
-            return
+        """Called when recording starts: lay down the run's metadata folder in temp with the
+        config copy and the notes template, then put a copy of it on the save drive at once,
+        so the run has a record there even if this computer dies mid-run. The shutdown
+        collection replaces that copy with the final folder."""
         try:
-            shutil.copy2(self.config_path, self.run_dir / os.path.basename(self.config_path))
-            notes = self.run_dir / NOTES_FILENAME
+            self.temp_run_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(self.config_path, self.temp_run_dir / os.path.basename(self.config_path))
+            notes = self.temp_run_dir / NOTES_FILENAME
             if not notes.exists():
                 notes.write_text(NOTES_TEMPLATE)
-            print(f"Run metadata folder: {self.run_dir}")
+            print(f"Run metadata folder: {self.temp_run_dir} (moves to {self.run_dir} at shutdown)")
         except OSError as e:
-            print(f"WARNING: could not write run metadata to {self.run_dir}: {e}")
+            print(f"WARNING: could not create the run metadata folder {self.temp_run_dir}: {e}")
+            return
+        try:
+            shutil.copytree(self.temp_run_dir, self.run_dir, dirs_exist_ok=True)
+            print(f"Provisional copy of the run metadata folder: {self.run_dir}")
+        except OSError as e:
+            print(f"WARNING: could not write the provisional run metadata copy to {self.run_dir}: {e}")
 
     def collect_at_shutdown(self) -> None:
         """After the cameras have stopped: add to the per-camera manifests every row the
-        cameras reported they could not write (read back from this run's terminal log); move
-        the manifests from the temp folder into the run's metadata folder; move the
-        status stills and every other loose
-        file from the temp folder (screenshots, anything the user dropped there) into the run's
-        metadata folder; remove per-camera temp folders that are empty; and report. The
-        terminal log is closed and moved last, so the report itself is in it. Folders that
-        still hold files -- untransferred videos -- are left alone and reported; otherwise
-        the temp folder is removed entirely."""
+        cameras reported they could not write (read back from this run's terminal log);
+        gather the status stills and every loose file in temp (screenshots, anything the
+        user dropped there) into the run's metadata folder; remove per-camera temp folders
+        that are empty; move the metadata folder whole to the save drive under the run id,
+        replacing the provisional copy made at the start; and report. The terminal log is
+        closed and moved into it last, so the report itself is in it. Folders that still
+        hold files -- untransferred videos -- are left alone and reported; otherwise the
+        temp folder is removed entirely."""
         if self._collected:
             return
         self._collected = True
-        print(f"Collecting run metadata in the Recording folder as {RUN_METADATA_DIRNAME}/{self.run_id}")
-        if not ensure_dir_exists(str(self.run_dir)):
-            print(f"WARNING: could not create {self.run_dir}; run artifacts left in {self.config.temp_path}")
-            if self.terminal_log is not None:
-                self.terminal_log.stop()
-            return
+        print(f"Collecting the run metadata as {RUN_METADATA_DIRNAME}/{self.run_id}")
         temp = Path(self.config.temp_path)
-        moved, kept, manifests = [], [], []
+        kept: list[str] = []
+        gathered = 0
         self._add_unwritten_manifest_rows()
         try:
-            manifests_src = temp_manifests_dir(self.config.temp_path)
-            manifests_dst = manifests_dir(self.config.save_path, self.run_id)
-            for f in sorted(manifests_src.glob(f"*{MANIFEST_SUFFIX}")) if manifests_src.is_dir() else []:
-                if f.is_file():
-                    manifests_dst.mkdir(parents=True, exist_ok=True)
-                    shutil.move(str(f), str(manifests_dst / f.name))
-                    manifests.append(f.name)
+            self.temp_run_dir.mkdir(parents=True, exist_ok=True)
             stills_src = Path(stills_dir(self.config.temp_path))
             if stills_src.is_dir():
-                stills_dst = self.run_dir / STILLS_DIRNAME
+                stills_dst = self.temp_run_dir / STILLS_DIRNAME
                 stills_dst.mkdir(exist_ok=True)
                 for f in sorted(stills_src.iterdir()):
                     if f.is_file() and f.name != ".DS_Store":
                         shutil.move(str(f), str(stills_dst / f.name))
-                        moved.append(f.name)
+                        gathered += 1
                 _remove_if_empty(stills_src)
             for entry in sorted(temp.iterdir()):
-                if entry == self.log_path:
-                    continue  # closed and moved last, below
+                if entry == self.log_path or entry == self.temp_run_dir:
+                    continue  # the log is closed and moved last; the run folder is the destination
                 if entry.is_file():
                     if entry.name != ".DS_Store":
-                        shutil.move(str(entry), str(self.run_dir / entry.name))
-                        moved.append(entry.name)
+                        shutil.move(str(entry), str(self.temp_run_dir / entry.name))
+                        gathered += 1
                 elif entry.is_dir() and not _remove_if_empty(entry):
                     kept.append(entry.name)
+            print(f"Gathered into the run metadata folder: {gathered} file(s) (stills and loose temp files)")
+            if _move_tree(self.temp_run_dir, self.run_dir):
+                print(f"Run metadata folder moved to {self.run_dir}")
+            else:
+                print(f"WARNING: run metadata folder could not be fully copied to {self.run_dir}; left in {self.temp_run_dir}")
+                kept.append(self.temp_run_dir.name)
         except OSError as e:
             print(f"WARNING: collecting run metadata failed part-way: {e}")
-        print(f"Manifests collected: {len(manifests)} file(s) moved to {manifests_dir(self.config.save_path, self.run_id)}")
-        print(f"Run metadata collected: {len(moved)} file(s) moved from the temp folder")
         for name in kept:
             print(f"WARNING: temp folder '{name}' still contains files (untransferred videos?); left in place")
         if self.terminal_log is not None:
@@ -200,7 +201,7 @@ class RunMetadata:
                 f"Closing the terminal log and saving it as {RUN_METADATA_DIRNAME}/{self.run_id}/{self.log_path.name}"
             )
             self.terminal_log.stop()
-        if self.log_path.exists():
+        if self.log_path.exists() and self.run_dir.is_dir():
             try:
                 shutil.move(str(self.log_path), str(self.run_dir / self.log_path.name))
             except OSError as e:
@@ -230,6 +231,20 @@ class RunMetadata:
                     failed += 1
                     print(f"WARNING: could not add {fields['path']} to {manifest_path} at cleanup: {e}")
         print(f"Manifest rows added at cleanup: {added}" + (f" ({failed} could not be added)" if failed else ""))
+
+
+def _move_tree(src: Path, dst: Path) -> bool:
+    """Copy a folder tree onto dst (files already there are replaced), verify that every file
+    arrived with its size, and only then remove the source. False, with the source kept, if
+    anything is missing or differs in size after the copy."""
+    shutil.copytree(src, dst, dirs_exist_ok=True)
+    for f in src.rglob("*"):
+        if f.is_file():
+            target = dst / f.relative_to(src)
+            if not target.is_file() or target.stat().st_size != f.stat().st_size:
+                return False
+    shutil.rmtree(src)
+    return True
 
 
 def _remove_if_empty(folder: Path) -> bool:

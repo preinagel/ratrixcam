@@ -2,15 +2,16 @@
 into their records (GitHub #26). Every string built from the subject prefix, subject ID and
 view is built here and nowhere else; nothing here parses names.
 
-Folder layout for a recording run's metadata (GitHub #34):
+Folder layout for a recording run's metadata (GitHub #34). During the run it lives in the temp
+folder, without the run id; at shutdown it moves whole to the save drive under the run id:
 
-    <save_path>/ratrixcam_run_metadata/<run_id>/
+    <temp_path>/ratrixcam_run_metadata/     ->   <save_path>/ratrixcam_run_metadata/<run_id>/
         <config filename>           copy of the config file given with -c, same name, taken at Start Recording
-        terminal_<run_id>.log       verbatim terminal output of the whole run
         notes.txt                   template for the human's notes
-        stills/                     the per-camera status stills as they were at shutdown
         manifests/                  <camera name>_manifest.csv, one row per clip the camera closed
+        stills/                     the per-camera status stills as they were at shutdown (from <temp_path>/status/)
         <anything else>             other files found in the temp folder at shutdown
+        terminal_<run_id>.log       verbatim terminal output of the whole run; lives in <temp_path> until the end
 """
 
 import csv
@@ -64,13 +65,18 @@ def terminal_log_filename(run_id_: str) -> str:
 
 
 def manifests_dir(save_path: str | Path, run_id_: str) -> Path:
-    """Where a run's per-camera manifests are collected at shutdown: inside the run's metadata folder."""
+    """Where a run's per-camera manifests end up: inside the run's metadata folder on the save drive."""
     return run_metadata_dir(save_path, run_id_) / MANIFESTS_DIRNAME
 
 
+def temp_run_metadata_dir(temp_path: str | Path) -> Path:
+    """The run's metadata folder while the run lasts; moved to run_metadata_dir at shutdown."""
+    return Path(temp_path) / RUN_METADATA_DIRNAME
+
+
 def temp_manifests_dir(temp_path: str | Path) -> Path:
-    """Where the cameras write their manifests during the run, alongside the stills folder."""
-    return Path(temp_path) / MANIFESTS_DIRNAME
+    """Where the cameras write their manifests during the run."""
+    return temp_run_metadata_dir(temp_path) / MANIFESTS_DIRNAME
 
 
 def manifest_filename(camera_name_: str) -> str:

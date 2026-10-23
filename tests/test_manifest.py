@@ -19,7 +19,7 @@ TIME = re.compile(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}")
 
 def test_header_once_then_one_row_per_clip(tmp_path):
     m = ManifestMetadata(str(tmp_path), "rat999_home", "999", "home", 25)
-    assert Path(m.path) == tmp_path / "manifests" / "rat999_home_manifest.csv"
+    assert Path(m.path) == tmp_path / "ratrixcam_run_metadata" / "manifests" / "rat999_home_manifest.csv"
     assert m.append("Test_rat999_home_20261019", "rat999_home_20261019_15-23-29.mp4", datetime(2026, 10, 19, 15, 23, 29, 123456))
     assert m.append("Test_rat999_home_20261019", "rat999_home_20261019_15-24-29.mp4", datetime(2026, 10, 19, 15, 24, 29))
 

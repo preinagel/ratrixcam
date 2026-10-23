@@ -1,9 +1,9 @@
 """Per-clip manifest written by each camera server as it records: one CSV per camera in the
-temp folder's manifests/ subfolder, one row per closed clip, appended before the clip's
-transfer to the save drive starts. videoproc takes its list of clips from these files. A row
-that could not be written is announced in the terminal log (ratrixcam_naming.manifest_warning)
-and added by the shutdown cleanup, which then moves the run's manifests into the run's
-metadata folder on the save drive (ratrixcam_run_metadata).
+manifests/ subfolder of the run's metadata folder in temp, one row per closed clip, appended
+before the clip's transfer to the save drive starts. videoproc takes its list of clips from
+these files. A row that could not be written is announced in the terminal log
+(ratrixcam_naming.manifest_warning) and added by the shutdown cleanup, which then moves the
+whole metadata folder to the save drive (ratrixcam_run_metadata).
 """
 
 import csv

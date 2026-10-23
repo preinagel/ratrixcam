@@ -20,7 +20,7 @@ sys.path.insert(0, str(REPO))
 from ratrixcam_naming import NOTES_FILENAME, RUN_METADATA_DIRNAME, STILLS_DIRNAME, manifest_warning, manifests_dir  # noqa: E402
 import ratrixcam_run_metadata  # noqa: E402
 from ratrixcam_run_metadata import RunMetadata  # noqa: E402
-from ratrixcam_utils import Config, stills_dir  # noqa: E402
+from ratrixcam_utils import Config, stills_dir, temp_is_clear  # noqa: E402
 
 
 def make_config(tmp_path: Path) -> tuple[Config, Path]:
@@ -76,25 +76,36 @@ def test_terminal_log_captures_parent_and_spawned_child_output(tmp_path):
     assert log_path.parent == Path(config.temp_path)
 
 
-def test_record_start_copies_config_and_writes_notes_template(tmp_path):
+def test_record_start_lays_down_the_run_folder_in_temp_and_a_provisional_copy(tmp_path):
     config, config_path = make_config(tmp_path)
     run = RunMetadata(config, config_path, started=datetime(2026, 1, 2, 3, 4, 5))
     assert re.fullmatch(r"ratrixcam_20260102_030405_[0-9a-f]{8}", run.run_id)
     run.record_start()
+    assert run.temp_run_dir == Path(config.temp_path) / RUN_METADATA_DIRNAME
     assert run.run_dir == Path(config.save_path) / RUN_METADATA_DIRNAME / run.run_id
-    assert json.loads((run.run_dir / Path(config_path).name).read_text())["study_label"] == "Test"
-    assert (run.run_dir / NOTES_FILENAME).read_text().startswith("Notes for this recording run")
+    for folder in (run.temp_run_dir, run.run_dir):
+        assert json.loads((folder / Path(config_path).name).read_text())["study_label"] == "Test"
+        assert (folder / NOTES_FILENAME).read_text().startswith("Notes for this recording run")
 
 
-def test_collect_at_shutdown_gathers_loose_temp_files_and_stills(tmp_path):
+def test_temp_is_clear(tmp_path):
+    assert temp_is_clear(str(tmp_path / "absent"))
+    (tmp_path / ".DS_Store").write_bytes(b"")
+    assert temp_is_clear(str(tmp_path))
+    (tmp_path / "leftover.txt").write_text("x")
+    assert not temp_is_clear(str(tmp_path))
+
+
+def test_collect_at_shutdown_moves_the_run_folder_with_stills_and_loose_files(tmp_path):
     config, config_path = make_config(tmp_path)
     run = RunMetadata(config, config_path)
     run.record_start()
     temp = Path(config.temp_path)
+    (run.temp_run_dir / NOTES_FILENAME).write_text("notes edited during the run\n")  # the provisional copy is stale
     (Path(stills_dir(config.temp_path)) / "cam_cam1_status.png").write_bytes(b"png")
     (temp / "Screenshot 2026-01-02.png").write_bytes(b"shot")
-    (temp / "manifests").mkdir()
-    (temp / "manifests" / "subj001_cam1_manifest.csv").write_text("path,subjID,view,clip_start,row_written,crf\n")
+    (run.temp_run_dir / "manifests").mkdir()
+    (run.temp_run_dir / "manifests" / "subj001_cam1_manifest.csv").write_text("path,subjID,view,clip_start,row_written,crf\n")
     (temp / ".DS_Store").write_bytes(b"")
     run.log_path.write_text("fake terminal log\n")
     empty_cam_dir = temp / "Test_cam1"
@@ -109,12 +120,14 @@ def test_collect_at_shutdown_gathers_loose_temp_files_and_stills(tmp_path):
     assert (run.run_dir / STILLS_DIRNAME / "cam_cam1_status.png").read_bytes() == b"png"
     assert (run.run_dir / "Screenshot 2026-01-02.png").exists()
     assert (run.run_dir / run.log_path.name).read_text() == "fake terminal log\n"
+    assert (run.run_dir / NOTES_FILENAME).read_text() == "notes edited during the run\n"  # replaced the provisional copy
+    assert (run.run_dir / Path(config_path).name).exists()
     assert manifests_dir(config.save_path, run.run_id) == run.run_dir / "manifests"
     assert (run.run_dir / "manifests" / "subj001_cam1_manifest.csv").read_text().startswith("path,")
-    assert not (temp / "manifests").exists()  # emptied and removed with the rest of temp
+    assert not run.temp_run_dir.exists()  # moved, not copied
     assert not (temp / "Screenshot 2026-01-02.png").exists()
-    assert not (Path(stills_dir(config.temp_path)) / "cam_cam1_status.png").exists()  # moved, not copied
     assert not Path(stills_dir(config.temp_path)).exists()  # emptied stills folder removed
+    assert not run.log_path.exists()
     assert not empty_cam_dir.exists()
     assert (busy_cam_dir / "cam2_20260102_03-04-05.mp4").exists()  # never touched
     assert temp.exists()  # kept because a camera folder still holds a file
@@ -125,8 +138,8 @@ def test_collect_at_shutdown_adds_rows_the_cameras_could_not_write(tmp_path, cap
     run = RunMetadata(config, config_path)
     run.record_start()
     temp = Path(config.temp_path)
-    (temp / "manifests").mkdir()
-    (temp / "manifests" / "subj001_cam1_manifest.csv").write_text(
+    (run.temp_run_dir / "manifests").mkdir()
+    (run.temp_run_dir / "manifests" / "subj001_cam1_manifest.csv").write_text(
         "path,subjID,view,clip_start,row_written,crf\nTest_subj001_cam1_20260102/a.mp4,001,cam1,2026-01-02 03:04:05.000,2026-01-02 03:05:05.000,25\n"
     )
     run.log_path.write_text(
