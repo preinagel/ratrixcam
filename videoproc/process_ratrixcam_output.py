@@ -23,8 +23,10 @@ own typed confirmation, once per run. Then, appended to that confirm run's own t
 the run's folder is compared byte for byte with its destination copy; with --delete, a
 verified folder whose listed clips are all gone from the source is removed after its own
 typed confirmation and logged in that run's deletion_log.csv. A folder that differs, or
-whose clips remain, is kept and the reason printed. Finally the root is inventoried on the
-terminal: listed clips left behind with the reason, run folders remaining, video and
+whose clips remain, is kept and the reason printed. Between runs the program waits for Enter (unless --no_pause), so each
+run's summary can be read. Finally the root is inventoried on the terminal: what would still
+be there after a --delete --delete_partial run, i.e. listed clips not verified deletable (a
+count; the reasons are in the run summaries), run folders kept for a reason, video and
 ratrixcam-looking files no manifest lists, and a count of everything else; one y/N prompt
 writes the first three as leftover_*.csv files at the root (rewritten on every pass, never
 counted as leftovers).
@@ -56,6 +58,7 @@ LEFTOVER_LISTED_CLIPS = "leftover_listed_clips.csv"
 LEFTOVER_RUN_FOLDERS = "leftover_run_folders.csv"
 LEFTOVER_UNLISTED_FILES = "leftover_unlisted_files.csv"
 LEFTOVER_FILENAMES = {LEFTOVER_LISTED_CLIPS, LEFTOVER_RUN_FOLDERS, LEFTOVER_UNLISTED_FILES}
+KEPT_NO_DELETE = "verified; --delete not set"
 
 
 # ----------------------------------------------------------------------------- the runs in the folder
@@ -267,7 +270,7 @@ def settle_run_folder(run: RatrixcamRun, outcome: confirm_and_delete.Outcome, de
     print(f"run folder verified byte for byte at {dest_dir}")
     if not delete:
         print("run folder kept: --delete not set")
-        return "verified; --delete not set"
+        return KEPT_NO_DELETE
     if outcome.n_remaining:
         print(f"run folder kept: {outcome.n_remaining} of its {outcome.n_listed} listed clip(s) remain at the source")
         return f"verified; {outcome.n_remaining} of its {outcome.n_listed} listed clip(s) remain at the source"
@@ -313,6 +316,7 @@ class Leftovers:
     other_bytes: int = 0
     other_folders: set[Path] = field(default_factory=set)
     empty_folders: int = 0
+    deletable_run_folders: int = 0  # verified, nothing blocking: --delete would remove them
 
     def has_csv_content(self) -> bool:
         return bool(self.listed_clips or self.run_folders or self.videos or self.ratrixcam_like)
@@ -321,7 +325,7 @@ class Leftovers:
 def inventory_leftovers(
     root: Path,
     listed: dict[Path, tuple[ManifestRow, str]],
-    statuses: dict[Path, tuple[str, str]],
+    statuses: dict[Path, tuple[str, str, bool]],
     kept_runs: dict[str, str],
 ) -> Leftovers:
     """Everything under root after the runs were processed, classified. `listed` maps each
@@ -332,6 +336,7 @@ def inventory_leftovers(
     folders_with_files: set[Path] = set()
     all_folders: set[Path] = set()
     run_folder_stats: dict[str, list[int]] = {}
+    blocking_by_run: dict[str, int] = {}  # listed clips per run that --delete_partial would leave
     for path in sorted(root.rglob("*")):
         if path.is_dir():
             all_folders.add(path)
@@ -350,7 +355,10 @@ def inventory_leftovers(
         resolved = path.resolve()
         if resolved in listed:
             row, run_id = listed[resolved]
-            status, reason = statuses.get(resolved, ("not checked", f"run skipped: {kept_runs.get(run_id, '')}"))
+            status, reason, deletable = statuses.get(resolved, ("not checked", f"run skipped: {kept_runs.get(run_id, '')}", False))
+            if deletable:
+                continue  # would go with --delete or --delete_partial: not a leftover
+            blocking_by_run[run_id] = blocking_by_run.get(run_id, 0) + 1
             left.listed_clips.append(
                 {"path": row.path, "subjID": row.subjID, "view": row.view, "clip_start": row.clip_start,
                  "crf": "" if row.crf is None else row.crf, "run_id": run_id, "status": status, "reason": reason}
@@ -364,24 +372,27 @@ def inventory_leftovers(
             left.other_bytes += path.stat().st_size
             left.other_folders.add(path.parent)
     for run_id, reason in kept_runs.items():
-        if run_id in run_folder_stats:
-            n_files, n_bytes = run_folder_stats[run_id]
-            left.run_folders.append(
-                {"path": Path(RUN_METADATA_DIRNAME) / run_id, "n_files": n_files, "bytes": n_bytes, "reason": reason}
-            )
+        if run_id not in run_folder_stats:
+            continue
+        n_blocking = blocking_by_run.get(run_id, 0)
+        if reason == KEPT_NO_DELETE:
+            if not n_blocking:
+                left.deletable_run_folders += 1  # would go with --delete: not a leftover
+                continue
+            reason = f"{n_blocking} listed clip(s) not deletable"
+        n_files, n_bytes = run_folder_stats[run_id]
+        left.run_folders.append(
+            {"path": Path(RUN_METADATA_DIRNAME) / run_id, "n_files": n_files, "bytes": n_bytes, "reason": reason}
+        )
     left.empty_folders = len(all_folders - folders_with_files - {root})
     return left
 
 
 def report_leftovers(root: Path, left: Leftovers) -> None:
-    print(f"\n==== ratrixcam folder {root}: what remains ====")
-    n = len(left.listed_clips)
-    print(f"listed clips left at the source: {n}")
-    for row in left.listed_clips[:MAX_LISTED]:
-        print(f"    {row['path']}  [{row['run_id']}] {row['status']}: {row['reason']}")
-    if n > MAX_LISTED:
-        print(f"    ... {n - MAX_LISTED} more")
-    print(f"run folders remaining: {len(left.run_folders)}")
+    """What would still be at the root after a --delete --delete_partial run."""
+    print(f"\n==== ratrixcam folder {root}: what would remain after --delete --delete_partial ====")
+    print(f"listed clips not deletable: {len(left.listed_clips)} (reasons in the run summaries above and in {LEFTOVER_LISTED_CLIPS})")
+    print(f"run folders that would remain: {len(left.run_folders)}" + (f" (plus {left.deletable_run_folders} that --delete would remove)" if left.deletable_run_folders else ""))
     for row in left.run_folders:
         print(f"    {row['path']}  {row['n_files']} file(s), {row['bytes']} bytes: {row['reason']}")
     n = len(left.videos)
@@ -425,20 +436,26 @@ def write_leftovers(root: Path, left: Leftovers) -> None:
         print(f"written: {root / LEFTOVER_UNLISTED_FILES}")
 
 
-def read_statuses(run_dir: Path) -> dict[Path, tuple[str, str]]:
-    """Each clip's confirm status and reason from a confirm run's inspection log."""
-    statuses: dict[Path, tuple[str, str]] = {}
+def read_statuses(run_dir: Path) -> dict[Path, tuple[str, str, bool]]:
+    """Each clip's confirm status, reason and deletable flag from a confirm run's inspection log."""
+    statuses: dict[Path, tuple[str, str, bool]] = {}
     with open(run_dir / "inspection_log.csv", newline="") as f:
         for r in csv.DictReader(f):
-            statuses[Path(r["input_path"]).resolve()] = (r["status"], r["skipped_reason"] or r["error"])
+            statuses[Path(r["input_path"]).resolve()] = (r["status"], r["skipped_reason"] or r["error"], r["deletable"] == "True")
     return statuses
 
 
 def confirm(
-    root: Path, destination: Path, studyname: str | None = None, subject_prefix: str | None = None, **options: Any
+    root: Path,
+    destination: Path,
+    studyname: str | None = None,
+    subject_prefix: str | None = None,
+    no_pause: bool = False,
+    **options: Any,
 ) -> int:
-    """confirm_and_delete once per run found under root, on that run's listed clips only;
-    then the runs that could not be processed, reported on the terminal only. `options` are
+    """confirm_and_delete once per run found under root, on that run's listed clips only,
+    pausing for Enter between runs unless `no_pause`; then the runs that could not be
+    processed and what would remain, reported on the terminal only. `options` are
     confirm_and_delete's options as parsed by its add_processing_arguments. Returns the
     exit code."""
     if not (root / RUN_METADATA_DIRNAME).is_dir():
@@ -452,9 +469,14 @@ def confirm(
             listed.update({(root / row.path).resolve(): (row, run.run_id) for row in read_manifests(run.manifests)})
         except ManifestError:
             pass  # confirm_and_delete reports it for the runs it processes
-    statuses: dict[Path, tuple[str, str]] = {}
+    statuses: dict[Path, tuple[str, str, bool]] = {}
     processed = 0
-    for run, run_studyname, run_prefix in ready:
+    for n, (run, run_studyname, run_prefix) in enumerate(ready, 1):
+        if n > 1 and not no_pause:
+            try:
+                input("\nPress Enter to continue to the next run: ")
+            except EOFError:
+                pass
         outcome = confirm_and_delete.main(
             source=root, destination=destination, manifest=run.manifests,
             studyname=run_studyname, subject_prefix=run_prefix, **options,
@@ -517,6 +539,7 @@ if __name__ == "__main__":
         )
     compress_drive.add_processing_arguments(p)
     confirm_and_delete.add_processing_arguments(c)
+    c.add_argument("--no_pause", action="store_true", help="do not wait for Enter between runs (unattended use)")
     kwargs = vars(parser.parse_args())
     command = kwargs.pop("command")
 

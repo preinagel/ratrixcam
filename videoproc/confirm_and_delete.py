@@ -126,16 +126,26 @@ def print_summary(
         counts[r["status"]] = counts.get(r["status"], 0) + 1
     n_deletable = sum(1 for r in rows if r["deletable"])
     n_flagged = sum(1 for r in rows if r["action_item"])
+    n_missing = counts.get(STATUS_MISSING_SOURCE, 0)
+    n_blocking = len(rows) - n_deletable - n_missing
     checks = f"already_done, age >= {min_age_hours} h" + (", decode ok" if decoded else ", decode not run")
     print("\n==== verification summary ====")
     print(f"clips listed in the manifest(s): {n_listed}")
-    print(f"rows logged for them: {len(rows)}")
     print(f"verified deletable ({checks}): {n_deletable}")
-    print(f"listed but not at the source (nothing to delete): {counts.get(STATUS_MISSING_SOURCE, 0)}")
-    print("not deletable, by reason:")
-    for status, count in sorted(counts.items()):
-        if status not in (STATUS_ALREADY_DONE, STATUS_MISSING_SOURCE):
-            print(f"    {status}: {count}")
+    print(f"listed but not at the source (nothing to delete): {n_missing}")
+    if n_blocking:
+        print("not deletable, by reason:")
+        for status, count in sorted(counts.items()):
+            if status not in (STATUS_ALREADY_DONE, STATUS_MISSING_SOURCE):
+                print(f"    {status}: {count}")
+        print(
+            f"{n_blocking} clip(s) would block --delete; --delete_partial would delete the {n_deletable} "
+            f"verified one(s) and leave those {n_blocking}"
+        )
+    else:
+        print("every listed clip present at the source is verified: --delete would delete them all")
+    if not decoded:
+        print("note: the decode check was not run (default without --delete); a clip verified here can still fail it under --delete")
     print(f"rows flagged for human review: {n_flagged} -> {action_items_path}")
 
 
@@ -231,12 +241,14 @@ def main(
         # ---- pass 1: cheap checks for every file (presence, probe, age) ----
         now = time.time()
         source_resolved = source.resolve()
-        for listed_row in listed:
+        print(f"checking {len(listed)} listed clip(s); only exceptions are printed")
+        for i, listed_row in enumerate(listed, 1):
             input_path = source / listed_row.path
             row = new_row(input_path)
             row.update(subjID=listed_row.subjID, view=listed_row.view)
             rows.append(row)
-            print(f"checking {listed_row.path}")
+            if i % 100 == 0 or i == len(listed):
+                print(f"    checked {i}/{len(listed)}")
             try:
                 output_path = build_output_path(
                     destination, subject_prefix, studyname, listed_row.subjID, listed_row.view, listed_row.clip_start, input_path.name

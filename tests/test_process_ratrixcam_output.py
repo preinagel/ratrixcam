@@ -179,7 +179,7 @@ def test_compress_without_run_folders_stops(tmp_path):
 def run_confirm(
     root: Path, dest: Path, extra_args=(), n_delete_prompts=0, write_leftovers="n", timeout=300
 ) -> subprocess.CompletedProcess[str]:
-    cmd = [sys.executable, "process_ratrixcam_output.py", "confirm", str(root), str(dest), *extra_args]
+    cmd = [sys.executable, "process_ratrixcam_output.py", "confirm", str(root), str(dest), "--no_pause", *extra_args]
     stdin = "\n" + "DELETE\n" * n_delete_prompts + write_leftovers + "\n"
     return subprocess.run(cmd, cwd=VIDEOPROC_DIR, input=stdin, capture_output=True, text=True, timeout=timeout)
 
@@ -206,6 +206,40 @@ def test_confirm_reports_the_listed_clips_of_each_run(tmp_path, clips):
     terminal = (runs[0] / "terminal.log").read_text()
     assert "run folder verified byte for byte" in terminal and "run folder kept: --delete not set" in terminal
     assert (root / "ratrixcam_run_metadata" / RUN_ID / "notes.txt").exists()
+    # the verdict is explicit, and clips that --delete would remove are not leftovers
+    assert "every listed clip present at the source is verified: --delete would delete them all" in result.stdout
+    assert "listed clips not deletable: 0" in result.stdout
+    assert "run folders that would remain: 0 (plus 1 that --delete would remove)" in result.stdout
+    assert result.stdout.count("checking") == 1  # one line per run, no per-clip lines
+
+
+def test_confirm_report_only_lists_what_delete_partial_would_leave(tmp_path, clips):
+    root, dest = tmp_path / "drive", tmp_path / "dest"
+    dest.mkdir()
+    make_drive(root, clips)  # two clips listed
+    assert run_wrapper(root, dest).returncode == 0
+    (dest / SUBJECT / f"{STUDY}_{SUBJECT}_home_{DATE}" / fname("10-01-00")).unlink()  # one destination copy gone
+
+    result = run_confirm(root, dest, extra_args=["--min_age_hours", "0"], write_leftovers="y")
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert "1 clip(s) would block --delete; --delete_partial would delete the 1 verified one(s) and leave those 1" in result.stdout
+    assert "decode check was not run" in result.stdout
+    clips_left = read_rows(root / "leftover_listed_clips.csv")
+    assert [r["path"].rsplit("/", 1)[1] for r in clips_left] == [fname("10-01-00")]  # the verified one is not listed
+    folders = read_rows(root / "leftover_run_folders.csv")
+    assert len(folders) == 1 and folders[0]["reason"] == "1 listed clip(s) not deletable"
+
+
+def test_confirm_pauses_between_runs_unless_told_not_to(tmp_path, clips):
+    root, dest = tmp_path / "drive", tmp_path / "dest"
+    dest.mkdir()
+    add_run(root, clips, RUN_ID, ("10-00-00",))
+    add_run(root, clips, "ratrixcam_20250101_110000_ef567890", ("11-00-00",), view="face")
+    assert run_wrapper(root, dest).returncode == 0
+    cmd = [sys.executable, "process_ratrixcam_output.py", "confirm", str(root), str(dest), "--min_age_hours", "0"]
+    result = subprocess.run(cmd, cwd=VIDEOPROC_DIR, input="\n\nn\n", capture_output=True, text=True, timeout=300)
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert result.stdout.count("Press Enter to continue to the next run") == 1
 
 
 def test_confirm_delete_asks_once_per_run_and_deletes_only_listed_clips(tmp_path, clips):
@@ -232,8 +266,8 @@ def test_confirm_delete_asks_once_per_run_and_deletes_only_listed_clips(tmp_path
         assert len(rows) == 2 and rows[1]["input_path"].endswith(("/" + RUN_ID, "/" + second))  # clip, then folder
         assert "Run folder deleted" in (run / "terminal.log").read_text()
     # what remains: only the strays; the leftover files were declined
-    assert "listed clips left at the source: 0" in result.stdout
-    assert "run folders remaining: 0" in result.stdout
+    assert "listed clips not deletable: 0" in result.stdout
+    assert "run folders that would remain: 0" in result.stdout
     assert "video files not listed in any manifest: 1" in result.stdout and "stray.mp4" in result.stdout
     assert "other ratrixcam-looking files outside the run folders: 1" in result.stdout  # readme.txt
     assert "leftover files not written" in result.stdout
@@ -259,7 +293,7 @@ def test_confirm_keeps_the_run_folder_when_a_listed_clip_remains(tmp_path, clips
     assert "run folder kept: 1 of its 2 listed clip(s) remain at the source" in result.stdout
 
     # the leftovers, on the terminal and in the three files
-    assert "listed clips left at the source: 1" in result.stdout and "run folders remaining: 1" in result.stdout
+    assert "listed clips not deletable: 1" in result.stdout and "run folders that would remain: 1" in result.stdout
     clips = read_rows(root / "leftover_listed_clips.csv")
     assert len(clips) == 1 and clips[0]["path"].endswith(fname("10-01-00"))
     assert clips[0]["run_id"] == RUN_ID and clips[0]["status"] == "not_at_destination" and clips[0]["subjID"] == "901"
@@ -284,7 +318,7 @@ def test_confirm_lists_the_clips_of_a_skipped_run_as_not_checked(tmp_path, clips
 
     result = run_confirm(root, dest, extra_args=["--min_age_hours", "0"], write_leftovers="y")
     assert result.returncode == 1  # the skip is reported in the exit code
-    assert "listed clips left at the source: 2" in result.stdout
+    assert "listed clips not deletable: 2" in result.stdout
     clips_left = read_rows(root / "leftover_listed_clips.csv")
     assert {r["status"] for r in clips_left} == {"not checked"}
     assert all("run skipped: study label and subject prefix unknown" in r["reason"] for r in clips_left)
