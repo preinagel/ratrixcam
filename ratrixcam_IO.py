@@ -64,15 +64,77 @@ def run_without_handlers(config: Config, stop_event: Event):
     ratrixcam_multi.run(config, stop_event)
 
 
+# Assumed write rate of the whole rig (8 cameras), used to estimate how long the save drive
+# will last. A ballpark constant for now; it could be replaced by a rate measured during the run.
+ASSUMED_WRITE_RATE = 1e9 / 60  # bytes per second (1 GB per minute)
+ALMOST_FULL_SECONDS = 3600  # warn when the drive is expected to fill within an hour
+
+FULL_INSTRUCTIONS = "Stop the recording now."  # placeholder; the operator instructions are TBD
+
+
+def seconds_until_full(free_bytes: int) -> float:
+    """Expected time until the save drive is full, at the assumed write rate."""
+    return free_bytes / ASSUMED_WRITE_RATE
+
+
+def time_left_text(seconds: float) -> str:
+    """'~N min' under two hours, '~N.N h' otherwise."""
+    if seconds < 7200:
+        return f"~{seconds / 60:.0f} min"
+    return f"~{seconds / 3600:.1f} h"
+
+
+def drive_warning(free_bytes: int, time_slice: int) -> tuple[str, str] | None:
+    """(text, background colour) of the warning to show for this much free space, or None when
+    no warning is due. FULL = expected to fill within one clip (time_slice seconds); ALMOST FULL
+    = within ALMOST_FULL_SECONDS."""
+    seconds = seconds_until_full(free_bytes)
+    if seconds < time_slice:
+        return f"SSD FULL\n{FULL_INSTRUCTIONS}", "red"
+    if seconds < ALMOST_FULL_SECONDS:
+        return f"SSD ALMOST FULL\n{time_left_text(seconds)} of recording left", "orange"
+    return None
+
+
 def hdd_status_update_loop(
-    window: tk.Tk, hdd_used: tk.Label, hdd_status: ttk.Progressbar, out_path: str
+    window: tk.Tk,
+    hdd_used: tk.Label,
+    hdd_status: ttk.Progressbar,
+    warning: tk.Label,
+    warning_xy: tuple[int, int],
+    out_path: str,
+    time_slice: int,
 ):
-    total, used, _free = shutil.disk_usage(out_path)
-    hdd_space_used = 100 * used / total  # local scope
-    hdd_status.step(hdd_space_used)
-    _ = hdd_used.config(text=f"SSD Space Used: {round(hdd_space_used)}%")
+    """Every 5 s: refresh the space-used line and progress bar, and show or hide the drive
+    warning box."""
+    try:
+        total, used, free = shutil.disk_usage(out_path)
+    except OSError:
+        _ = hdd_used.config(text="SSD Space Used: drive not found")
+        _ = warning.config(text=f"SSD NOT FOUND\n{out_path}", bg="red")
+        warning.place(x=warning_xy[0], y=warning_xy[1])
+    else:
+        hdd_space_used = 100 * used / total  # local scope
+        _ = hdd_status.config(value=used)  # bar maximum is the drive's total bytes
+        _ = hdd_used.config(
+            text=f"SSD Space Used: {round(hdd_space_used)}%  ({time_left_text(seconds_until_full(free))} left)"
+        )
+        due = drive_warning(free, time_slice)
+        if due is None:
+            warning.place_forget()
+        else:
+            _ = warning.config(text=due[0], bg=due[1])
+            warning.place(x=warning_xy[0], y=warning_xy[1])
     _ = window.after(
-        5000, hdd_status_update_loop, window, hdd_used, hdd_status, out_path
+        5000,
+        hdd_status_update_loop,
+        window,
+        hdd_used,
+        hdd_status,
+        warning,
+        warning_xy,
+        out_path,
+        time_slice,
     )
 
 
@@ -239,11 +301,26 @@ def create_recording_window(state: State, bgcolor: str, config: Config) -> tk.Tk
         maximum=total,
         value=used,
     )
+    # drive warning box: hidden until the drive is almost full, full, or missing
+    drive_warning_label = tk.Label(
+        window,
+        text="",
+        bg="red",
+        fg="#ffffff",
+        font=hdd_font,
+        wraplength=260,
+        justify="left",
+        padx=8,
+        pady=8,
+    )
     hdd_status_update_loop(
         window,
         hdd_used_label,
         hdd_status_progress_bar,
+        drive_warning_label,
+        (right_row, 380),
         config.save_path,
+        config.time_slice,
     )
 
     # Showing recording duration
