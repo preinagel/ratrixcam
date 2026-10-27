@@ -50,7 +50,28 @@ def test_moves_the_clip_and_creates_the_day_folder(clip: Clip, capsys: pytest.Ca
     assert server.move_file(*clip) is True
     assert not os.path.exists(clip.temp_file)
     assert Path(clip.out_file).read_bytes() == CLIP
+    assert os.listdir(os.path.dirname(clip.out_file)) == ["c.mp4"]  # no .part left behind
     assert capsys.readouterr().out == ""  # success is silent
+
+
+def test_unreadable_temp_file_is_reported_not_raised(clip: Clip, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]):
+    def no_size(_p: str) -> int:
+        raise OSError(5, "Input/output error")
+
+    monkeypatch.setattr(os.path, "getsize", no_size)
+    assert server.move_file(*clip) is False
+    assert "WARNING: c.mp4 left in temp; cannot read it (Input/output error)" in capsys.readouterr().out
+    assert not os.path.exists(clip.out_file)
+
+
+def test_temp_copy_that_cannot_be_removed_is_reported(clip: Clip, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]):
+    def no_remove(_p: str) -> None:
+        raise OSError(1, "Operation not permitted")
+
+    monkeypatch.setattr(os, "remove", no_remove)
+    assert server.move_file(*clip) is True
+    assert Path(clip.out_file).read_bytes() == CLIP
+    assert "WARNING: c.mp4 transferred, but its temp copy could not be removed (Operation not permitted)" in capsys.readouterr().out
 
 
 def test_missing_temp_file_is_reported(clip: Clip, capsys: pytest.CaptureFixture[str]):
@@ -123,12 +144,27 @@ def test_gives_up_after_the_window_and_removes_the_partial_copy(
     monkeypatch.setattr(shutil, "copy2", partial)
     assert server.move_file(*clip) is False
     assert Path(clip.temp_file).read_bytes() == CLIP
-    assert not os.path.exists(clip.out_file)
+    assert os.listdir(os.path.dirname(clip.out_file)) == []  # neither the clip nor its .part
     out = capsys.readouterr().out
     ((tries, reason),) = gave_up(out)
     assert tries >= 2
     assert reason == "copy failed: No space left on device"
     assert out.count("WARNING") == 1
+
+
+def test_partial_copy_never_carries_the_clip_name(clip: Clip, monkeypatch: pytest.MonkeyPatch):
+    """The copy is cut short (as when the drive is yanked mid-copy): what is on the drive is
+    c.mp4.part, never a truncated c.mp4."""
+    seen: list[str] = []
+
+    def partial(src: str, dst: str):
+        seen.append(os.path.basename(dst))
+        Path(dst).write_bytes(CLIP[:100])
+        raise OSError(5, "Input/output error")
+
+    monkeypatch.setattr(shutil, "copy2", partial)
+    assert server.move_file(*clip) is False
+    assert seen == ["c.mp4.part"]
 
 
 def test_short_copy_counts_as_a_failure(clip: Clip, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]):

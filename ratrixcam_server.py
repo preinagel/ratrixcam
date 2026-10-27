@@ -53,10 +53,15 @@ def move_file(temp_file: str, out_file: str, save_root: str) -> bool:
     xfer_mode="copy" # hardwire until compression fully supported
 
     time.sleep(TRANSFER_PAUSE)  # pause before first attempt reduces failures
+    name = os.path.basename(temp_file)
     if not os.path.exists(temp_file):
         print(f"WARNING: the temp file '{temp_file}' was not found!")
         return False
-    size = os.path.getsize(temp_file)
+    try:
+        size = os.path.getsize(temp_file)
+    except OSError as e:
+        print(f"WARNING: {name} left in temp; cannot read it ({e.strerror or e})")
+        return False
 
     deadline = time.monotonic() + TRANSFER_RETRY_WINDOW
     tries = 0
@@ -67,18 +72,23 @@ def move_file(temp_file: str, out_file: str, save_root: str) -> bool:
             break
         if time.monotonic() >= deadline:
             try:
-                if os.path.exists(out_file):
-                    os.remove(out_file)  # no partial copies at the destination
+                if os.path.exists(out_file + PARTIAL_SUFFIX):
+                    os.remove(out_file + PARTIAL_SUFFIX)  # no partial copies at the destination
             except OSError:
                 pass
-            print(f"WARNING: {os.path.basename(temp_file)} left in temp; gave up after {tries} {'try' if tries == 1 else 'tries'} ({problem})")
+            print(f"WARNING: {name} left in temp; gave up after {tries} {'try' if tries == 1 else 'tries'} ({problem})")
             return False
         time.sleep(TRANSFER_RETRY_DELAY)
 
-    os.remove(temp_file)
-    if os.path.exists(temp_file):
-        print("WARNING: failed to clean up ", temp_file)
+    try:
+        os.remove(temp_file)
+    except OSError as e:
+        print(f"WARNING: {name} transferred, but its temp copy could not be removed ({e.strerror or e})")
     return True
+
+
+PARTIAL_SUFFIX = ".part"  # a clip is copied under this suffix and renamed once its size is verified,
+                          # so a copy cut short by a vanishing drive never carries a clip's name
 
 
 def _transfer_attempt(temp_file: str, out_file: str, save_root: str, size: int, xfer_mode: str) -> str | None:
@@ -96,12 +106,17 @@ def _transfer_attempt(temp_file: str, out_file: str, save_root: str, size: int, 
         return "destination short of space"
     try:
         if xfer_mode == "copy":
-            _ = shutil.copy2(temp_file, out_file)
-            copied = os.path.getsize(out_file)
+            partial = out_file + PARTIAL_SUFFIX
+            _ = shutil.copy2(temp_file, partial)
+            copied = os.path.getsize(partial)
             if copied != size:
                 return f"copied {copied} of {size} bytes"
+            os.replace(partial, out_file)
         else:
             # The following works with timeout=3 but only for 640x480 on most cameras;can handle 2 780p cams
+            # HEADS-UP before enabling: os.system hands this string to the shell with the two paths
+            # unquoted, so a folder name with a space or a shell character breaks or alters the
+            # command; use subprocess.run with an argument list instead.
             conversion_failed: int = os.system(command=f"ffmpeg -i {temp_file} -c:v hevc_videotoolbox -q:v 65 -tag:v hvc1 -loglevel error {out_file}")
             if conversion_failed:  # returns 0 for success, other outcomes
                 print(f"fmpeg conversion of {temp_file} failed with exit code {conversion_failed}")

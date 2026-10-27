@@ -19,6 +19,7 @@ import io
 import os
 import subprocess
 import uuid
+from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
 
@@ -81,6 +82,20 @@ def temp_manifests_dir(temp_path: str | Path) -> Path:
 
 def manifest_filename(camera_name_: str) -> str:
     return f"{camera_name_}{MANIFEST_SUFFIX}"
+
+
+def shorten_path(path: str | Path, roots: Sequence[tuple[str | Path, str]]) -> str:
+    """str(path) with the first root it lies under (or equals) replaced by that root's label,
+    for example [(temp_path, "<temp>"), (save_path, "<save>")]; other paths unchanged. Used for
+    terminal output once the roots have been printed in full."""
+    text = str(path)
+    for root, label in roots:
+        root_text = str(Path(root))  # no trailing separator
+        if text == root_text:
+            return label
+        if text.startswith(root_text + os.sep):
+            return label + text[len(root_text):]
+    return text
 
 
 MANIFEST_WARNING_TAG = "MANIFEST_ROW_NOT_WRITTEN"

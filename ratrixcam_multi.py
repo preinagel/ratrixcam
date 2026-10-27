@@ -1,5 +1,6 @@
 import argparse
 import multiprocessing
+import os
 import shutil
 import signal
 import subprocess
@@ -66,8 +67,8 @@ def run(config: Config, stop_event: Event):
         print("ERROR: Temp streaming folder does not exist and could not be created")
         return
 
-    if not ensure_dir_exists(config.save_path):
-        print("ERROR: Save drive folder does not exist and could not be created")
+    if not os.path.isdir(config.save_path):  # never created here; see ratrixcam_IO
+        print(f"ERROR: Save drive folder not found: {config.save_path}")
         return
 
     print("Removing any old still images")

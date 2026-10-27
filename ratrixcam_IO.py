@@ -531,8 +531,10 @@ def main():
         os.environ.__setitem__("DISPLAY", ":0.0")
 
     # the folders themselves are named at the top of the terminal log
-    if not ensure_dir_exists(config.save_path):
-        print("ERROR: Save drive folder does not exist and could not be created")
+    # the save folder must already exist: creating it here would put a folder of the drive's
+    # name on the system disk whenever the drive is not mounted
+    if not os.path.isdir(config.save_path):
+        print(f"ERROR: Save drive folder not found: {config.save_path}")
         return
 
     stills_folder = stills_dir(config.temp_path)

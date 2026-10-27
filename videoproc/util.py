@@ -7,7 +7,7 @@ from pathlib import Path
 import cv2
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repo root; the shared module moves next (#26)
-from ratrixcam_naming import code_version as _code_version  # noqa: E402
+from ratrixcam_naming import code_version as _code_version, shorten_path  # noqa: E402
 
 
 def code_version() -> str:
@@ -37,13 +37,7 @@ def get_codec_nframes(path: Path):
 def shorten(path: Path | str, source: Path, destination: Path) -> str:
     """A path for the terminal, with the source or destination root replaced by <source> or
     <destination>; other paths unchanged."""
-    text = str(path)
-    for root, name in ((str(destination.resolve()), "<destination>"), (str(source.resolve()), "<source>")):
-        if text == root:
-            return name
-        if text.startswith(root + "/"):
-            return name + text[len(root):]
-    return text
+    return shorten_path(path, [(destination.resolve(), "<destination>"), (source.resolve(), "<source>")])
 
 
 def build_output_path(

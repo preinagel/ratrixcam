@@ -179,13 +179,15 @@ def test_start_terminal_log_fails_after_retries_when_the_log_cannot_be_created(t
     run.terminal_log.stop()
 
 
-def test_short_path_replaces_the_two_roots():
-    from ratrixcam_run_metadata import short_path
+def test_shorten_path_replaces_the_roots():
+    from ratrixcam_naming import shorten_path
 
-    assert short_path("/t/x/status/a.png", "/t/x/", "/v/s/") == "<temp>/status/a.png"
-    assert short_path("/v/s/ratrixcam_run_metadata/r1", "/t/x/", "/v/s") == "<save>/ratrixcam_run_metadata/r1"
-    assert short_path("/v/s", "/t/x/", "/v/s/") == "<save>"
-    assert short_path("/v/stuff/a", "/t/x/", "/v/s/") == "/v/stuff/a"  # a sibling, not under the root
+    roots = [("/t/x/", "<temp>"), ("/v/s", "<save>")]
+    assert shorten_path("/t/x/status/a.png", roots) == "<temp>/status/a.png"
+    assert shorten_path("/v/s/ratrixcam_run_metadata/r1", roots) == "<save>/ratrixcam_run_metadata/r1"
+    assert shorten_path("/v/s", roots) == "<save>"
+    assert shorten_path(Path("/t/x"), roots) == "<temp>"
+    assert shorten_path("/v/stuff/a", roots) == "/v/stuff/a"  # a sibling, not under the root
 
 
 def test_collect_at_shutdown_removes_an_emptied_temp_folder(tmp_path):

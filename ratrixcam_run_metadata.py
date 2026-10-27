@@ -24,6 +24,7 @@ from ratrixcam_naming import (
     parse_manifest_warning,
     run_id,
     run_metadata_dir,
+    shorten_path,
     temp_manifests_dir,
     temp_run_metadata_dir,
     terminal_log_filename,
@@ -136,7 +137,7 @@ class RunMetadata:
     def short(self, path: str | Path) -> str:
         """A path for the terminal, with the temp folder or save drive replaced by <temp> or
         <save>, as printed in full at the top of the log."""
-        return short_path(path, self.config.temp_path, self.config.save_path)
+        return shorten_path(path, [(self.config.temp_path, "<temp>"), (self.config.save_path, "<save>")])
 
     def record_start(self) -> None:
         """Called when recording starts: lay down the run's metadata folder in temp with the
@@ -243,19 +244,6 @@ class RunMetadata:
                     failed += 1
                     print(f"WARNING: could not add {fields['path']} to {self.short(manifest_path)} at cleanup: {e.strerror or e}")
         print(f"Manifest rows added at cleanup: {added}" + (f" ({failed} could not be added)" if failed else ""))
-
-
-def short_path(path: str | Path, temp_path: str, save_path: str) -> str:
-    """str(path) with the temp folder replaced by <temp> or the save drive by <save>; other
-    paths unchanged."""
-    text = str(path)
-    for root, name in ((temp_path, "<temp>"), (save_path, "<save>")):
-        root = str(Path(root))  # no trailing slash
-        if text == root:
-            return name
-        if text.startswith(root + os.sep):
-            return name + text[len(root):]
-    return text
 
 
 def _move_tree(src: Path, dst: Path) -> bool:
