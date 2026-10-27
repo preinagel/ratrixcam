@@ -530,31 +530,19 @@ def main():
     if os.environ.get("DISPLAY", "") == "":
         os.environ.__setitem__("DISPLAY", ":0.0")
 
+    # the folders themselves are named at the top of the terminal log
     if not ensure_dir_exists(config.save_path):
-        print("ERROR: Recording folder does not exist and could not be created")
+        print("ERROR: Save drive folder does not exist and could not be created")
         return
-    else:
-        print(f"Recording folder: {config.save_path}")
 
     stills_folder = stills_dir(config.temp_path)
     if not ensure_dir_exists(stills_folder):
         print("ERROR: Stills folder does not exist and could not be created")
         return
-    else:
-        print(f"Stills folder: {stills_folder}")
 
-    # print('checking temp path')
     if not ensure_dir_exists(config.temp_path):
         print("ERROR: Temp streaming folder does not exist and could not be created")
         return
-    else:
-        print(f"Temp streaming folder: {config.temp_path}")
-
-    if not ensure_dir_exists(config.save_path):
-        print("ERROR: Recording folder does not exist and could not be created")
-        return
-    else:
-        print(f"Recording folder: {config.save_path}")
 
     # get rid of any old still images
     print("Removing any old still images")

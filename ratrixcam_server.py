@@ -27,44 +27,92 @@ video_codec = cv2.VideoWriter.fourcc(*"mp4v")
 # BEGIN FUNCTION DEFINITIONS
 # function to move video file from temporary to permanent location
 # NOTE TRY MODIFYING THIS FUNCTION TO TEST TRANSCODING INSTEAD OF COPYING?
-def move_file(temp_file: str, out_file: str):
+TRANSFER_PAUSE: float = 3  # seconds before the first attempt; hand tuned to prevent race condition failures (fragile)
+TRANSFER_RETRY_DELAY: float = 5  # seconds between attempts
+TRANSFER_RETRY_WINDOW: float = 180  # seconds of silent retrying before a clip is left in temp: long enough for a
+                                    # planned SSD swap (eject, unplug, plug in, mount) without a frame lost; the
+                                    # stop click waits this long on a missing or full drive, so it must stay well
+                                    # under the 10-minute shutdown kill timeout
+TRANSFER_SPACE_FACTOR = 10  # free space required at the destination, as a multiple of the clip's size;
+                            # generous so that the cameras' near-simultaneous transfers all fit or all wait
+
+
+def move_file(temp_file: str, out_file: str, save_root: str) -> bool:
     """
-    Utility function for moving video file from temporary to permanent location copy
-    the file from the temporary location to the permanent one
-    Args:
-        temp_file:
-        out_file:
+    Copy a closed clip from its temporary location to its permanent one, verify the copy by
+    size, then remove the temporary file. Runs in its own process. Whatever stops a transfer
+    (the save folder, created at launch, is gone; the destination cannot be created or is
+    short of space; the copy fails) is retried silently every TRANSFER_RETRY_DELAY seconds
+    for TRANSFER_RETRY_WINDOW seconds; after that the clip is left in temp with one WARNING
+    naming it, and the shutdown cleanup finds such clips by listing temp. Nothing is created
+    unless save_root exists, so a vanished mount point never gets a folder of the same name
+    on the system disk.
+    Returns:
+        True if the clip was moved
     """
     xfer_mode="copy" # hardwire until compression fully supported
-    timeout:float = 3 # hand tuned to be sufficient to prevent race condition failures (fragile)
 
+    time.sleep(TRANSFER_PAUSE)  # pause before first attempt reduces failures
     if not os.path.exists(temp_file):
         print(f"WARNING: the temp file '{temp_file}' was not found!")
-        return
-    
-    while True:
-        try:     
-            time.sleep(timeout)# pause before first attempt reduces failures
-            if xfer_mode == "copy":
-                _ = shutil.copy2(temp_file, out_file)
-            else: 
-                # The following works with timeout=3 but only for 640x480 on most cameras;can handle 2 780p cams
-                conversion_failed: int = os.system(command=f"ffmpeg -i {temp_file} -c:v hevc_videotoolbox -q:v 65 -tag:v hvc1 -loglevel error {out_file}")
-                if conversion_failed:  # returns 0 for success, other outcomes
-                    print(f"fmpeg conversion of {temp_file} failed with exit code {conversion_failed}")
+        return False
+    size = os.path.getsize(temp_file)
 
-            # verify existence of the copied or transcoded output file
-            if os.path.exists(out_file) and os.path.isfile(out_file):
-                break
-        except Exception as e:
-            print(
-                f"WARNING: Failed to copy {temp_file} to {out_file}, retrying in {timeout} seconds",
-                e,
-            )
-        
+    deadline = time.monotonic() + TRANSFER_RETRY_WINDOW
+    tries = 0
+    while True:
+        tries += 1
+        problem = _transfer_attempt(temp_file, out_file, save_root, size, xfer_mode)
+        if problem is None:
+            break
+        if time.monotonic() >= deadline:
+            try:
+                if os.path.exists(out_file):
+                    os.remove(out_file)  # no partial copies at the destination
+            except OSError:
+                pass
+            print(f"WARNING: {os.path.basename(temp_file)} left in temp; gave up after {tries} {'try' if tries == 1 else 'tries'} ({problem})")
+            return False
+        time.sleep(TRANSFER_RETRY_DELAY)
+
     os.remove(temp_file)
     if os.path.exists(temp_file):
         print("WARNING: failed to clean up ", temp_file)
+    return True
+
+
+def _transfer_attempt(temp_file: str, out_file: str, save_root: str, size: int, xfer_mode: str) -> str | None:
+    """One attempt to put the clip at out_file: None on success, otherwise the reason it
+    failed (the message alone, no paths)."""
+    if not os.path.isdir(save_root):
+        return "save folder not found"
+    out_dir = os.path.dirname(out_file)
+    try:
+        os.makedirs(out_dir, exist_ok=True)
+        free = shutil.disk_usage(out_dir).free
+    except OSError as e:
+        return f"destination unavailable: {e.strerror or e}"
+    if free < size * TRANSFER_SPACE_FACTOR:
+        return "destination short of space"
+    try:
+        if xfer_mode == "copy":
+            _ = shutil.copy2(temp_file, out_file)
+            copied = os.path.getsize(out_file)
+            if copied != size:
+                return f"copied {copied} of {size} bytes"
+        else:
+            # The following works with timeout=3 but only for 640x480 on most cameras;can handle 2 780p cams
+            conversion_failed: int = os.system(command=f"ffmpeg -i {temp_file} -c:v hevc_videotoolbox -q:v 65 -tag:v hvc1 -loglevel error {out_file}")
+            if conversion_failed:  # returns 0 for success, other outcomes
+                print(f"fmpeg conversion of {temp_file} failed with exit code {conversion_failed}")
+            # verify existence of the transcoded output file (its size differs from the original)
+            if not (os.path.exists(out_file) and os.path.isfile(out_file)):
+                return "no output file"
+    except OSError as e:
+        return f"copy failed: {e.strerror or e}"
+    except Exception as e:
+        return f"copy failed: {e}"
+    return None
 
 
 class CameraParams(BaseModel):
@@ -150,7 +198,7 @@ class WriterState(NamedTuple):
     started: datetime  # time of the first frame written to this clip
 
 
-def close_writer(writer_state: WriterState, file_transfer_processes: list[Process], manifest: ManifestMetadata):
+def close_writer(writer_state: WriterState, file_transfer_processes: list[Process], manifest: ManifestMetadata, save_root: str):
     writer_state.writer.release()
     manifest.append(os.path.basename(writer_state.save_dir), writer_state.file_name, writer_state.started)
 
@@ -159,7 +207,7 @@ def close_writer(writer_state: WriterState, file_transfer_processes: list[Proces
 
     # spawn a separate process to move the closed tmp file to permanent location
     print(f"Cam_server: Starting transfer of file:{writer_state.file_name}") # {temp_video_path} to {out_path}")
-    p = Process(target=move_file, args=(temp_video_path, out_path))
+    p = Process(target=move_file, args=(temp_video_path, out_path, save_root))
     p.start()
     # keep track of process to clean up later
     file_transfer_processes.append(p)
@@ -232,16 +280,14 @@ def run(config: Config, device_id: int, stop_event: Event):
 
             # close the old writer
             if writer_state is not None:
-                close_writer(writer_state, file_transfer_processes, manifest)
+                close_writer(writer_state, file_transfer_processes, manifest, config.save_path)
             filecount += 1
 
-            # open a new writer
+            # open a new writer; the clip's destination day folder is created by move_file
+            # when the clip is transferred, so this loop never touches the save drive
             current_save_dir = os.path.join(
                 config.save_path, f"{label}_{current_datetime.strftime('%Y%m%d')}"
             )
-            if not ensure_dir_exists(current_save_dir):
-                print(f"WARNING! Unable to create output path '{current_save_dir}'")
-                continue
             current_file_name = clip_filename(params.name, current_datetime)
             # Create video writer
             writer_state = WriterState(
@@ -302,7 +348,7 @@ def run(config: Config, device_id: int, stop_event: Event):
             is not None
         ):
             pass
-        close_writer(writer_state, file_transfer_processes, manifest)
+        close_writer(writer_state, file_transfer_processes, manifest, config.save_path)
 
     file_transfer_processes = [p for p in file_transfer_processes if p.is_alive()]
     print(

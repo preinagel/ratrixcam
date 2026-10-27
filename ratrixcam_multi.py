@@ -61,21 +61,14 @@ def run(config: Config, stop_event: Event):
     if not ensure_dir_exists(stills_folder):
         print("ERROR: Stills folder does not exist and could not be created")
         return
-    else:
-        print(f"Stills folder: {stills_folder}")
 
-    # print('checking temp path')
     if not ensure_dir_exists(config.temp_path):
         print("ERROR: Temp streaming folder does not exist and could not be created")
         return
-    else:
-        print(f"Temp streaming folder: {config.temp_path}")
 
     if not ensure_dir_exists(config.save_path):
-        print("ERROR: Recording folder does not exist and could not be created")
+        print("ERROR: Save drive folder does not exist and could not be created")
         return
-    else:
-        print(f"Recording folder: {config.save_path}")
 
     print("Removing any old still images")
     reset_stills(config)

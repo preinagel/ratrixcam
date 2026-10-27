@@ -95,7 +95,7 @@ def test_close_writer_still_transfers_the_clip_when_the_manifest_fails(tmp_path,
     )
     transfers = []
 
-    ratrixcam_server.close_writer(state, transfers, manifest)
+    ratrixcam_server.close_writer(state, transfers, manifest, str(tmp_path / "save"))
 
     assert "WARNING" in capsys.readouterr().out
     assert len(transfers) == 1

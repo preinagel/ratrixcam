@@ -85,7 +85,8 @@ def test_record_start_lays_down_the_run_folder_in_temp_and_a_provisional_copy(tm
     assert run.run_dir == Path(config.save_path) / RUN_METADATA_DIRNAME / run.run_id
     for folder in (run.temp_run_dir, run.run_dir):
         assert json.loads((folder / Path(config_path).name).read_text())["study_label"] == "Test"
-        assert (folder / NOTES_FILENAME).read_text().startswith("Notes for this recording run")
+    assert (run.temp_run_dir / NOTES_FILENAME).read_text().startswith("Notes for this recording run")
+    assert not (run.run_dir / NOTES_FILENAME).exists()  # one notes file only, in temp
 
 
 def test_temp_is_clear(tmp_path):
@@ -101,7 +102,7 @@ def test_collect_at_shutdown_moves_the_run_folder_with_stills_and_loose_files(tm
     run = RunMetadata(config, config_path)
     run.record_start()
     temp = Path(config.temp_path)
-    (run.temp_run_dir / NOTES_FILENAME).write_text("notes edited during the run\n")  # the provisional copy is stale
+    (run.temp_run_dir / NOTES_FILENAME).write_text("notes edited during the run\n")
     (Path(stills_dir(config.temp_path)) / "cam_cam1_status.png").write_bytes(b"png")
     (temp / "Screenshot 2026-01-02.png").write_bytes(b"shot")
     (run.temp_run_dir / "manifests").mkdir()
@@ -120,7 +121,7 @@ def test_collect_at_shutdown_moves_the_run_folder_with_stills_and_loose_files(tm
     assert (run.run_dir / STILLS_DIRNAME / "cam_cam1_status.png").read_bytes() == b"png"
     assert (run.run_dir / "Screenshot 2026-01-02.png").exists()
     assert (run.run_dir / run.log_path.name).read_text() == "fake terminal log\n"
-    assert (run.run_dir / NOTES_FILENAME).read_text() == "notes edited during the run\n"  # replaced the provisional copy
+    assert (run.run_dir / NOTES_FILENAME).read_text() == "notes edited during the run\n"
     assert (run.run_dir / Path(config_path).name).exists()
     assert manifests_dir(config.save_path, run.run_id) == run.run_dir / "manifests"
     assert (run.run_dir / "manifests" / "subj001_cam1_manifest.csv").read_text().startswith("path,")
@@ -176,6 +177,15 @@ def test_start_terminal_log_fails_after_retries_when_the_log_cannot_be_created(t
     assert run.start_terminal_log() is True
     assert run.terminal_log is not None
     run.terminal_log.stop()
+
+
+def test_short_path_replaces_the_two_roots():
+    from ratrixcam_run_metadata import short_path
+
+    assert short_path("/t/x/status/a.png", "/t/x/", "/v/s/") == "<temp>/status/a.png"
+    assert short_path("/v/s/ratrixcam_run_metadata/r1", "/t/x/", "/v/s") == "<save>/ratrixcam_run_metadata/r1"
+    assert short_path("/v/s", "/t/x/", "/v/s/") == "<save>"
+    assert short_path("/v/stuff/a", "/t/x/", "/v/s/") == "/v/stuff/a"  # a sibling, not under the root
 
 
 def test_collect_at_shutdown_removes_an_emptied_temp_folder(tmp_path):

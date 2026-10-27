@@ -124,29 +124,41 @@ class RunMetadata:
                 time.sleep(LOG_START_RETRY_DELAY)
         print(f"ratrixcam run {self.run_id} -- code version {code_version()} -- computer {computer_identity()}")
         print(f"Launched as: {sys.executable} {' '.join(sys.argv)}  (working folder {os.getcwd()})")
-        print(f"Terminal output is being copied to {self.log_path}")
+        # the two roots in full; every path printed after this is shown relative to them
+        print(f"Temp folder: {self.config.temp_path}")
+        print(f"Save drive: {self.config.save_path}")
+        print(f"Terminal output is being copied to {self.short(self.log_path)}")
+        print(f"Stills folder: {self.short(stills_dir(self.config.temp_path))}")
+        print(f"Run metadata folder: {self.short(self.temp_run_dir)}")
+        print(f"\t(moves to {self.short(self.run_dir)} at shutdown)")
         return True
+
+    def short(self, path: str | Path) -> str:
+        """A path for the terminal, with the temp folder or save drive replaced by <temp> or
+        <save>, as printed in full at the top of the log."""
+        return short_path(path, self.config.temp_path, self.config.save_path)
 
     def record_start(self) -> None:
         """Called when recording starts: lay down the run's metadata folder in temp with the
-        config copy and the notes template, then put a copy of it on the save drive at once,
-        so the run has a record there even if this computer dies mid-run. The shutdown
-        collection replaces that copy with the final folder."""
+        config copy and the notes template, then put the config copy alone in the run's
+        folder on the save drive at once, so the run has a record there even if this computer
+        dies mid-run. The notes file exists only in temp, so there is one place to type in;
+        the shutdown collection moves the whole folder over the provisional one."""
         try:
             self.temp_run_dir.mkdir(parents=True, exist_ok=True)
             shutil.copy2(self.config_path, self.temp_run_dir / os.path.basename(self.config_path))
             notes = self.temp_run_dir / NOTES_FILENAME
             if not notes.exists():
                 notes.write_text(NOTES_TEMPLATE)
-            print(f"Run metadata folder: {self.temp_run_dir} (moves to {self.run_dir} at shutdown)")
         except OSError as e:
-            print(f"WARNING: could not create the run metadata folder {self.temp_run_dir}: {e}")
+            print(f"WARNING: could not create the run metadata folder {self.short(self.temp_run_dir)}: {e.strerror or e}")
             return
         try:
-            shutil.copytree(self.temp_run_dir, self.run_dir, dirs_exist_ok=True)
-            print(f"Provisional copy of the run metadata folder: {self.run_dir}")
+            self.run_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(self.config_path, self.run_dir / os.path.basename(self.config_path))
+            print(f"Provisional copy of the config file: {self.short(self.run_dir)}")
         except OSError as e:
-            print(f"WARNING: could not write the provisional run metadata copy to {self.run_dir}: {e}")
+            print(f"WARNING: could not write the provisional config copy to {self.short(self.run_dir)}: {e.strerror or e}")
 
     def collect_at_shutdown(self) -> None:
         """After the cameras have stopped: add to the per-camera manifests every row the
@@ -188,9 +200,9 @@ class RunMetadata:
                     kept.append(entry.name)
             print(f"Gathered into the run metadata folder: {gathered} file(s) (stills and loose temp files)")
             if _move_tree(self.temp_run_dir, self.run_dir):
-                print(f"Run metadata folder moved to {self.run_dir}")
+                print(f"Run metadata folder moved to {self.short(self.run_dir)}")
             else:
-                print(f"WARNING: run metadata folder could not be fully copied to {self.run_dir}; left in {self.temp_run_dir}")
+                print(f"WARNING: run metadata folder could not be fully copied to {self.short(self.run_dir)}; left in {self.short(self.temp_run_dir)}")
                 kept.append(self.temp_run_dir.name)
         except OSError as e:
             print(f"WARNING: collecting run metadata failed part-way: {e}")
@@ -205,7 +217,7 @@ class RunMetadata:
             try:
                 shutil.move(str(self.log_path), str(self.run_dir / self.log_path.name))
             except OSError as e:
-                print(f"WARNING: could not move the terminal log into {self.run_dir}: {e}")
+                print(f"WARNING: could not move the terminal log into {self.short(self.run_dir)}: {e.strerror or e}")
         if not kept and temp.is_dir() and _remove_if_empty(temp):
             print("Temp folder removed")
 
@@ -229,8 +241,21 @@ class RunMetadata:
                     added += 1
                 except OSError as e:
                     failed += 1
-                    print(f"WARNING: could not add {fields['path']} to {manifest_path} at cleanup: {e}")
+                    print(f"WARNING: could not add {fields['path']} to {self.short(manifest_path)} at cleanup: {e.strerror or e}")
         print(f"Manifest rows added at cleanup: {added}" + (f" ({failed} could not be added)" if failed else ""))
+
+
+def short_path(path: str | Path, temp_path: str, save_path: str) -> str:
+    """str(path) with the temp folder replaced by <temp> or the save drive by <save>; other
+    paths unchanged."""
+    text = str(path)
+    for root, name in ((temp_path, "<temp>"), (save_path, "<save>")):
+        root = str(Path(root))  # no trailing slash
+        if text == root:
+            return name
+        if text.startswith(root + os.sep):
+            return name + text[len(root):]
+    return text
 
 
 def _move_tree(src: Path, dst: Path) -> bool:
