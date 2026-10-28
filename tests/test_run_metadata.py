@@ -20,7 +20,7 @@ sys.path.insert(0, str(REPO))
 from ratrixcam_naming import NOTES_FILENAME, RUN_METADATA_DIRNAME, STILLS_DIRNAME, manifest_warning, manifests_dir  # noqa: E402
 import ratrixcam_run_metadata  # noqa: E402
 from ratrixcam_run_metadata import RunMetadata  # noqa: E402
-from ratrixcam_utils import Config, stills_dir, temp_is_clear  # noqa: E402
+from ratrixcam_utils import Config, not_writable, stills_dir, temp_is_clear  # noqa: E402
 
 
 def make_config(tmp_path: Path) -> tuple[Config, Path]:
@@ -95,6 +95,29 @@ def test_temp_is_clear(tmp_path):
     assert temp_is_clear(str(tmp_path))
     (tmp_path / "leftover.txt").write_text("x")
     assert not temp_is_clear(str(tmp_path))
+
+
+def test_not_writable_probes_with_a_file_it_removes_again(tmp_path, capsys):
+    assert not_writable(str(tmp_path)) is None
+    assert list(tmp_path.iterdir()) == []
+    assert capsys.readouterr().out == ""
+
+
+def test_not_writable_names_the_reason(tmp_path, monkeypatch):
+    def refuse(*_a, **_k):
+        raise OSError(30, "Read-only file system")
+
+    monkeypatch.setattr("builtins.open", refuse)
+    assert not_writable(str(tmp_path)) == "Read-only file system"
+
+
+def test_not_writable_tolerates_a_probe_it_cannot_remove(tmp_path, monkeypatch, capsys):
+    def no_remove(_p):
+        raise OSError(1, "Operation not permitted")
+
+    monkeypatch.setattr("os.remove", no_remove)
+    assert not_writable(str(tmp_path)) is None
+    assert "WARNING: could not remove the write-test file" in capsys.readouterr().out
 
 
 def test_collect_at_shutdown_moves_the_run_folder_with_stills_and_loose_files(tmp_path):

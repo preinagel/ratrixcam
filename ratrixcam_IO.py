@@ -26,6 +26,7 @@ from ratrixcam_utils import (
     ensure_config_file_exists,
     ensure_dir_exists,
     load_settings,
+    not_writable,
     reset_stills,
     stills_dir,
     temp_is_clear,
@@ -520,6 +521,10 @@ def main():
     # log starts, so a launch refused here leaves nothing in temp
     if not os.path.isdir(config.save_path):
         print(f"ERROR: Save drive folder not found: {config.save_path}")
+        return
+    reason = not_writable(config.save_path)
+    if reason is not None:
+        print(f"ERROR: Save drive folder is not writable: {reason}")
         return
     if not ensure_dir_exists(config.temp_path):
         print("ERROR: temp folder unavailable")

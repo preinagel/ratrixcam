@@ -83,6 +83,24 @@ def temp_is_clear(temp_path: str) -> bool:
     return all(name == ".DS_Store" for name in os.listdir(temp_path))
 
 
+def not_writable(folder: str) -> str | None:
+    """Create and remove a small uniquely named file in folder: None if that works, else the
+    reason it did not. A folder can exist and still refuse writes (a drive mounted read-only,
+    wrong ownership), which no presence check sees. A test file that cannot be removed
+    afterwards is reported but does not count as a failure."""
+    probe = os.path.join(folder, f"ratrixcam_write_test_{os.getpid()}.tmp")
+    try:
+        with open(probe, "w") as f:
+            f.write("ratrixcam write test\n")
+    except OSError as e:
+        return e.strerror or str(e)
+    try:
+        os.remove(probe)
+    except OSError as e:
+        print(f"WARNING: could not remove the write-test file {probe}: {e.strerror or e}")
+    return None
+
+
 def stills_dir(temp_path: str) -> str:
     """Folder holding the most recent still from each camera, always inside the temp folder."""
     return os.path.join(temp_path, "status")
