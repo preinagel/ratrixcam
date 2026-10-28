@@ -515,6 +515,12 @@ def main():
         print(f"ERROR: temp folder is not empty: {config.temp_path}")
         print("       it holds leftovers of an earlier run; rename it (for example temp_<date>) and relaunch")
         sys.exit(1)
+    # the save folder must already exist: creating it here would put a folder of the drive's
+    # name on the system disk whenever the drive is not mounted. Checked before the terminal
+    # log starts, so a launch refused here leaves nothing in temp
+    if not os.path.isdir(config.save_path):
+        print(f"ERROR: Save drive folder not found: {config.save_path}")
+        return
     if not ensure_dir_exists(config.temp_path):
         print("ERROR: temp folder unavailable")
         sys.exit(1)
@@ -531,12 +537,6 @@ def main():
         os.environ.__setitem__("DISPLAY", ":0.0")
 
     # the folders themselves are named at the top of the terminal log
-    # the save folder must already exist: creating it here would put a folder of the drive's
-    # name on the system disk whenever the drive is not mounted
-    if not os.path.isdir(config.save_path):
-        print(f"ERROR: Save drive folder not found: {config.save_path}")
-        return
-
     stills_folder = stills_dir(config.temp_path)
     if not ensure_dir_exists(stills_folder):
         print("ERROR: Stills folder does not exist and could not be created")

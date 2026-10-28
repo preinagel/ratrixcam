@@ -1,6 +1,7 @@
 """move_file: the per-clip transfer from temp to the save drive. Failures are retried silently
 within a window; after it the clip is left in temp with one WARNING naming it."""
 
+import fcntl
 import os
 import re
 import shutil
@@ -90,6 +91,19 @@ def test_missing_save_root_creates_nothing(clip: Clip, capsys: pytest.CaptureFix
     assert gave_up(capsys.readouterr().out) == [(1, "save folder not found")]
 
 
+def test_save_root_vanishing_after_the_check_is_not_rebuilt(clip: Clip, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]):
+    """The mount point disappears between the save-folder check and the day-folder creation:
+    nothing is created in its place on the system disk."""
+    os.rmdir(clip.save_root)
+    real_isdir = os.path.isdir
+    monkeypatch.setattr(os.path, "isdir", lambda p: True if p == clip.save_root else real_isdir(p))
+    assert server.move_file(*clip) is False
+    assert not os.path.exists(clip.save_root)
+    assert Path(clip.temp_file).read_bytes() == CLIP
+    ((_, reason),) = gave_up(capsys.readouterr().out)
+    assert reason.startswith("destination unavailable: ")
+
+
 def test_short_of_space_leaves_the_clip_in_temp(clip: Clip, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]):
     monkeypatch.setattr(shutil, "disk_usage", lambda _p: Usage(10**9, 10**9 - 40000, 40000))  # < 10 x clip
     assert server.move_file(*clip) is False
@@ -173,3 +187,35 @@ def test_short_copy_counts_as_a_failure(clip: Clip, monkeypatch: pytest.MonkeyPa
     assert Path(clip.temp_file).read_bytes() == CLIP
     assert not os.path.exists(clip.out_file)
     assert gave_up(capsys.readouterr().out) == [(1, "copied 100 of 5000 bytes")]
+
+
+def test_copy_is_flushed_to_the_device_before_and_after_the_rename(clip: Clip, monkeypatch: pytest.MonkeyPatch):
+    """The .part file is pushed out of the OS cache before it takes the clip's name, and the
+    folder entry after, so a drive pulled right after the transfer still holds the clip."""
+    events: list[str] = []
+    real_replace = os.replace
+    monkeypatch.setattr(server, "_flush_to_device", lambda p: events.append(f"flush {os.path.basename(p)}"))
+    monkeypatch.setattr(os, "replace", lambda a, b: (events.append("rename"), real_replace(a, b)))
+    assert server.move_file(*clip) is True
+    assert events == ["flush c.mp4.part", "rename", "flush day"]
+
+
+def test_flush_falls_back_to_fsync_where_full_sync_is_rejected(clip: Clip, monkeypatch: pytest.MonkeyPatch):
+    def reject(_fd: int, _cmd: int):
+        raise OSError(45, "Operation not supported")
+
+    synced: list[int] = []
+    monkeypatch.setattr(fcntl, "fcntl", reject)
+    monkeypatch.setattr(os, "fsync", lambda fd: synced.append(fd))
+    server._flush_to_device(clip.temp_file)
+    assert len(synced) == 1
+
+
+def test_a_copy_that_cannot_be_flushed_is_a_failed_attempt(clip: Clip, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]):
+    def cannot(_p: str):
+        raise OSError(5, "Input/output error")
+
+    monkeypatch.setattr(server, "_flush_to_device", cannot)
+    assert server.move_file(*clip) is False
+    assert os.listdir(os.path.dirname(clip.out_file)) == []  # neither the clip nor its .part
+    assert gave_up(capsys.readouterr().out) == [(1, "copy failed: Input/output error")]

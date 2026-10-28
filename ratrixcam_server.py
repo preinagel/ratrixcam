@@ -1,5 +1,6 @@
 # version 250306_1325
 import argparse
+import fcntl
 import multiprocessing
 import os
 import shutil
@@ -40,7 +41,7 @@ TRANSFER_SPACE_FACTOR = 10  # free space required at the destination, as a multi
 def move_file(temp_file: str, out_file: str, save_root: str) -> bool:
     """
     Copy a closed clip from its temporary location to its permanent one, verify the copy by
-    size, then remove the temporary file. Runs in its own process. Whatever stops a transfer
+    size, flush it onto the drive, then remove the temporary file. Runs in its own process. Whatever stops a transfer
     (the save folder, created at launch, is gone; the destination cannot be created or is
     short of space; the copy fails) is retried silently every TRANSFER_RETRY_DELAY seconds
     for TRANSFER_RETRY_WINDOW seconds; after that the clip is left in temp with one WARNING
@@ -91,6 +92,24 @@ PARTIAL_SUFFIX = ".part"  # a clip is copied under this suffix and renamed once 
                           # so a copy cut short by a vanishing drive never carries a clip's name
 
 
+def _flush_to_device(path: str) -> None:
+    """Push a file's data, or a folder's entries, out of the OS write cache onto the drive, so
+    that a drive pulled right afterwards still holds it. F_FULLFSYNC (macOS) also empties the
+    drive's own cache; where it is unavailable or rejected, a plain fsync is used."""
+    fd = os.open(path, os.O_RDONLY)
+    try:
+        full_sync = getattr(fcntl, "F_FULLFSYNC", None)
+        if full_sync is not None:
+            try:
+                _ = fcntl.fcntl(fd, full_sync)
+                return
+            except OSError:
+                pass
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
 def _transfer_attempt(temp_file: str, out_file: str, save_root: str, size: int, xfer_mode: str) -> str | None:
     """One attempt to put the clip at out_file: None on success, otherwise the reason it
     failed (the message alone, no paths)."""
@@ -98,7 +117,10 @@ def _transfer_attempt(temp_file: str, out_file: str, save_root: str, size: int, 
         return "save folder not found"
     out_dir = os.path.dirname(out_file)
     try:
-        os.makedirs(out_dir, exist_ok=True)
+        if not os.path.isdir(out_dir):
+            # one level only, never makedirs: if the save folder vanished since the check
+            # above, this fails instead of rebuilding it on the system disk
+            os.mkdir(out_dir)
         free = shutil.disk_usage(out_dir).free
     except OSError as e:
         return f"destination unavailable: {e.strerror or e}"
@@ -111,7 +133,12 @@ def _transfer_attempt(temp_file: str, out_file: str, save_root: str, size: int, 
             copied = os.path.getsize(partial)
             if copied != size:
                 return f"copied {copied} of {size} bytes"
+            _flush_to_device(partial)  # on the drive before it takes the clip's name
             os.replace(partial, out_file)
+            try:
+                _flush_to_device(out_dir)  # the rename itself; best effort
+            except OSError:
+                pass
         else:
             # The following works with timeout=3 but only for 640x480 on most cameras;can handle 2 780p cams
             # HEADS-UP before enabling: os.system hands this string to the shell with the two paths

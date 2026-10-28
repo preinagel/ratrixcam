@@ -8,15 +8,12 @@ whole metadata folder to the save drive (ratrixcam_run_metadata).
 
 import csv
 import os
-import time
 from datetime import datetime
 
 from ratrixcam_naming import manifest_filename, manifest_warning, temp_manifests_dir
 
 MANIFEST_COLUMNS = ["path", "subjID", "view", "clip_start", "row_written", "crf"]
 TIME_FORMAT = "%Y-%m-%d %H:%M:%S.%f"  # trimmed to milliseconds by format_time
-ATTEMPTS = 3
-RETRY_DELAY = 0.5  # seconds between attempts
 
 
 def format_time(t: datetime) -> str:
@@ -47,20 +44,15 @@ class ManifestMetadata:
         self.crf = crf
 
     def append(self, day_folder: str, file_name: str, started: datetime) -> bool:
-        """Append the row for one closed clip. Up to ATTEMPTS tries RETRY_DELAY apart; after
-        the last failure prints a WARNING with the error, then the tagged line the shutdown
-        cleanup reads, and returns False. Never raises: recording must not stop over a
-        manifest write."""
+        """Append the row for one closed clip. One attempt, no waiting: this runs on the
+        camera's frame loop, where every pause is lost frames. On failure prints a WARNING
+        with the error, then the tagged line the shutdown cleanup reads, and returns False.
+        Never raises: recording must not stop over a manifest write."""
         path, clip_start = f"{day_folder}/{file_name}", format_time(started)
-        error: OSError | None = None
-        for attempt in range(ATTEMPTS):
-            try:
-                write_row(self.path, path, self.subjID, self.view, clip_start, self.crf)
-                return True
-            except OSError as e:
-                error = e
-                if attempt < ATTEMPTS - 1:
-                    time.sleep(RETRY_DELAY)
-        print(f"WARNING: could not add {file_name} to the manifest {self.path} after {ATTEMPTS} attempts: {error}")
-        print(manifest_warning(os.path.basename(self.path), path, self.subjID, self.view, clip_start, self.crf))
-        return False
+        try:
+            write_row(self.path, path, self.subjID, self.view, clip_start, self.crf)
+            return True
+        except OSError as e:
+            print(f"WARNING: could not add {file_name} to the manifest {self.path}: {e}")
+            print(manifest_warning(os.path.basename(self.path), path, self.subjID, self.view, clip_start, self.crf))
+            return False
