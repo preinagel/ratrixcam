@@ -104,6 +104,23 @@ def test_save_root_vanishing_after_the_check_is_not_rebuilt(clip: Clip, monkeypa
     assert reason.startswith("destination unavailable: ")
 
 
+def test_day_folder_made_by_a_sibling_transfer_meanwhile_is_fine(clip: Clip, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]):
+    """Two transfers of one camera race to create the same new day folder: the loser of the
+    mkdir carries on with the folder the winner made, on the same attempt."""
+    out_dir = os.path.dirname(clip.out_file)
+    real_mkdir = os.mkdir
+
+    def sibling_first(path: str, *a, **k):
+        if path == out_dir:
+            real_mkdir(path)  # the sibling gets there first
+        return real_mkdir(path, *a, **k)  # and this one's own call raises FileExistsError
+
+    monkeypatch.setattr(os, "mkdir", sibling_first)
+    assert server.move_file(*clip) is True
+    assert Path(clip.out_file).read_bytes() == CLIP
+    assert capsys.readouterr().out == ""
+
+
 def test_short_of_space_leaves_the_clip_in_temp(clip: Clip, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]):
     monkeypatch.setattr(shutil, "disk_usage", lambda _p: Usage(10**9, 10**9 - 40000, 40000))  # < 10 x clip
     assert server.move_file(*clip) is False

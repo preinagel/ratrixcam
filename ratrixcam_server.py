@@ -42,7 +42,7 @@ def move_file(temp_file: str, out_file: str, save_root: str) -> bool:
     """
     Copy a closed clip from its temporary location to its permanent one, verify the copy by
     size, flush it onto the drive, then remove the temporary file. Runs in its own process. Whatever stops a transfer
-    (the save folder, created at launch, is gone; the destination cannot be created or is
+    (the save folder, which launch requires to exist, is gone; the destination cannot be created or is
     short of space; the copy fails) is retried silently every TRANSFER_RETRY_DELAY seconds
     for TRANSFER_RETRY_WINDOW seconds; after that the clip is left in temp with one WARNING
     naming it, and the shutdown cleanup finds such clips by listing temp. Nothing is created
@@ -120,7 +120,11 @@ def _transfer_attempt(temp_file: str, out_file: str, save_root: str, size: int, 
         if not os.path.isdir(out_dir):
             # one level only, never makedirs: if the save folder vanished since the check
             # above, this fails instead of rebuilding it on the system disk
-            os.mkdir(out_dir)
+            try:
+                os.mkdir(out_dir)
+            except FileExistsError:
+                if not os.path.isdir(out_dir):  # a file in the way, not a sibling transfer's folder
+                    raise
         free = shutil.disk_usage(out_dir).free
     except OSError as e:
         return f"destination unavailable: {e.strerror or e}"
