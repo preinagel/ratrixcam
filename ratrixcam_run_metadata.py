@@ -7,6 +7,7 @@ ratrixcam_IO.py calls into it at launch, at Start Recording, and after the camer
 import io
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -161,7 +162,7 @@ class RunMetadata:
         except OSError as e:
             print(f"WARNING: could not write the provisional config copy to {self.short(self.run_dir)}: {e.strerror or e}")
 
-    def collect_at_shutdown(self) -> None:
+    def collect_at_shutdown(self, abort: bool = False) -> None:
         """After the cameras have stopped: add to the per-camera manifests every row the
         cameras reported they could not write (read back from this run's terminal log);
         gather the status stills and every loose file in temp (screenshots, anything the
@@ -170,15 +171,55 @@ class RunMetadata:
         replacing the provisional copy made at the start; and report. The terminal log is
         closed and moved into it last, so the report itself is in it. Folders that still
         hold files -- untransferred videos -- are left alone and reported; otherwise the
-        temp folder is removed entirely."""
+        temp folder is removed entirely.
+
+        The metadata folder is moved only if the gathering completed and the save drive is
+        present with room for the whole folder; otherwise it stays in temp with one WARNING
+        saying why. With abort=True (the run ends without a usable save drive) the gathering
+        happens as above but nothing is moved: the metadata folder, the terminal log and the
+        temp folder all stay, and the next launch refuses to start until temp is renamed."""
         if self._collected:
             return
         self._collected = True
-        print(f"Collecting the run metadata as {RUN_METADATA_DIRNAME}/{self.run_id}")
+        if abort:
+            print(f"Run aborted without a save drive: the run metadata stays in {self.short(self.temp_run_dir)}")
+        else:
+            print(f"Collecting the run metadata as {RUN_METADATA_DIRNAME}/{self.run_id}")
         temp = Path(self.config.temp_path)
+        self._add_unwritten_manifest_rows()
+        kept, complete = self._gather_into_run_folder()
+        moved = False
+        if abort:
+            pass
+        elif not complete:
+            print(f"WARNING: run metadata folder not moved because the gathering failed; left in {self.short(self.temp_run_dir)}")
+        else:
+            moved = self._move_run_folder_to_save()
+        if not moved and not abort and self.temp_run_dir.is_dir():
+            kept.append(self.temp_run_dir.name)  # on abort the opening line already said it stays
+        for name in kept:
+            print(f"WARNING: temp folder '{name}' still contains files (untransferred videos?); left in place")
+        if self.terminal_log is not None:
+            if moved:
+                print(f"Closing the terminal log and saving it as {RUN_METADATA_DIRNAME}/{self.run_id}/{self.log_path.name}")
+            else:
+                print(f"Closing the terminal log; it stays in {self.short(self.log_path)}")
+            self.terminal_log.stop()
+        if moved and self.log_path.exists():
+            try:
+                shutil.move(str(self.log_path), str(self.run_dir / self.log_path.name))
+            except OSError as e:
+                print(f"WARNING: could not move the terminal log into {self.short(self.run_dir)}: {e.strerror or e}")
+        if moved and temp.is_dir() and _remove_if_empty(temp):
+            print("Temp folder removed")
+
+    def _gather_into_run_folder(self) -> tuple[list[str], bool]:
+        """Move the status stills and every loose top-level temp file into the metadata folder
+        and remove the per-camera temp folders that are empty. Returns the names of the
+        folders that still hold files, and whether the gathering completed; a failure is
+        reported here with the OS message and leaves what was already gathered in place."""
         kept: list[str] = []
         gathered = 0
-        self._add_unwritten_manifest_rows()
         try:
             self.temp_run_dir.mkdir(parents=True, exist_ok=True)
             stills_src = Path(stills_dir(self.config.temp_path))
@@ -190,7 +231,7 @@ class RunMetadata:
                         shutil.move(str(f), str(stills_dst / f.name))
                         gathered += 1
                 _remove_if_empty(stills_src)
-            for entry in sorted(temp.iterdir()):
+            for entry in sorted(Path(self.config.temp_path).iterdir()):
                 if entry == self.log_path or entry == self.temp_run_dir:
                     continue  # the log is closed and moved last; the run folder is the destination
                 if entry.is_file():
@@ -199,28 +240,43 @@ class RunMetadata:
                         gathered += 1
                 elif entry.is_dir() and not _remove_if_empty(entry):
                     kept.append(entry.name)
-            print(f"Gathered into the run metadata folder: {gathered} file(s) (stills and loose temp files)")
-            if _move_tree(self.temp_run_dir, self.run_dir):
-                print(f"Run metadata folder moved to {self.short(self.run_dir)}")
-            else:
-                print(f"WARNING: run metadata folder could not be fully copied to {self.short(self.run_dir)}; left in {self.short(self.temp_run_dir)}")
-                kept.append(self.temp_run_dir.name)
         except OSError as e:
-            print(f"WARNING: collecting run metadata failed part-way: {e}")
-        for name in kept:
-            print(f"WARNING: temp folder '{name}' still contains files (untransferred videos?); left in place")
-        if self.terminal_log is not None:
-            print(
-                f"Closing the terminal log and saving it as {RUN_METADATA_DIRNAME}/{self.run_id}/{self.log_path.name}"
-            )
-            self.terminal_log.stop()
-        if self.log_path.exists() and self.run_dir.is_dir():
+            print(f"WARNING: gathering stills and loose temp files into the run metadata folder failed after {gathered} file(s): {_error_text(e)}")
+            return kept, False
+        print(f"Gathered into the run metadata folder: {gathered} file(s) (stills and loose temp files)")
+        return kept, True
+
+    def _move_run_folder_to_save(self) -> bool:
+        """Move the metadata folder to the save drive if the drive is present with room for all
+        of it; True if it arrived complete. Otherwise one WARNING with the reason, and the
+        folder stays in temp. Nothing is copied when the room is not there, so a drive that
+        is already full is not filled further by a copy that cannot complete."""
+        reason = self._no_room_for(self.temp_run_dir)
+        if reason is None:
             try:
-                shutil.move(str(self.log_path), str(self.run_dir / self.log_path.name))
+                if _move_tree(self.temp_run_dir, self.run_dir):
+                    print(f"Run metadata folder moved to {self.short(self.run_dir)}")
+                    return True
+                reason = "a copied file is missing or differs in size"
             except OSError as e:
-                print(f"WARNING: could not move the terminal log into {self.short(self.run_dir)}: {e.strerror or e}")
-        if not kept and temp.is_dir() and _remove_if_empty(temp):
-            print("Temp folder removed")
+                reason = f"copy failed: {_error_text(e)}"
+        print(f"WARNING: run metadata folder not moved to {self.short(self.run_dir)}: {reason}; left in {self.short(self.temp_run_dir)}")
+        return False
+
+    def _no_room_for(self, folder: Path) -> str | None:
+        """Why the save drive cannot take a copy of folder right now, or None if it can: the
+        save folder is gone, cannot be queried, or has less free space than the folder's files
+        add up to."""
+        if not os.path.isdir(self.config.save_path):
+            return "save folder not found"
+        try:
+            free = shutil.disk_usage(self.config.save_path).free
+        except OSError as e:
+            return f"save drive unavailable: {e.strerror or e}"
+        needed = sum(f.stat().st_size for f in folder.rglob("*") if f.is_file())
+        if free < needed:
+            return f"save drive short of space ({needed / 1e6:.0f} MB needed, {free / 1e6:.0f} MB free)"
+        return None
 
 
     def _add_unwritten_manifest_rows(self) -> None:
@@ -244,6 +300,19 @@ class RunMetadata:
                     failed += 1
                     print(f"WARNING: could not add {fields['path']} to {self.short(manifest_path)} at cleanup: {e.strerror or e}")
         print(f"Manifest rows added at cleanup: {added}" + (f" ({failed} could not be added)" if failed else ""))
+
+
+def _error_text(e: OSError) -> str:
+    """The message of an OS error without paths or error numbers. shutil.Error, raised by
+    copytree, carries a list of (source, destination, why) tuples, one per file that failed,
+    each why being a full error string with both paths: reported as the first why alone and
+    the count."""
+    if isinstance(e, shutil.Error) and e.args and isinstance(e.args[0], list):
+        failures: list[tuple[str, str, str]] = e.args[0]
+        if failures and len(failures[0]) == 3:
+            why = re.sub(r"^\[Errno \d+\] ", "", str(failures[0][2])).split(": '")[0]
+            return f"{why} ({len(failures)} file(s) could not be copied)"
+    return e.strerror or str(e)
 
 
 def _move_tree(src: Path, dst: Path) -> bool:

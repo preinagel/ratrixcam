@@ -5,9 +5,11 @@ deletion of ratrixcam_run_metadata folders) driven through the CLIs."""
 import csv
 import json
 import re
+import shutil
 import subprocess
 import sys
 import textwrap
+from collections import namedtuple
 from datetime import datetime
 from pathlib import Path
 
@@ -228,3 +230,105 @@ def test_collect_at_shutdown_removes_an_emptied_temp_folder(tmp_path):
     assert (run.run_dir / STILLS_DIRNAME / "cam_cam1_status.png").exists()
     assert (run.run_dir / run.log_path.name).read_text() == "fake terminal log\n"
     assert not temp.exists()
+
+
+def start_run_with_a_still(tmp_path):
+    """A started run whose temp holds one still, one loose screenshot and the terminal log."""
+    config, config_path = make_config(tmp_path)
+    run = RunMetadata(config, config_path)
+    run.record_start()
+    temp = Path(config.temp_path)
+    (Path(stills_dir(config.temp_path)) / "cam_cam1_status.png").write_bytes(b"png")
+    (temp / "Screenshot.png").write_bytes(b"shot")
+    run.log_path.write_text("fake terminal log\n")
+    return run, temp
+
+
+def test_abort_gathers_into_temp_and_moves_nothing(tmp_path, capsys):
+    run, temp = start_run_with_a_still(tmp_path)
+
+    run.collect_at_shutdown(abort=True)
+
+    assert (run.temp_run_dir / STILLS_DIRNAME / "cam_cam1_status.png").read_bytes() == b"png"
+    assert (run.temp_run_dir / "Screenshot.png").exists()
+    assert not (temp / "Screenshot.png").exists()
+    assert run.log_path.read_text() == "fake terminal log\n"  # stays in temp
+    assert sorted(p.name for p in run.run_dir.iterdir()) == [Path(run.config_path).name]  # provisional copy untouched
+    assert temp.is_dir()
+    out = capsys.readouterr().out
+    assert "Run aborted without a save drive" in out
+    assert "not moved" not in out  # no move was attempted, so none failed
+    assert "still contains files" not in out  # the metadata folder staying is the point, not a warning
+
+
+def test_metadata_folder_stays_when_the_save_folder_is_gone(tmp_path, capsys):
+    run, temp = start_run_with_a_still(tmp_path)
+    shutil.rmtree(run.config.save_path)  # the drive was pulled
+
+    run.collect_at_shutdown()
+
+    assert (run.temp_run_dir / STILLS_DIRNAME / "cam_cam1_status.png").exists()
+    assert run.log_path.exists()
+    assert not Path(run.config.save_path).exists()  # nothing rebuilt on the system disk
+    out = capsys.readouterr().out
+    assert "WARNING: run metadata folder not moved to <save>/ratrixcam_run_metadata/" in out
+    assert ": save folder not found; left in <temp>/ratrixcam_run_metadata" in out
+    assert "WARNING: temp folder 'ratrixcam_run_metadata' still contains files" in out
+
+
+def test_metadata_folder_is_not_copied_onto_a_drive_short_of_space(tmp_path, monkeypatch, capsys):
+    run, _ = start_run_with_a_still(tmp_path)
+    Usage = namedtuple("Usage", "total used free")
+    monkeypatch.setattr(shutil, "disk_usage", lambda _p: Usage(10**9, 10**9 - 10, 10))
+
+    def no_copy(*_a, **_k):
+        raise AssertionError("copytree must not be attempted without room")
+
+    monkeypatch.setattr(shutil, "copytree", no_copy)
+
+    run.collect_at_shutdown()
+
+    assert (run.temp_run_dir / "Screenshot.png").exists()
+    out = capsys.readouterr().out
+    assert "not moved to <save>/ratrixcam_run_metadata/" in out
+    assert ": save drive short of space (0 MB needed, 0 MB free); left in <temp>/" in out
+
+
+def test_a_failed_copy_is_reported_without_the_raw_error_list(tmp_path, monkeypatch, capsys):
+    run, _ = start_run_with_a_still(tmp_path)
+
+    def partial(src, dst, **_k):
+        raise shutil.Error([
+            (f"{src}/a.png", f"{dst}/a.png", f"[Errno 28] No space left on device: '{src}/a.png' -> '{dst}/a.png'"),
+            (f"{src}/b.png", f"{dst}/b.png", f"[Errno 28] No space left on device: '{src}/b.png' -> '{dst}/b.png'"),
+        ])
+
+    monkeypatch.setattr(shutil, "copytree", partial)
+
+    run.collect_at_shutdown()
+
+    out = capsys.readouterr().out
+    assert ": copy failed: No space left on device (2 file(s) could not be copied); left in <temp>/" in out
+    assert "a.png" not in out and "Errno" not in out and "[(" not in out
+    assert run.log_path.exists()  # the log stays with the folder
+
+
+def test_a_failed_gathering_skips_the_move(tmp_path, monkeypatch, capsys):
+    run, temp = start_run_with_a_still(tmp_path)
+
+    def cannot_move(src, dst):
+        raise OSError(5, "Input/output error")
+
+    def no_copy(*_a, **_k):
+        raise AssertionError("copytree must not be attempted after a failed gathering")
+
+    monkeypatch.setattr(shutil, "move", cannot_move)
+    monkeypatch.setattr(shutil, "copytree", no_copy)
+
+    run.collect_at_shutdown()
+
+    out = capsys.readouterr().out
+    assert "WARNING: gathering stills and loose temp files into the run metadata folder failed after 0 file(s): Input/output error" in out
+    assert "WARNING: run metadata folder not moved because the gathering failed; left in <temp>/" in out
+    assert (temp / "Screenshot.png").exists()
+    assert run.log_path.exists()
