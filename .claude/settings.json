@@ -1,6 +1,7 @@
 {
   "permissions": {
     "defaultMode": "acceptEdits",
+    "disableAutoMode": "disable",
     "deny": [
       "Edit(/ratrixcam_*.py)",
       "Edit(/custom_filename_parser_example.py)",
@@ -47,7 +48,8 @@
       "denyRead": ["/Volumes/rlab2", "~/.ssh", "~/.aws"]
     },
     "network": {
-      "allowedDomains": []
+      "allowedDomains": [],
+      "allowLocalBinding": true
     }
   }
 }
