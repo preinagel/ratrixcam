@@ -1,0 +1,21 @@
+{
+  "save_path": "/Users/rat_hub_01/Desktop/ratrixcam_test_20261009/save/",
+  "temp_path": "/Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/",
+  "study_label": "Test",
+  "subject_prefix": "rat",
+  "default_crf": 25,
+  "time_slice": 60,
+
+  "default_fps": 30,
+  "default_width": 640,
+  "default_height": 480,
+  "default_cam_exposure": -8.0,
+  "preview_interval": 1,
+
+  "cameras": [
+    {"subjID": "999", "view": "face", "position": "A"},
+    {"subjID": "999", "view": "buddy", "position": "B"},
+    {"subjID": "999", "view": "home", "position": "C"},
+    {"subjID": "999", "view": "foobar", "position": "D"}
+  ]
+}

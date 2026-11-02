@@ -12,3 +12,8 @@ custom_filename_parser.py
 # pytest
 .pytest_cache/
 
+# GUI worktree sample data: a real temp folder, committed except the clips
+!gui/sample_data/temp/
+!gui/sample_data/temp/status/
+gui/sample_data/**/*.mp4
+

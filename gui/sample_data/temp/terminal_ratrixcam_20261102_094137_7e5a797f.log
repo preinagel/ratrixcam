@@ -1,0 +1,182 @@
+ratrixcam run ratrixcam_20261102_094137_7e5a797f -- code version 209e5cd -- computer reinagel-158-155.ucsd.edu 18:4a:53:18:e3:28
+Launched as: /Library/Frameworks/Python.framework/Versions/3.13/bin/python3 ratrixcam_IO.py -c /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/camera_config261019_desktop_test.json  (working folder /Users/rat_hub_01/Desktop/ratrixcam)
+Temp folder: /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/
+Save drive: /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/save/
+Terminal output is being copied to <temp>/terminal_ratrixcam_20261102_094137_7e5a797f.log
+Stills folder: <temp>/status
+Run metadata folder: <temp>/ratrixcam_run_metadata
+	(moves to <save>/ratrixcam_run_metadata/ratrixcam_20261102_094137_7e5a797f at shutdown)
+Removing any old still images
+Provisional copy of the config file: <save>/ratrixcam_run_metadata/ratrixcam_20261102_094137_7e5a797f
+Settings for 'Test' successfully loaded
+Removing any old still images
+Multicam: Starting cameras...
+Expecting  4 cameras based on config file...
+Multicam: Started camera rat999_face
+Cam_server: Camera rat999_face will now stream to rat999_face_20261102_09-41-39.mp4
+Multicam: Started camera rat999_buddy
+Cam_server: Camera rat999_buddy will now stream to rat999_buddy_20261102_09-41-44.mp4
+Multicam: Started camera rat999_home
+Cam_server: Camera rat999_home will now stream to rat999_home_20261102_09-41-49.mp4
+Multicam: Started camera rat999_foobar
+Cam_server: Camera rat999_foobar will now stream to rat999_foobar_20261102_09-41-55.mp4
+Cam_server: Starting transfer of file:rat999_face_20261102_09-41-39.mp4
+Cam_server: Camera rat999_face will now stream to rat999_face_20261102_09-42-39.mp4
+Cam_server: Starting transfer of file:rat999_buddy_20261102_09-41-44.mp4
+Cam_server: Camera rat999_buddy will now stream to rat999_buddy_20261102_09-42-44.mp4
+Cam_server: Starting transfer of file:rat999_home_20261102_09-41-49.mp4
+Cam_server: Camera rat999_home will now stream to rat999_home_20261102_09-42-49.mp4
+Cam_server: Starting transfer of file:rat999_foobar_20261102_09-41-55.mp4
+Cam_server: Camera rat999_foobar will now stream to rat999_foobar_20261102_09-42-55.mp4
+Cam_server: Starting transfer of file:rat999_face_20261102_09-42-39.mp4
+Cam_server: Camera rat999_face will now stream to rat999_face_20261102_09-43-39.mp4
+Cam_server: Starting transfer of file:rat999_buddy_20261102_09-42-44.mp4
+Cam_server: Camera rat999_buddy will now stream to rat999_buddy_20261102_09-43-44.mp4
+Cam_server: Starting transfer of file:rat999_home_20261102_09-42-49.mp4
+Cam_server: Camera rat999_home will now stream to rat999_home_20261102_09-43-49.mp4
+Cam_server: Starting transfer of file:rat999_foobar_20261102_09-42-55.mp4
+Cam_server: Camera rat999_foobar will now stream to rat999_foobar_20261102_09-43-55.mp4
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_buddy_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_foobar_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_face_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_home_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_buddy_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_foobar_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_face_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_home_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_foobar_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_buddy_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_face_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_home_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_foobar_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_buddy_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_face_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_home_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_foobar_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_buddy_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_face_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_home_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_foobar_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_buddy_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_face_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_home_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_foobar_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_buddy_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_face_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_home_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_foobar_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_buddy_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_face_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_home_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_foobar_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_buddy_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_face_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_home_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_foobar_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_buddy_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_face_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_home_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_foobar_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_buddy_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_face_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_home_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_foobar_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_buddy_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_face_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_home_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_foobar_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_buddy_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_face_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_home_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_foobar_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_buddy_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_face_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_home_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_foobar_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_buddy_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_face_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_home_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_foobar_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_buddy_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_face_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_home_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_foobar_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_buddy_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_face_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_home_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_foobar_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_buddy_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_face_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_home_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_foobar_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_buddy_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_face_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_home_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_foobar_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_face_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_buddy_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_home_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_foobar_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_face_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_buddy_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_foobar_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_home_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_face_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_buddy_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_foobar_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_home_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_face_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_buddy_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_foobar_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_home_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_face_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_buddy_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_foobar_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_home_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_face_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_buddy_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_foobar_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_home_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_face_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_buddy_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_foobar_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_home_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_face_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_buddy_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_foobar_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_home_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_face_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_buddy_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_foobar_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_home_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_face_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_buddy_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_foobar_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_home_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_face_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_buddy_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_foobar_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_home_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_face_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_buddy_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_foobar_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_home_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_face_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_buddy_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_foobar_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_home_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_face_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_buddy_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_foobar_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_home_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_face_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_buddy_status.png
+Cam_server: Starting transfer of file:rat999_face_20261102_09-43-39.mp4
+Cam_server: Camera rat999_face will now stream to rat999_face_20261102_09-44-39.mp4
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_foobar_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_home_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_face_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_buddy_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_foobar_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_home_status.png
+WARNING: Failed to write still image to /Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/status/cam_rat999_face_status.png
