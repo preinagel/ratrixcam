@@ -29,6 +29,23 @@ A camera name is `<subject_prefix><subjID>_<view>`. A status file with run accou
 does not exist yet: design the display for it, show placeholders, and keep a list in
 `gui/STATUS_FILE_WISHLIST.md` of every field you need python to write.
 
+## Functional Specification
+Currently the camera code is displaying stills, accounting metadata and warnings in a tkinter window; that functionality will be replaced by this GUI. Python code will retain the active components (start and stop controls).
+Success definition GUI should
+- Display the camera stills, updated as often as cameras are saving them (1/sec?)
+- Diplay camera-offline image if stills cease to update, per camera
+- Show titles above camera stills with subjID and view
+- Display runtime accounting (all of this is already computed in the camera code, and can be written to the status file if you request it)
+  - Date and time run started
+  - duration of run so far (days, hours, min)
+  - Clip length in minutes
+  - save_path space still available (in bytes)
+  - save_path recording time left before full (days,hours,min)
+- Display salient warnings when save drive is getting full
+  read the camera code for warning thresholds and messages it is currently using
+
+Good to know: the system normally operates unattended; operator checks the display only when they want to. Runs are normally ~1 week long; Sound alerts are prohibited (would interfere with experiment).
+
 ## Working rules
 - Stop and ask at scope boundaries: Anything outside gui/, anything that seems to need an install or a tool, and any question about what the viewer should show that the spec does not answer.
 - Commit on this branch as you go with one-line messages. Small frequent commits. 
