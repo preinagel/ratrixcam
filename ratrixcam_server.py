@@ -1,6 +1,5 @@
 # version 250306_1325
 import argparse
-import fcntl
 import multiprocessing
 import os
 import shutil
@@ -19,7 +18,7 @@ from pydantic import BaseModel
 
 from ratrixcam_manifest import ManifestMetadata
 from ratrixcam_naming import camera_name, clip_filename, still_path
-from ratrixcam_utils import Config, ensure_dir_exists, load_settings, stills_dir
+from ratrixcam_utils import Config, ensure_dir_exists, flush_to_device, load_settings, stills_dir
 
 video_codec = cv2.VideoWriter.fourcc(*"mp4v")
 
@@ -38,22 +37,25 @@ TRANSFER_SPACE_FACTOR = 10  # free space required at the destination, as a multi
                             # generous so that the cameras' near-simultaneous transfers all fit or all wait
 
 
-def move_file(temp_file: str, out_file: str, save_root: str) -> bool:
+def move_file(
+    temp_file: str, out_file: str, save_root: str, pause: float | None = None, retry_window: float | None = None
+) -> bool:
     """
     Copy a closed clip from its temporary location to its permanent one, verify the copy by
     size, flush it onto the drive, then remove the temporary file. Runs in its own process. Whatever stops a transfer
     (the save folder, which launch requires to exist, is gone; the destination cannot be created or is
     short of space; the copy fails) is retried silently every TRANSFER_RETRY_DELAY seconds
     for TRANSFER_RETRY_WINDOW seconds; after that the clip is left in temp with one WARNING
-    naming it, and the shutdown cleanup finds such clips by listing temp. Nothing is created
-    unless save_root exists, so a vanished mount point never gets a folder of the same name
-    on the system disk.
+    naming it, and the shutdown cleanup finds such clips by listing temp and re-requests them
+    through this same function with its own pause and retry_window (those clips were closed
+    long ago, and the drive was checked just before). Nothing is created unless save_root
+    exists, so a vanished mount point never gets a folder of the same name on the system disk.
     Returns:
         True if the clip was moved
     """
     xfer_mode="copy" # hardwire until compression fully supported
 
-    time.sleep(TRANSFER_PAUSE)  # pause before first attempt reduces failures
+    time.sleep(TRANSFER_PAUSE if pause is None else pause)  # pause before first attempt reduces failures
     name = os.path.basename(temp_file)
     if not os.path.exists(temp_file):
         print(f"WARNING: the temp file '{temp_file}' was not found!")
@@ -64,7 +66,7 @@ def move_file(temp_file: str, out_file: str, save_root: str) -> bool:
         print(f"WARNING: {name} left in temp; cannot read it ({e.strerror or e})")
         return False
 
-    deadline = time.monotonic() + TRANSFER_RETRY_WINDOW
+    deadline = time.monotonic() + (TRANSFER_RETRY_WINDOW if retry_window is None else retry_window)
     tries = 0
     while True:
         tries += 1
@@ -90,24 +92,6 @@ def move_file(temp_file: str, out_file: str, save_root: str) -> bool:
 
 PARTIAL_SUFFIX = ".part"  # a clip is copied under this suffix and renamed once its size is verified,
                           # so a copy cut short by a vanishing drive never carries a clip's name
-
-
-def _flush_to_device(path: str) -> None:
-    """Push a file's data, or a folder's entries, out of the OS write cache onto the drive, so
-    that a drive pulled right afterwards still holds it. F_FULLFSYNC (macOS) also empties the
-    drive's own cache; where it is unavailable or rejected, a plain fsync is used."""
-    fd = os.open(path, os.O_RDONLY)
-    try:
-        full_sync = getattr(fcntl, "F_FULLFSYNC", None)
-        if full_sync is not None:
-            try:
-                _ = fcntl.fcntl(fd, full_sync)
-                return
-            except OSError:
-                pass
-        os.fsync(fd)
-    finally:
-        os.close(fd)
 
 
 def _transfer_attempt(temp_file: str, out_file: str, save_root: str, size: int, xfer_mode: str) -> str | None:
@@ -137,10 +121,10 @@ def _transfer_attempt(temp_file: str, out_file: str, save_root: str, size: int, 
             copied = os.path.getsize(partial)
             if copied != size:
                 return f"copied {copied} of {size} bytes"
-            _flush_to_device(partial)  # on the drive before it takes the clip's name
+            flush_to_device(partial)  # on the drive before it takes the clip's name
             os.replace(partial, out_file)
             try:
-                _flush_to_device(out_dir)  # the rename itself; best effort
+                flush_to_device(out_dir)  # the rename itself; best effort
             except OSError:
                 pass
         else:

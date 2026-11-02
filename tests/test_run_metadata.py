@@ -19,8 +19,10 @@ from helpers import VIDEOPROC_DIR
 
 REPO = VIDEOPROC_DIR.parent
 sys.path.insert(0, str(REPO))
-from ratrixcam_naming import NOTES_FILENAME, RUN_METADATA_DIRNAME, STILLS_DIRNAME, manifest_warning, manifests_dir  # noqa: E402
+from ratrixcam_manifest import write_row  # noqa: E402
+from ratrixcam_naming import NOTES_FILENAME, RUN_METADATA_DIRNAME, STILLS_DIRNAME, manifest_warning, manifests_dir, temp_manifests_dir  # noqa: E402
 import ratrixcam_run_metadata  # noqa: E402
+import ratrixcam_server  # noqa: E402
 from ratrixcam_run_metadata import RunMetadata  # noqa: E402
 from ratrixcam_utils import Config, not_writable, stills_dir, temp_is_clear  # noqa: E402
 
@@ -138,7 +140,7 @@ def test_collect_at_shutdown_moves_the_run_folder_with_stills_and_loose_files(tm
     empty_cam_dir.mkdir()
     busy_cam_dir = temp / "Test_cam2"
     busy_cam_dir.mkdir()
-    (busy_cam_dir / "cam2_20260102_03-04-05.mp4").write_bytes(b"untransferred video")
+    (busy_cam_dir / "cam2_20260102_03-04-05.mp4").write_bytes(b"not a video, and no manifest row")  # a clip cut off by a kill
 
     run.collect_at_shutdown()
     run.collect_at_shutdown()  # idempotent
@@ -155,8 +157,8 @@ def test_collect_at_shutdown_moves_the_run_folder_with_stills_and_loose_files(tm
     assert not Path(stills_dir(config.temp_path)).exists()  # emptied stills folder removed
     assert not run.log_path.exists()
     assert not empty_cam_dir.exists()
-    assert (busy_cam_dir / "cam2_20260102_03-04-05.mp4").exists()  # never touched
-    assert temp.exists()  # kept because a camera folder still holds a file
+    assert not busy_cam_dir.exists()  # its rowless, unopenable clip was deleted, then the emptied folder
+    assert not temp.exists()
 
 
 def test_collect_at_shutdown_adds_rows_the_cameras_could_not_write(tmp_path, capsys):
@@ -244,21 +246,24 @@ def start_run_with_a_still(tmp_path):
     return run, temp
 
 
-def test_abort_gathers_into_temp_and_moves_nothing(tmp_path, capsys):
+def test_abort_adds_manifest_rows_and_touches_nothing_else(tmp_path, capsys):
     run, temp = start_run_with_a_still(tmp_path)
+    run.log_path.write_text(
+        manifest_warning("subj001_cam1_manifest.csv", "Test_subj001_cam1_20260102/b.mp4", "001", "cam1", "2026-01-02 03:05:05.000", 25) + "\n"
+    )
 
     run.collect_at_shutdown(abort=True)
 
-    assert (run.temp_run_dir / STILLS_DIRNAME / "cam_cam1_status.png").read_bytes() == b"png"
-    assert (run.temp_run_dir / "Screenshot.png").exists()
-    assert not (temp / "Screenshot.png").exists()
-    assert run.log_path.read_text() == "fake terminal log\n"  # stays in temp
+    assert (Path(stills_dir(run.config.temp_path)) / "cam_cam1_status.png").read_bytes() == b"png"  # where the camera left it
+    assert (temp / "Screenshot.png").exists()
+    assert run.log_path.exists()  # stays in temp
+    assert sorted(p.name for p in run.temp_run_dir.iterdir()) == sorted(["manifests", NOTES_FILENAME, Path(run.config_path).name])
+    assert (temp_manifests_dir(run.config.temp_path) / "subj001_cam1_manifest.csv").read_text().count("\n") == 2  # header + the row
     assert sorted(p.name for p in run.run_dir.iterdir()) == [Path(run.config_path).name]  # provisional copy untouched
-    assert temp.is_dir()
     out = capsys.readouterr().out
-    assert "Run aborted without a save drive" in out
-    assert "not moved" not in out  # no move was attempted, so none failed
-    assert "still contains files" not in out  # the metadata folder staying is the point, not a warning
+    assert "Run aborted: nothing is moved to the save drive; everything stays in <temp>" in out
+    assert "Manifest rows added at cleanup: 1" in out
+    assert "WARNING" not in out and "Gathered" not in out
 
 
 def test_metadata_folder_stays_when_the_save_folder_is_gone(tmp_path, capsys):
@@ -273,7 +278,6 @@ def test_metadata_folder_stays_when_the_save_folder_is_gone(tmp_path, capsys):
     out = capsys.readouterr().out
     assert "WARNING: run metadata folder not moved to <save>/ratrixcam_run_metadata/" in out
     assert ": save folder not found; left in <temp>/ratrixcam_run_metadata" in out
-    assert "WARNING: temp folder 'ratrixcam_run_metadata' still contains files" in out
 
 
 def test_metadata_folder_is_not_copied_onto_a_drive_short_of_space(tmp_path, monkeypatch, capsys):
@@ -332,3 +336,232 @@ def test_a_failed_gathering_skips_the_move(tmp_path, monkeypatch, capsys):
     assert "WARNING: run metadata folder not moved because the gathering failed; left in <temp>/" in out
     assert (temp / "Screenshot.png").exists()
     assert run.log_path.exists()
+
+
+# ------------------------------------------------- clips left in temp at shutdown
+
+DAY = "Test_subj001_cam1_20260102"
+CLIP = "subj001_cam1_20260102_03-04-05.mp4"
+
+
+def write_clip(path: Path) -> None:
+    """A real, openable mp4 of a few frames."""
+    import cv2
+    import numpy as np
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    writer = cv2.VideoWriter(str(path), cv2.VideoWriter.fourcc(*"mp4v"), 10, (64, 48))
+    assert writer.isOpened(), "this OpenCV build cannot write mp4v; the fixture would be an empty file"
+    for i in range(5):
+        writer.write(np.full((48, 64, 3), i * 40, dtype=np.uint8))
+    writer.release()
+
+
+def start_run_with_a_stranded_clip(tmp_path, with_row=True, openable=True):
+    """A started run whose camera folder in temp holds one clip the camera did not transfer,
+    with its manifest row unless with_row=False."""
+    run, temp = start_run_with_a_still(tmp_path)
+    clip = temp / "Test_subj001_cam1" / CLIP
+    if openable:
+        write_clip(clip)
+    else:
+        clip.parent.mkdir()
+        clip.write_bytes(b"cut off by a kill: no index")
+    if with_row:
+        write_row(str(temp_manifests_dir(run.config.temp_path) / "subj001_cam1_manifest.csv"), f"{DAY}/{CLIP}", "001", "cam1", "2026-01-02 03:04:05.000", 25)
+    return run, temp, clip
+
+
+@pytest.fixture
+def no_transfer_waiting(monkeypatch):
+    """A re-request that fails gives up at once."""
+    monkeypatch.setattr(ratrixcam_server, "TRANSFER_RETRY_DELAY", 0)
+    monkeypatch.setattr(ratrixcam_run_metadata, "RE_REQUEST_RETRY_WINDOW", 0)
+
+
+def test_a_stranded_clip_with_a_manifest_row_is_transferred_at_cleanup(tmp_path, capsys):
+    run, temp, clip = start_run_with_a_stranded_clip(tmp_path)
+
+    run.collect_at_shutdown()
+
+    assert (Path(run.config.save_path) / DAY / CLIP).stat().st_size > 0
+    assert not temp.exists()  # the clip left, its folder was emptied and removed, so was temp
+    out = capsys.readouterr().out
+    assert f"Re-requesting the transfer of {CLIP}\n{CLIP} transferred\n" in out
+    assert "Clips found in temp: 1; 1 transferred, 0 not transferred (they travel with their folder into the run metadata folder); without a manifest row: 0 deleted, 0 kept" in out
+    assert "WARNING" not in out
+
+
+def test_a_rowless_clip_that_opens_is_kept_and_travels_with_its_folder(tmp_path, capsys):
+    run, temp, clip = start_run_with_a_stranded_clip(tmp_path, with_row=False)
+
+    run.collect_at_shutdown()
+
+    assert (run.run_dir / "Test_subj001_cam1" / CLIP).exists()  # inside the metadata folder on the drive
+    assert not (Path(run.config.save_path) / DAY).exists()
+    assert not temp.exists()
+    out = capsys.readouterr().out
+    assert f"WARNING: {CLIP} has no manifest row but opens as video; kept" in out
+    assert "WARNING: folder Test_subj001_cam1 with 1 file(s) moved into the run metadata folder" in out
+    assert "without a manifest row: 0 deleted, 1 kept" in out
+
+
+def test_a_rowless_clip_that_does_not_open_is_deleted(tmp_path, capsys):
+    run, temp, clip = start_run_with_a_stranded_clip(tmp_path, with_row=False, openable=False)
+
+    run.collect_at_shutdown()
+
+    assert not clip.exists()
+    assert not temp.exists()
+    out = capsys.readouterr().out
+    assert f"WARNING: {CLIP} has no manifest row and cannot be opened as video; deleted" in out
+    assert "without a manifest row: 1 deleted, 0 kept" in out
+
+
+def test_a_clip_whose_re_request_fails_travels_with_its_folder(tmp_path, no_transfer_waiting, capsys):
+    run, temp, clip = start_run_with_a_stranded_clip(tmp_path)
+    (Path(run.config.save_path) / DAY).write_bytes(b"")  # a file where the day folder should be
+
+    run.collect_at_shutdown()
+
+    assert (run.run_dir / "Test_subj001_cam1" / CLIP).exists()
+    assert not temp.exists()
+    out = capsys.readouterr().out
+    assert f"Re-requesting the transfer of {CLIP}\nWARNING: {CLIP} left in temp; gave up after 1 try (destination unavailable: " in out
+    assert "Clips found in temp: 1; 0 transferred, 1 not transferred" in out
+    assert "WARNING: folder Test_subj001_cam1 with 1 file(s) moved into the run metadata folder" in out
+
+
+def test_re_requests_are_skipped_as_a_whole_when_the_save_folder_is_gone(tmp_path, capsys):
+    run, temp, clip = start_run_with_a_stranded_clip(tmp_path)
+    shutil.rmtree(run.config.save_path)
+
+    run.collect_at_shutdown()  # with the full 15-second window: the test is quick only if no re-request runs
+
+    assert (run.temp_run_dir / "Test_subj001_cam1" / CLIP).exists()
+    out = capsys.readouterr().out
+    assert "WARNING: 1 clip(s) not re-requested: save folder not found" in out
+    assert "Re-requesting" not in out
+
+
+def test_re_requests_stop_when_the_drive_runs_short_of_space_mid_pass(tmp_path, monkeypatch, capsys):
+    """Two stranded clips; the drive has room for the first re-request only. Checked before each
+    clip, so the second costs no retry window."""
+    run, temp, clip = start_run_with_a_stranded_clip(tmp_path)
+    second = clip.parent / "subj001_cam1_20260102_03-05-05.mp4"
+    write_clip(second)
+    write_row(str(temp_manifests_dir(run.config.temp_path) / "subj001_cam1_manifest.csv"), f"{DAY}/{second.name}", "001", "cam1", "2026-01-02 03:05:05.000", 25)
+    Usage = namedtuple("Usage", "total used free")
+    real_usage = shutil.disk_usage
+    calls: list[int] = []
+
+    def usage(path):
+        calls.append(1)
+        return real_usage(path) if len(calls) <= 2 else Usage(10**9, 10**9 - 10, 10)  # the cleanup's check, then the transfer's; then full
+
+    monkeypatch.setattr(shutil, "disk_usage", usage)
+
+    run.collect_at_shutdown()  # with the full 15-second window: quick only if the second clip is never re-requested
+
+    out = capsys.readouterr().out
+    assert f"{CLIP} transferred" in out
+    assert "WARNING: 1 clip(s) not re-requested: destination short of space" in out
+    assert f"Re-requesting the transfer of {second.name}" not in out
+    assert "Clips found in temp: 2; 1 transferred, 1 not transferred" in out
+
+
+def test_the_metadata_folder_move_flushes_every_file_and_folder(tmp_path, monkeypatch):
+    run, temp = start_run_with_a_still(tmp_path)
+    flushed: list[str] = []
+    monkeypatch.setattr(ratrixcam_run_metadata, "flush_to_device", lambda p: flushed.append(p))
+
+    run.collect_at_shutdown()
+
+    files = {str(p) for p in run.run_dir.rglob("*") if p.is_file() and p.name != run.log_path.name}  # the log is moved after
+    folders = {str(p) for p in run.run_dir.rglob("*") if p.is_dir()} | {str(run.run_dir)}
+    assert set(flushed) == files | folders
+    assert not run.temp_run_dir.exists()
+
+
+def test_a_metadata_folder_that_cannot_be_flushed_stays_in_temp(tmp_path, monkeypatch, capsys):
+    run, temp = start_run_with_a_still(tmp_path)
+
+    def cannot(_p):
+        raise OSError(5, "Input/output error")
+
+    monkeypatch.setattr(ratrixcam_run_metadata, "flush_to_device", cannot)
+
+    run.collect_at_shutdown()
+
+    assert (run.temp_run_dir / STILLS_DIRNAME / "cam_cam1_status.png").exists()
+    assert run.log_path.exists()
+    assert ": copy failed: Input/output error; left in <temp>/" in capsys.readouterr().out
+
+
+def test_nothing_is_deleted_when_a_manifest_cannot_be_read(tmp_path, capsys):
+    run, temp, clip = start_run_with_a_stranded_clip(tmp_path, with_row=False, openable=False)
+    temp_manifests_dir(run.config.temp_path).mkdir()
+    (temp_manifests_dir(run.config.temp_path) / "subj001_cam1_manifest.csv").write_text("not,a,manifest\n1,2,3\n")  # no 'path' column
+
+    run.collect_at_shutdown()
+
+    assert (run.run_dir / "Test_subj001_cam1" / CLIP).exists()  # kept, travelled with its folder
+    out = capsys.readouterr().out
+    assert "WARNING: could not read <temp>/ratrixcam_run_metadata/manifests/subj001_cam1_manifest.csv" in out
+    assert f"WARNING: {CLIP} has no manifest row and cannot be opened as video; kept because a manifest could not be read" in out
+    assert "deleted" not in out.replace("0 deleted", "")
+
+
+def test_a_stale_partial_copy_on_the_drive_is_overwritten_by_the_re_request(tmp_path):
+    run, temp, clip = start_run_with_a_stranded_clip(tmp_path)
+    day = Path(run.config.save_path) / DAY
+    day.mkdir()
+    (day / (CLIP + ".part")).write_bytes(b"cut short earlier")
+
+    run.collect_at_shutdown()
+
+    assert sorted(p.name for p in day.iterdir()) == [CLIP]
+    assert (day / CLIP).stat().st_size > 100
+
+
+def test_a_complete_partial_copy_with_no_temp_copy_is_renamed(tmp_path, monkeypatch, capsys):
+    """The drive was pulled after the data flush and before the rename: the .part is the clip."""
+    run, temp, clip = start_run_with_a_stranded_clip(tmp_path)
+    day = Path(run.config.save_path) / DAY
+    day.mkdir()
+    shutil.move(str(clip), str(day / (CLIP + ".part")))  # moves it out of temp as well
+    flushed: list[str] = []
+    monkeypatch.setattr(ratrixcam_run_metadata, "flush_to_device", lambda p: flushed.append(p))
+
+    run.collect_at_shutdown()
+
+    assert sorted(p.name for p in day.iterdir()) == [CLIP]
+    assert flushed[0] == str(day)  # the rename pushed onto the drive, as the transfer does; the metadata move flushes after
+    assert not temp.exists()
+    assert f"{CLIP} transferred (its complete partial copy on the drive was renamed)" in capsys.readouterr().out
+
+
+def test_an_unopenable_partial_copy_with_no_temp_copy_is_left_alone(tmp_path, capsys):
+    run, temp, clip = start_run_with_a_stranded_clip(tmp_path)
+    clip.unlink()
+    day = Path(run.config.save_path) / DAY
+    day.mkdir()
+    (day / (CLIP + ".part")).write_bytes(b"truncated")
+
+    run.collect_at_shutdown()
+
+    assert sorted(p.name for p in day.iterdir()) == [CLIP + ".part"]
+    assert f"WARNING: <save>/{DAY}/{CLIP}.part is a partial copy that cannot be opened as video; left in place" in capsys.readouterr().out
+
+
+def test_abort_neither_transfers_nor_deletes_stranded_clips(tmp_path, capsys):
+    run, temp, clip = start_run_with_a_stranded_clip(tmp_path, with_row=False, openable=False)
+    write_clip(clip.parent / "second.mp4")
+    write_row(str(temp_manifests_dir(run.config.temp_path) / "subj001_cam1_manifest.csv"), f"{DAY}/second.mp4", "001", "cam1", "2026-01-02 03:05:05.000", 25)
+
+    run.collect_at_shutdown(abort=True)
+
+    assert sorted(p.name for p in clip.parent.iterdir()) == ["second.mp4", CLIP]  # both still where the camera wrote them
+    assert not (Path(run.config.save_path) / DAY).exists()
+    out = capsys.readouterr().out
+    assert "Re-requesting" not in out and "deleted" not in out and "moved into" not in out

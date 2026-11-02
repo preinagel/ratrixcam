@@ -211,7 +211,7 @@ def test_copy_is_flushed_to_the_device_before_and_after_the_rename(clip: Clip, m
     folder entry after, so a drive pulled right after the transfer still holds the clip."""
     events: list[str] = []
     real_replace = os.replace
-    monkeypatch.setattr(server, "_flush_to_device", lambda p: events.append(f"flush {os.path.basename(p)}"))
+    monkeypatch.setattr(server, "flush_to_device", lambda p: events.append(f"flush {os.path.basename(p)}"))
     monkeypatch.setattr(os, "replace", lambda a, b: (events.append("rename"), real_replace(a, b)))
     assert server.move_file(*clip) is True
     assert events == ["flush c.mp4.part", "rename", "flush day"]
@@ -224,7 +224,7 @@ def test_flush_falls_back_to_fsync_where_full_sync_is_rejected(clip: Clip, monke
     synced: list[int] = []
     monkeypatch.setattr(fcntl, "fcntl", reject)
     monkeypatch.setattr(os, "fsync", lambda fd: synced.append(fd))
-    server._flush_to_device(clip.temp_file)
+    server.flush_to_device(clip.temp_file)
     assert len(synced) == 1
 
 
@@ -232,7 +232,7 @@ def test_a_copy_that_cannot_be_flushed_is_a_failed_attempt(clip: Clip, monkeypat
     def cannot(_p: str):
         raise OSError(5, "Input/output error")
 
-    monkeypatch.setattr(server, "_flush_to_device", cannot)
+    monkeypatch.setattr(server, "flush_to_device", cannot)
     assert server.move_file(*clip) is False
     assert os.listdir(os.path.dirname(clip.out_file)) == []  # neither the clip nor its .part
     assert gave_up(capsys.readouterr().out) == [(1, "copy failed: Input/output error")]

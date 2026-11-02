@@ -1,3 +1,4 @@
+import fcntl
 import os
 import shutil
 from typing import Literal
@@ -99,6 +100,25 @@ def not_writable(folder: str) -> str | None:
     except OSError as e:
         print(f"WARNING: could not remove the write-test file {probe}: {e.strerror or e}")
     return None
+
+
+def flush_to_device(path: str) -> None:
+    """Push a file's data, or a folder's entries, out of the OS write cache onto the drive, so
+    that a drive pulled right afterwards still holds it. F_FULLFSYNC (macOS) also empties the
+    drive's own cache; where it is unavailable or rejected, a plain fsync is used. Used by the
+    clip transfer and by the shutdown cleanup."""
+    fd = os.open(path, os.O_RDONLY)
+    try:
+        full_sync = getattr(fcntl, "F_FULLFSYNC", None)
+        if full_sync is not None:
+            try:
+                _ = fcntl.fcntl(fd, full_sync)
+                return
+            except OSError:
+                pass
+        os.fsync(fd)
+    finally:
+        os.close(fd)
 
 
 def stills_dir(temp_path: str) -> str:

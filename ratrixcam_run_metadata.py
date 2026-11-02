@@ -4,6 +4,7 @@ into one folder on the output drive. Nothing here touches camera capture or proc
 ratrixcam_IO.py calls into it at launch, at Start Recording, and after the cameras have stopped.
 """
 
+import csv
 import io
 import os
 import platform
@@ -17,10 +18,12 @@ from pathlib import Path
 
 from ratrixcam_manifest import write_row
 from ratrixcam_naming import (
+    MANIFEST_SUFFIX,
     NOTES_FILENAME,
     NOTES_TEMPLATE,
     RUN_METADATA_DIRNAME,
     STILLS_DIRNAME,
+    VIDEO_EXT,
     code_version,
     parse_manifest_warning,
     run_id,
@@ -30,10 +33,13 @@ from ratrixcam_naming import (
     temp_run_metadata_dir,
     terminal_log_filename,
 )
-from ratrixcam_utils import Config, ensure_dir_exists, stills_dir
+from ratrixcam_utils import Config, ensure_dir_exists, flush_to_device, stills_dir
 
 LOG_START_ATTEMPTS = 3
 LOG_START_RETRY_DELAY = 0.5  # seconds
+RE_REQUEST_RETRY_WINDOW = 15  # seconds a re-requested transfer keeps retrying at cleanup: long enough for a
+                              # glitch, not for a drive swap. PENDING: the stop-time drive check planned for
+                              # the next stage will run before the cleanup; until then nothing does
 
 
 def computer_identity() -> str:
@@ -165,40 +171,37 @@ class RunMetadata:
     def collect_at_shutdown(self, abort: bool = False) -> None:
         """After the cameras have stopped: add to the per-camera manifests every row the
         cameras reported they could not write (read back from this run's terminal log);
-        gather the status stills and every loose file in temp (screenshots, anything the
-        user dropped there) into the run's metadata folder; remove per-camera temp folders
-        that are empty; move the metadata folder whole to the save drive under the run id,
-        replacing the provisional copy made at the start; and report. The terminal log is
-        closed and moved into it last, so the report itself is in it. Folders that still
-        hold files -- untransferred videos -- are left alone and reported; otherwise the
-        temp folder is removed entirely.
+        re-request the transfer of every clip still in temp that has a manifest row, and
+        delete those without one that are not video (_settle_stranded_clips); gather the
+        status stills, every loose file in temp (screenshots, anything the user dropped
+        there) and every folder that still holds files into the run's metadata folder;
+        remove the folders that are empty; move the metadata folder whole to the save drive
+        under the run id, replacing the provisional copy made at the start; and report. The
+        terminal log is closed and moved into it last, so the report itself is in it. Once
+        everything has moved the temp folder is removed entirely.
 
         The metadata folder is moved only if the gathering completed and the save drive is
         present with room for the whole folder; otherwise it stays in temp with one WARNING
-        saying why. With abort=True (the run ends without a usable save drive) the gathering
-        happens as above but nothing is moved: the metadata folder, the terminal log and the
-        temp folder all stay, and the next launch refuses to start until temp is renamed."""
+        saying why. With abort=True (the user chose Abort) only the manifest rows are added:
+        nothing is transferred, gathered or moved, temp stays exactly as the cameras left it
+        plus the closed terminal log, and the next launch refuses to start until temp is
+        renamed. A later cleanup tool takes it from there and must not add the rows again."""
         if self._collected:
             return
         self._collected = True
-        if abort:
-            print(f"Run aborted without a save drive: the run metadata stays in {self.short(self.temp_run_dir)}")
-        else:
-            print(f"Collecting the run metadata as {RUN_METADATA_DIRNAME}/{self.run_id}")
         temp = Path(self.config.temp_path)
-        self._add_unwritten_manifest_rows()
-        kept, complete = self._gather_into_run_folder()
         moved = False
         if abort:
-            pass
-        elif not complete:
-            print(f"WARNING: run metadata folder not moved because the gathering failed; left in {self.short(self.temp_run_dir)}")
+            print(f"Run aborted: nothing is moved to the save drive; everything stays in {self.short(temp)}")
+            self._add_unwritten_manifest_rows()
         else:
-            moved = self._move_run_folder_to_save()
-        if not moved and not abort and self.temp_run_dir.is_dir():
-            kept.append(self.temp_run_dir.name)  # on abort the opening line already said it stays
-        for name in kept:
-            print(f"WARNING: temp folder '{name}' still contains files (untransferred videos?); left in place")
+            print(f"Collecting the run metadata as {RUN_METADATA_DIRNAME}/{self.run_id}")
+            self._add_unwritten_manifest_rows()
+            self._settle_stranded_clips()
+            if self._gather_into_run_folder():
+                moved = self._move_run_folder_to_save()
+            else:
+                print(f"WARNING: run metadata folder not moved because the gathering failed; left in {self.short(self.temp_run_dir)}")
         if self.terminal_log is not None:
             if moved:
                 print(f"Closing the terminal log and saving it as {RUN_METADATA_DIRNAME}/{self.run_id}/{self.log_path.name}")
@@ -213,12 +216,143 @@ class RunMetadata:
         if moved and temp.is_dir() and _remove_if_empty(temp):
             print("Temp folder removed")
 
-    def _gather_into_run_folder(self) -> tuple[list[str], bool]:
-        """Move the status stills and every loose top-level temp file into the metadata folder
-        and remove the per-camera temp folders that are empty. Returns the names of the
-        folders that still hold files, and whether the gathering completed; a failure is
-        reported here with the OS message and leaves what was already gathered in place."""
-        kept: list[str] = []
+    def _settle_stranded_clips(self) -> None:
+        """Every .mp4 one level below temp, in the per-camera folders, is a clip the cameras did
+        not transfer. Three passes, each described on its own method: the clips with a
+        manifest row are re-requested, those without one are deleted or kept, and complete
+        partial copies on the drive are renamed. A failure to list temp is reported and the
+        shutdown goes on to the terminal log.
+
+        KNOWN, PENDING (design document item 6): on the 600-second kill path a camera's own
+        transfer process may still be alive and copying the same clip while this runs. On a
+        normal stop there is no overlap: a camera waits for its transfers before exiting."""
+        try:
+            rows, all_read = self._manifest_rows()
+            temp = Path(self.config.temp_path)
+            skip = (self.temp_run_dir, Path(stills_dir(self.config.temp_path)))
+            clips = sorted(
+                clip for folder in temp.iterdir() if folder.is_dir() and folder not in skip for clip in folder.glob(f"*{VIDEO_EXT}")
+            )
+            listed = [clip for clip in clips if clip.name in rows]
+            transferred = self._re_request(listed, rows)
+            deleted, kept = self._triage_unlisted([clip for clip in clips if clip.name not in rows], all_read)
+            print(
+                f"Clips found in temp: {len(clips)}; {transferred} transferred, {len(listed) - transferred} not transferred "
+                f"(they travel with their folder into the run metadata folder); without a manifest row: {deleted} deleted, {kept} kept"
+            )
+            self._rename_complete_partial_copies(rows, {clip.name for clip in clips})
+        except OSError as e:
+            print(f"WARNING: could not go through the clips left in temp: {_error_text(e)}")
+
+    def _re_request(self, listed: list[Path], rows: dict[str, str]) -> int:
+        """Re-request the transfer of each listed clip, one at a time, through the same function
+        the cameras use, to the destination its manifest row names; a stray partial copy there
+        is overwritten. Before each one, the two checks that function makes first (save folder
+        present, free space at least TRANSFER_SPACE_FACTOR times the clip) are made here: when
+        one fails the rest are not re-requested, with one line saying why, so a drive that
+        vanishes or fills during the pass does not cost a retry window per clip. Returns how
+        many arrived; the ones that did not were reported by the transfer function."""
+        if not listed:
+            return 0
+        from ratrixcam_server import TRANSFER_SPACE_FACTOR, move_file  # cv2-heavy module; imported where used
+
+        transferred = 0
+        for i, clip in enumerate(listed):
+            reason = None
+            if not os.path.isdir(self.config.save_path):
+                reason = "save folder not found"
+            else:
+                try:
+                    if shutil.disk_usage(self.config.save_path).free < clip.stat().st_size * TRANSFER_SPACE_FACTOR:
+                        reason = "destination short of space"
+                except OSError as e:
+                    reason = f"destination unavailable: {e.strerror or e}"
+            if reason is not None:
+                print(f"WARNING: {len(listed) - i} clip(s) not re-requested: {reason}")
+                break
+            print(f"Re-requesting the transfer of {clip.name}")
+            if move_file(
+                str(clip), os.path.join(self.config.save_path, rows[clip.name]), self.config.save_path, pause=0, retry_window=RE_REQUEST_RETRY_WINDOW
+            ):
+                transferred += 1
+                print(f"{clip.name} transferred")
+        return transferred
+
+    def _triage_unlisted(self, unlisted: list[Path], all_read: bool) -> tuple[int, int]:
+        """A clip with no manifest row was never closed by its camera (a kill) or is a stranger:
+        if it cannot be opened as video it is reported and deleted; if it can, it is kept, so
+        that it reaches the metadata folder with its folder and is seen. Nothing is deleted
+        when a manifest could not be read (all_read False): that camera's clips would all look
+        unlisted. Returns (deleted, kept)."""
+        deleted = kept = 0
+        for clip in unlisted:
+            if _opens_as_video(clip):
+                kept += 1
+                print(f"WARNING: {clip.name} has no manifest row but opens as video; kept")
+            elif not all_read:
+                kept += 1
+                print(f"WARNING: {clip.name} has no manifest row and cannot be opened as video; kept because a manifest could not be read")
+            else:
+                try:
+                    clip.unlink()
+                    deleted += 1
+                    print(f"WARNING: {clip.name} has no manifest row and cannot be opened as video; deleted")
+                except OSError as e:
+                    kept += 1
+                    print(f"WARNING: {clip.name} has no manifest row and cannot be opened as video; could not be deleted ({e.strerror or e})")
+        return deleted, kept
+
+    def _rename_complete_partial_copies(self, rows: dict[str, str], in_temp: set[str]) -> None:
+        """A listed clip that is neither on the drive nor in temp but has a partial copy on the
+        drive may be that copy and nothing else: the drive was pulled between the data flush
+        and the rename. It takes the clip's name if it opens as video (the manifest carries no
+        size, so that is the completeness test) and the rename is flushed to the drive;
+        otherwise it is reported and left alone. Nothing on the drive is deleted."""
+        if not os.path.isdir(self.config.save_path):
+            return
+        from ratrixcam_server import PARTIAL_SUFFIX  # cv2-heavy module; imported where used
+
+        for name, rel in rows.items():
+            out = os.path.join(self.config.save_path, rel)
+            partial = out + PARTIAL_SUFFIX
+            if name in in_temp or os.path.exists(out) or not os.path.exists(partial):
+                continue
+            if not _opens_as_video(Path(partial)):
+                print(f"WARNING: {self.short(partial)} is a partial copy that cannot be opened as video; left in place")
+                continue
+            try:
+                os.replace(partial, out)
+            except OSError as e:
+                print(f"WARNING: {self.short(partial)} is a complete partial copy that could not be renamed ({e.strerror or e}); left in place")
+                continue
+            try:
+                flush_to_device(os.path.dirname(out))  # the rename itself; best effort
+            except OSError:
+                pass
+            print(f"{name} transferred (its complete partial copy on the drive was renamed)")
+
+    def _manifest_rows(self) -> tuple[dict[str, str], bool]:
+        """Clip filename -> its path relative to the save drive, from every manifest of this
+        run, and whether every manifest could be read."""
+        rows: dict[str, str] = {}
+        all_read = True
+        folder = temp_manifests_dir(self.config.temp_path)
+        for manifest in sorted(folder.glob(f"*{MANIFEST_SUFFIX}")) if folder.is_dir() else []:
+            try:
+                with open(manifest, newline="") as f:
+                    for row in csv.DictReader(f):
+                        rows[os.path.basename(row["path"])] = row["path"]
+            except (OSError, KeyError) as e:
+                all_read = False
+                print(f"WARNING: could not read {self.short(manifest)}: {e}")
+        return rows, all_read
+
+    def _gather_into_run_folder(self) -> bool:
+        """Move the status stills, every loose top-level temp file and every non-empty folder
+        (a per-camera folder with clips that could not be transferred, or anything the user
+        left) into the metadata folder, and remove the folders that are empty. Returns whether
+        the gathering completed; a failure is reported here with the OS message and leaves
+        what was already gathered in place."""
         gathered = 0
         try:
             self.temp_run_dir.mkdir(parents=True, exist_ok=True)
@@ -239,12 +373,25 @@ class RunMetadata:
                         shutil.move(str(entry), str(self.temp_run_dir / entry.name))
                         gathered += 1
                 elif entry.is_dir() and not _remove_if_empty(entry):
-                    kept.append(entry.name)
+                    # BY DESIGN (design document item 4): a camera folder still holding clips
+                    # travels into the metadata folder and from there onto the drive, where
+                    # videoproc does not look for clips; the WARNING is their only trace. The
+                    # room check before the move is one times the folder's size; the stop-time
+                    # check planned for the next stage demands room for all of temp plus a
+                    # margin before the cleanup starts.
+                    count = sum(1 for f in entry.rglob("*") if f.is_file())
+                    target = self.temp_run_dir / entry.name
+                    n = 1
+                    while target.exists():  # a name the metadata folder already uses
+                        n += 1
+                        target = self.temp_run_dir / f"{entry.name}_from_temp{n if n > 2 else ''}"
+                    shutil.move(str(entry), str(target))
+                    print(f"WARNING: folder {entry.name} with {count} file(s) moved into the run metadata folder")
         except OSError as e:
             print(f"WARNING: gathering stills and loose temp files into the run metadata folder failed after {gathered} file(s): {_error_text(e)}")
-            return kept, False
+            return False
         print(f"Gathered into the run metadata folder: {gathered} file(s) (stills and loose temp files)")
-        return kept, True
+        return True
 
     def _move_run_folder_to_save(self) -> bool:
         """Move the metadata folder to the save drive if the drive is present with room for all
@@ -302,6 +449,18 @@ class RunMetadata:
         print(f"Manifest rows added at cleanup: {added}" + (f" ({failed} could not be added)" if failed else ""))
 
 
+def _opens_as_video(path: Path) -> bool:
+    """Whether OpenCV can open the file and read a frame from it. A clip whose writer was
+    never released (a camera killed mid-clip) has no index and fails here."""
+    import cv2  # heavy; imported where used
+
+    capture = cv2.VideoCapture(str(path))
+    try:
+        return capture.isOpened() and capture.read()[0]
+    finally:
+        capture.release()
+
+
 def _error_text(e: OSError) -> str:
     """The message of an OS error without paths or error numbers. shutil.Error, raised by
     copytree, carries a list of (source, destination, why) tuples, one per file that failed,
@@ -317,14 +476,22 @@ def _error_text(e: OSError) -> str:
 
 def _move_tree(src: Path, dst: Path) -> bool:
     """Copy a folder tree onto dst (files already there are replaced), verify that every file
-    arrived with its size, and only then remove the source. False, with the source kept, if
-    anything is missing or differs in size after the copy."""
+    arrived with its size, flush every copied file and folder onto the drive, and only then
+    remove the source. False, with the source kept, if anything is missing or differs in size
+    after the copy. The flush matters because the tree may carry clips whose transfers failed
+    and which exist nowhere else: a drive pulled right after the move must still hold them."""
     shutil.copytree(src, dst, dirs_exist_ok=True)
+    copied: list[Path] = []
     for f in src.rglob("*"):
         if f.is_file():
             target = dst / f.relative_to(src)
             if not target.is_file() or target.stat().st_size != f.stat().st_size:
                 return False
+            copied.append(target)
+    for target in copied:
+        flush_to_device(str(target))
+    for folder in {target.parent for target in copied} | {dst}:
+        flush_to_device(str(folder))
     shutil.rmtree(src)
     return True
 
