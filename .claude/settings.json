@@ -1,0 +1,46 @@
+{
+  "permissions": {
+    "defaultMode": "acceptEdits",
+    "deny": [
+      "Edit(/ratrixcam_*.py)",
+      "Edit(/custom_filename_parser_example.py)",
+      "Edit(/config.json)",
+      "Edit(/videoproc/**)",
+      "Edit(/tests/**)",
+      "Edit(/docs/**)",
+      "Edit(/.github/**)",
+      "Edit(/.claude/**)",
+      "Edit(/.gitattributes)",
+      "Edit(/.gitignore)",
+      "Edit(/pyrightconfig.json)",
+      "Edit(/requirements-dev.txt)",
+      "Edit(/README.txt)",
+      "Edit(/readme.md)",
+      "Edit(/blanks/**)",
+      "Read(//Volumes/rlab2/**)",
+      "Read(//Users/rat_hub_01/Desktop/ratrixcam/**)",
+      "Read(//Users/rat_hub_01/Desktop/ratrixcam-legacy/**)",
+      "Bash(git push *)",
+      "Bash(git worktree *)",
+      "Bash(git remote *)",
+      "Bash(rm *)",
+      "Bash(sudo *)",
+      "Bash(pip install *)",
+      "Bash(pip3 install *)",
+      "Bash(npm install *)",
+      "Bash(npm i *)",
+      "Bash(brew *)"
+    ]
+  },
+  "sandbox": {
+    "enabled": true,
+    "failIfUnavailable": true,
+    "autoAllowBashIfSandboxed": true,
+    "filesystem": {
+      "denyRead": ["/Volumes/rlab2", "~/.ssh", "~/.aws"]
+    },
+    "network": {
+      "allowedDomains": []
+    }
+  }
+}
