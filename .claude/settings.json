@@ -43,6 +43,7 @@
   "sandbox": {
     "enabled": true,
     "failIfUnavailable": true,
+    "allowUnsandboxedCommands": false,
     "autoAllowBashIfSandboxed": true,
     "filesystem": {
       "denyRead": ["/Volumes/rlab2", "~/.ssh", "~/.aws"]
