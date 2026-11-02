@@ -47,6 +47,7 @@ Success definition GUI should
 Good to know: the system normally operates unattended; operator checks the display only when they want to. Runs are normally ~1 week long; Sound alerts are prohibited (would interfere with experiment).
 
 ## Working rules
+- On every start, read `gui/NOTES.md` first: it holds your current state and plan. Keep it updated as you go.
 - Stop and ask at scope boundaries: Anything outside gui/, anything that seems to need an install or a tool, and any question about what the viewer should show that the spec does not answer.
 - Commit on this branch as you go with one-line messages. Small frequent commits. 
 - Never push; never touch other branches or worktrees.
