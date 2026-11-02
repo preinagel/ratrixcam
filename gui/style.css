@@ -1,0 +1,169 @@
+:root {
+  --bg: #1e2228;
+  --panel: #2a3038;
+  --text: #e8eaed;
+  --muted: #9aa3ad;
+  --line: #3a414b;
+  --accent: #6fb1ff;
+  --ok: #4caf50;
+  --warn: #e69500;
+  --alarm: #d32f2f;
+  --tile-w: 320px;      /* set by viewer.js to fit the window */
+  --tile-gap: 12px;
+  --block-gap: 36px;    /* space between the A-D block and the E-H block */
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-size: 15px;
+}
+
+body { display: flex; flex-direction: column; }
+
+/* ---------- header: run accounting ---------- */
+
+#header {
+  display: flex;
+  gap: 32px;
+  align-items: flex-start;
+  padding: 10px 16px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  flex: 0 0 auto;
+}
+
+.hgroup { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.hgroup.right { margin-left: auto; text-align: right; align-items: flex-end; }
+
+.big { font-size: 22px; font-weight: 600; }
+.muted { color: var(--muted); font-size: 13px; }
+
+.kv { display: flex; gap: 8px; white-space: nowrap; }
+.kv .k { color: var(--muted); min-width: 150px; }
+.kv .v { font-variant-numeric: tabular-nums; }
+.kv .v.placeholder { color: var(--muted); font-style: italic; }
+
+.bar {
+  width: 240px; height: 8px; margin-top: 4px;
+  background: var(--line); border-radius: 4px; overflow: hidden;
+}
+.bar-fill { height: 100%; width: 0; background: var(--accent); transition: width 0.5s; }
+.bar-fill.warn { background: var(--warn); }
+.bar-fill.alarm { background: var(--alarm); }
+
+#layout-btn {
+  margin-top: 4px;
+  background: var(--bg); color: var(--text);
+  border: 1px solid var(--line); border-radius: 4px;
+  padding: 3px 10px; font-size: 13px; cursor: pointer;
+}
+#layout-btn:hover { border-color: var(--accent); }
+
+/* ---------- banners: warnings ---------- */
+
+#banners { flex: 0 0 auto; }
+
+.banner {
+  padding: 12px 16px;
+  font-size: 20px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--line);
+  white-space: pre-line;
+}
+.banner.alarm { background: var(--alarm); color: #fff; }
+.banner.warn { background: var(--warn); color: #000; }
+.banner.info { background: #2f4a6b; color: #fff; font-size: 16px; font-weight: 500; }
+.banner.muted { background: var(--panel); color: var(--muted); font-size: 13px; font-weight: 400; padding: 6px 16px; }
+
+/* ---------- camera grid ---------- */
+
+#grid-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  overflow: hidden;
+}
+
+#grid {
+  display: grid;
+  gap: var(--tile-gap);
+  justify-content: center;
+  align-content: center;
+}
+
+.tile {
+  width: var(--tile-w);
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.tile .title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 10px;
+  font-size: 17px;
+  font-weight: 600;
+}
+.tile .title .view { font-weight: 400; color: var(--text); }
+.tile .title .pos {
+  margin-left: auto;
+  font-size: 12px; font-weight: 400; color: var(--muted);
+}
+
+.tile .still {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  background: #000;
+}
+.tile .still img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.tile .overlay {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  padding: 6px 10px;
+  background: rgba(211, 47, 47, 0.85);
+  color: #fff;
+  font-weight: 600;
+  display: none;
+}
+.tile.offline .overlay { display: block; }
+.tile.offline .title { color: var(--alarm); }
+.tile.waiting .overlay { display: block; background: rgba(0, 0, 0, 0.6); font-weight: 400; color: var(--muted); }
+
+.tile .clips {
+  padding: 3px 10px;
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- footer ---------- */
+
+#footer {
+  flex: 0 0 auto;
+  padding: 4px 16px;
+  font-size: 12px;
+  color: var(--muted);
+  border-top: 1px solid var(--line);
+  white-space: pre-line;
+}

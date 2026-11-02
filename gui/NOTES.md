@@ -43,22 +43,26 @@ Updated 2026-11-02. Working notes for the viewer session; not user documentation
    the last row was written. Polled every 15 s. Manifests parsed tolerating CRLF and LF.
 8. Not displayed: terminal log, notes.txt (per the user).
 
+- `gui/index.html`, `gui/style.css`, `gui/viewer.js`: the page. Header with accounting,
+  banner strip for warnings, camera grid, footer with paths. Written, served, NOT yet seen in
+  a browser (no node or browser inside the sandbox; the user tests in Safari).
+- `gui/STATUS_FILE_WISHLIST.md`: schema of `<temp>/ratrixcam_status.json`.
+- `gui/README.md`: how to start.
+- `gui/sample_data/ratrixcam_status_almost_full.json`: fake status file; open the page with
+  `?status=/sample_data/ratrixcam_status_almost_full.json` to see the accounting and the
+  orange warning. (The sample temp folder has no status file, so without it placeholders show.)
+
+Testing note: the sample stills are static, so every camera shows OFFLINE within 10 s of
+opening. `touch sample_data/temp/status/*.png` in another terminal brings them back online
+(mtimes are not tracked by git).
+
 ## Next
 
-1. `gui/index.html`, `gui/style.css`, `gui/viewer.js`: the page described above.
-2. `gui/STATUS_FILE_WISHLIST.md`: the status-file schema the viewer expects.
-3. `gui/README.md`: how to start the server and open the page in Safari.
-4. A sample status file under `gui/sample_data/` (outside the temp folder) and a `?status=`
-   URL override so the accounting and warning rendering can be tested before python writes it.
-5. Test in Safari against the sample folder; then commit in small steps.
+1. First Safari test by the user; fix what it shows.
+2. Review sizing on the lab display (tkinter window was 1424x1200).
+3. Possibly: a status-file field for per-camera online state, once python writes it.
 
 ## Needed from the user
 
-1. Git cannot run inside the sandbox: the worktree's metadata lives under
-   `/Users/rat_hub_01/Desktop/ratrixcam/.git/worktrees/ratrixcam-gui`, and the sandbox denies
-   reading `/Users/rat_hub_01/Desktop/ratrixcam`. Every `git` command exits with
-   "not a git repository". Until the read deny is adjusted no commits are possible; I keep
-   working and will commit everything in small steps once git works.
+1. Open the page in Safari and report what is wrong (I cannot open a browser from the sandbox).
 2. Memory directory is write-denied in this session, so no memories are saved from here.
-3. The viewer cannot be opened by me (no `open` in the sandbox); after each step I will give
-   the exact command and URL to open, and verify what I can with curl.
