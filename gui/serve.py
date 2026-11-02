@@ -82,6 +82,10 @@ class ViewerHandler(SimpleHTTPRequestHandler):
         pass
 
     def log_error(self, format: str, *args):
+        # a missing file is normal here: the viewer polls for the status file and for manifests
+        # that the cameras may not have written yet
+        if args and args[0] == HTTPStatus.NOT_FOUND:
+            return
         sys.stderr.write("%s - %s\n" % (self.address_string(), format % args))
 
 
