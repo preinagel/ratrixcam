@@ -30,7 +30,8 @@
       "Bash(npm install *)",
       "Bash(npm i *)",
       "Bash(brew *)",
-      "Agent"
+      "Agent",
+      "Edit(~/.claude/**)"
     ]
   },
   "env": {
