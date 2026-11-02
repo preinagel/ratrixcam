@@ -29,9 +29,15 @@
       "Bash(pip3 install *)",
       "Bash(npm install *)",
       "Bash(npm i *)",
-      "Bash(brew *)"
+      "Bash(brew *)",
+      "Agent"
     ]
   },
+  "env": {
+    "CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS": "2",
+    "CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH": "1"
+  },
+  "workflowSizeGuideline": "small",
   "sandbox": {
     "enabled": true,
     "failIfUnavailable": true,
