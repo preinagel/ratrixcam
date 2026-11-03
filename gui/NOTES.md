@@ -4,18 +4,35 @@ Updated 2026-11-02 (end of day). Working notes for the viewer session; not user 
 
 ## RESUME HERE
 
-- Last commit 2bebcfc; tree clean. Everything described below is committed.
-- The user has NOT yet seen iteration 2 or the later changes in Safari. Next step is their
-  Safari test; expect layout feedback. Server command for them:
-  `cd /Users/rat_hub_01/Desktop/ratrixcam-gui/gui && python3 serve.py sample_data/temp`
-  URLs: `/`, `/?status=/sample_data/ratrixcam_status_almost_full.json`,
-  `..._nearly_full.json`, `..._save_full.json` on http://127.0.0.1:8000
+- Iteration 3 committed 2026-11-03 (see below); the user's Safari test of it and a test
+  with a LIVE camera run on this machine are next.
+- Simulator for testing without cameras:
+  `cd /Users/rat_hub_01/Desktop/ratrixcam-gui/gui && python3 simulate.py "sample_data/temp from 7cam run"`
+  then http://127.0.0.1:8000/ ; `--scenario normal|fyi|nearly_full|save_full|no_space|crash|shutdown`.
+  (The old `?status=` URL override still works with `serve.py` but the simulator is simpler.)
 - Session rules confirmed by the user: write and edit under gui/ without asking, commit as
   you go (one subject line + the Co-Authored-By line); never request anything outside the
   sandbox, report sandbox failures instead; use the Edit tool for file changes, not shell
-  substitutions; test servers only as a child of a python script that stops them.
+  substitutions; test servers only as a child of a python script that stops them (a server
+  left running cannot be killed from the sandbox; the user has to).
 - Open for the user: wishlist item C (persistent final status file after cleanup) is TBD;
   the wishlist itself still has to be sent to the camera developer by the user.
+
+## Iteration 3 (2026-11-03, after the user's second Safari feedback)
+
+- Machine name centred in the top strip (grid 1fr auto 1fr), date and time at the right.
+- Banners half the height: head line 17 px bold (caps for real warnings), body 13 px.
+- Crash/stop banner replaces the drive warnings instead of stacking with them.
+- Orange banner is an FYI: "Save drive has space for another d h min"; the time-left cell
+  in the accounting table is orange under 24 h too.
+- No dead space: the grid sits right under the strip/banners; the accounting table takes
+  the remaining height in its own frame and its font grows to use it (11..26 px).
+- Tile gaps and the title font scale with the tile width (2.5 %, 9 %, 5 % of it).
+- Run-ended screen is just "Recording run ended" + "Last run started ... and ran for ...".
+- Second sample folder `sample_data/temp from 7cam run` (7 cameras, positions A-F,H), with
+  `sample_data/.gitignore` keeping the stills and dropping the clips (the repository-wide
+  rules ignore folders named temp/status). `simulate.py` copies a sample to a scratch
+  folder, touches the stills every second, writes a status file, and runs serve.py on it.
 
 ## What exists
 

@@ -13,8 +13,14 @@ const OFFLINE_IMAGE = "offline_status.png";
 const POSITIONS = { A: [0, 0], B: [0, 1], E: [0, 3], F: [0, 4], C: [1, 0], D: [1, 1], G: [1, 3], H: [1, 4] };
 const GAP_COL = 2;
 
+// sizing, as fractions of the tile width
+const TILE_GAP = 0.025;
+const BLOCK_GAP = 0.09;
+const TITLE_FONT = 0.05; // clamped to 9..18 px
+const ACC_MIN_H = 64; // the accounting table never gets less than this (px)
+
 // save-drive warning thresholds, on the expected recording time left
-const ALMOST_FULL_S = 24 * 3600; // orange
+const FYI_S = 24 * 3600; // orange: space for less than a day
 const NEARLY_FULL_S = 3600; // red
 
 // "no space on any drive": the status file has not been rewritten for this long, and its last
@@ -27,7 +33,6 @@ const LOG_CHECK_S = 10; // how often the log tail is read while every camera is 
 const LOG_CHECK_SHUTDOWN_S = 1; // ... and once a shutdown is under way, to catch its last lines
 const LOG_TAIL_LINES = 60;
 const LAST = "/last/"; // serve.py keeps the last status file and log it served, for after cleanup
-const OUTCOME_LINE = /Run metadata folder moved to|WARNING|Run aborted|Temp folder removed|Manifest rows added|shutdown complete|Collecting the run metadata/;
 
 const state = {
   config: null,
@@ -214,20 +219,46 @@ function applyLayout() {
   fitTiles();
 }
 
-// choose --tile-w so the whole grid fits the space left between the banners and the accounting
+function titleFont(w) {
+  return Math.min(18, Math.max(9, w * TITLE_FONT));
+}
+
+// choose the tile width so the grid fills the window's width, or its height after the top
+// strip, the banners and a minimum accounting table; gaps and the title font follow the
+// tile width, so they shrink with the window
 function fitTiles() {
-  const wrap = el("grid-wrap"), grid = el("grid");
+  const grid = el("grid");
   const nRows = +grid.dataset.rows || 0, nCols = +grid.dataset.cols || 0;
   if (!nRows || !nCols) return;
-  const css = getComputedStyle(document.documentElement);
-  const tileGap = parseFloat(css.getPropertyValue("--tile-gap")) || 12;
-  const blockGap = grid.dataset.gap === "1" ? (parseFloat(css.getPropertyValue("--block-gap")) || 36) + tileGap : 0;
-  const availW = wrap.clientWidth - 24, availH = wrap.clientHeight - 16;
-  const chrome = 32; // title bar and borders, per tile
-  const byWidth = (availW - blockGap - tileGap * (nCols - 1)) / nCols;
-  const byHeight = ((availH - tileGap * (nRows - 1)) / nRows - chrome) * 4 / 3;
-  const w = Math.max(120, Math.floor(Math.min(byWidth, byHeight)));
-  document.documentElement.style.setProperty("--tile-w", `${w}px`);
+  const hasGap = grid.dataset.gap === "1";
+  const pad = 2 * (parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--pad")) || 8);
+  const availW = window.innerWidth - pad - 4;
+  const availH = window.innerHeight - el("topbar").offsetHeight - el("banners").offsetHeight - ACC_MIN_H - pad - 8;
+  const wByWidth = availW / (nCols + TILE_GAP * (nCols - 1) + (hasGap ? BLOCK_GAP : 0));
+  let w = wByWidth;
+  for (let i = 0; i < 4; i++) {
+    const chrome = titleFont(w) * 1.25 * 1.2 + 2; // title line, its padding, borders
+    const height = nRows * (w * 0.75 + chrome) + (nRows - 1) * TILE_GAP * w;
+    if (height <= availH) break;
+    w = (availH - nRows * chrome) / (nRows * 0.75 + (nRows - 1) * TILE_GAP);
+  }
+  w = Math.max(100, Math.floor(Math.min(w, wByWidth)));
+  const root = document.documentElement.style;
+  root.setProperty("--tile-w", `${w}px`);
+  root.setProperty("--tile-gap", `${Math.max(2, Math.round(TILE_GAP * w))}px`);
+  root.setProperty("--block-gap", `${Math.max(6, Math.round(BLOCK_GAP * w))}px`);
+  root.setProperty("--title-font", `${titleFont(w).toFixed(1)}px`);
+  fitAccounting();
+}
+
+// the accounting table takes whatever height is left; its font grows to use it
+function fitAccounting() {
+  const box = el("accounting");
+  if (box.hidden) return;
+  const rows = 3;
+  const h = box.clientHeight - 8;
+  const size = Math.min(26, Math.max(11, h / (rows * 1.5)));
+  document.documentElement.style.setProperty("--acc-font", `${size.toFixed(1)}px`);
 }
 
 function setLayout(mode) {
@@ -360,14 +391,14 @@ async function pollStatus() {
   }
 }
 
-// {cls, text} for the save-drive banner, or null
+// {cls, head, body} for the save-drive banner, or null
 function driveWarning() {
   const st = state.status;
   if (!st) return null;
   const save = st.save_drive || {}, temp = st.temp_drive || {};
   const tempLeft = temp.seconds_until_full;
   if (save.found === false) {
-    return { cls: "alarm", text: `SAVE DRIVE NOT FOUND: ${save.path || (state.config && state.config.save_path) || ""}` };
+    return { cls: "alarm", head: "SAVE DRIVE NOT FOUND", body: save.path || (state.config && state.config.save_path) || "" };
   }
   const left = save.seconds_until_full;
   if (left == null) return null;
@@ -378,22 +409,23 @@ function driveWarning() {
   // appear now and then; it is shown while fresh)
   const stale = state.statusWritten && Date.now() - state.statusWritten > STATUS_STALE_S * 1000;
   if (stale && saveFull && temp.free_bytes != null && temp.free_bytes < STATUS_FILE_ROOM) {
-    return { cls: "alarm", text: `NO SPACE ON ANY DRIVE: cameras are not being recorded\n(status last written ${fmtHM(state.statusWritten)} with ${fmtBytes(temp.free_bytes)} left on the temp drive)` };
+    return { cls: "alarm", head: "NO SPACE ON ANY DRIVE: cameras are not being recorded",
+      body: `Status last written ${fmtHM(state.statusWritten)} with ${fmtBytes(temp.free_bytes)} left on the temp drive` };
   }
   if (saveFull) {
-    return { cls: "alarm", text: `SAVE DRIVE FULL. Temp drive cache capacity: ${tempLeft != null ? fmtDHM(tempLeft) : "unknown"}` };
+    return { cls: "alarm", head: "SAVE DRIVE FULL", body: `Temp drive cache capacity: ${tempLeft != null ? fmtDHM(tempLeft) : "unknown"}` };
   }
-  if (left < NEARLY_FULL_S) return { cls: "alarm", text: `SAVE DRIVE NEARLY FULL: ${fmtDHM(left)} of recording left` };
-  if (left < ALMOST_FULL_S) return { cls: "warn", text: `SAVE DRIVE ALMOST FULL: ${fmtDHM(left)} of recording left` };
+  if (left < NEARLY_FULL_S) return { cls: "alarm", head: "SAVE DRIVE NEARLY FULL", body: `${fmtDHM(left)} of recording left` };
+  if (left < FYI_S) return { cls: "warn", head: `Save drive has space for another ${fmtDHM(left)}`, body: "" };
   return null;
 }
 
 // ---------- rendering ----------
 
-function cellHTML(label, value, opts = {}) {
+function cellHTML(label, value, cls = "") {
   const span = document.createElement("span");
   span.textContent = value;
-  const v = opts.zero ? `<span class="zero">${span.innerHTML}</span>` : span.innerHTML;
+  const v = cls ? `<span class="${cls}">${span.innerHTML}</span>` : span.innerHTML;
   const l = document.createElement("span");
   l.textContent = label;
   return `<div class="cell"><span class="label">${l.innerHTML}</span>${v}</div>`;
@@ -402,8 +434,8 @@ function cellHTML(label, value, opts = {}) {
 function renderAccounting() {
   const cfg = state.config, st = state.status;
   const now = new Date();
-  const machine = st && st.run && st.run.machine_name ? `${st.run.machine_name}   ` : "";
-  el("clock").textContent = `${machine}${fmtDate(now)}  ${fmtHM(now)}`;
+  el("machine").textContent = st && st.run && st.run.machine_name ? st.run.machine_name : "";
+  el("clock").textContent = `${fmtDate(now)}  ${fmtHM(now)}`;
 
   const save = (st && st.save_drive) || {}, temp = (st && st.temp_drive) || {};
   const warning = driveWarning();
@@ -414,9 +446,10 @@ function renderAccounting() {
   cells.push(cellHTML("Clip length", cfg ? `${Number.isInteger(cfg.time_slice / 60) ? cfg.time_slice / 60 : (cfg.time_slice / 60).toFixed(1)} min` : ""));
 
   const freeKnown = save.found !== false && save.free_bytes != null;
-  cells.push(cellHTML("Save drive free", freeKnown ? fmtBytes(save.free_bytes) : "", { zero: freeKnown && save.free_bytes === 0 }));
+  cells.push(cellHTML("Save drive free", freeKnown ? fmtBytes(save.free_bytes) : "", freeKnown && save.free_bytes === 0 ? "zero" : ""));
   const leftKnown = save.found !== false && save.seconds_until_full != null;
-  cells.push(cellHTML("Recording time left", leftKnown ? fmtDHM(save.seconds_until_full) : "", { zero: leftKnown && save.seconds_until_full <= 0 }));
+  const leftCls = !leftKnown ? "" : save.seconds_until_full <= 0 ? "zero" : save.seconds_until_full < FYI_S ? "warn" : "";
+  cells.push(cellHTML("Recording time left", leftKnown ? fmtDHM(save.seconds_until_full) : "", leftCls));
   if (save.total_bytes > 0 && save.used_bytes != null) {
     const pct = Math.min(100, 100 * save.used_bytes / save.total_bytes);
     cells.push(`<div class="cell"><span class="bar"><span class="bar-fill ${level}" style="width:${pct.toFixed(1)}%"></span></span>${pct.toFixed(0)}% of ${fmtBytes(save.total_bytes)} used</div>`);
@@ -426,7 +459,7 @@ function renderAccounting() {
 
   cells.push(cellHTML("Temp folder", cfg ? shortPath(cfg.temp_path) : ""));
   cells.push(cellHTML("Save drive", cfg ? shortPath(cfg.save_path) : ""));
-  cells.push(cellHTML("Temp drive free", temp.free_bytes != null ? fmtBytes(temp.free_bytes) : "", { zero: temp.free_bytes === 0 }));
+  cells.push(cellHTML("Temp drive free", temp.free_bytes != null ? fmtBytes(temp.free_bytes) : "", temp.free_bytes === 0 ? "zero" : ""));
 
   const html = cells.join("");
   const box = el("accounting");
@@ -435,20 +468,22 @@ function renderAccounting() {
 
 function renderBanners() {
   const banners = [];
-  const drive = driveWarning();
-  if (drive) banners.push(drive);
   if (state.shutdown) {
+    // the program is not running: its drive warnings no longer apply
     const when = state.shutdown.since ? fmtHM(state.shutdown.since) : "start";
-    if (state.shutdown.kind === "graceful") banners.push({ cls: "info", text: `Recording stopped at ${when}: shutting down` });
-    else if (state.shutdown.kind === "aborted") banners.push({ cls: "info", text: `Run aborted at ${when}: everything left in the temp folder` });
-    else banners.push({ cls: "alarm", text: `CAMERA PROGRAM STOPPED WITHOUT SHUTTING DOWN: no still from any camera since ${when}` });
+    if (state.shutdown.kind === "graceful") banners.push({ cls: "info", head: `Recording stopped at ${when}`, body: "Shutting down" });
+    else if (state.shutdown.kind === "aborted") banners.push({ cls: "info", head: `Run aborted at ${when}`, body: "Everything left in the temp folder" });
+    else banners.push({ cls: "alarm", head: "CAMERA PROGRAM STOPPED WITHOUT SHUTTING DOWN", body: `No still from any camera since ${when}` });
+  } else {
+    const drive = driveWarning();
+    if (drive) banners.push(drive);
   }
   if (!state.tempSeen) {
-    banners.push({ cls: "info", text: "Temp folder not found: no run in progress?" });
+    banners.push({ cls: "info", head: "Temp folder not found", body: "No run in progress?" });
   } else if (!state.config) {
-    banners.push({ cls: "alarm", text: `No camera config found in the temp folder (${METADATA_DIR}/)` });
+    banners.push({ cls: "alarm", head: "No camera config found in the temp folder", body: `Looked in ${METADATA_DIR}/` });
   } else if (state.configCandidates.length > 1) {
-    banners.push({ cls: "warn", text: `Several config files in ${METADATA_DIR}/; showing the newest (${state.configName}). Others: ${state.configCandidates.slice(1).join(", ")}` });
+    banners.push({ cls: "warn", head: `Several config files in ${METADATA_DIR}/`, body: `Showing the newest (${state.configName}); others: ${state.configCandidates.slice(1).join(", ")}` });
   }
   const box = el("banners");
   const sig = JSON.stringify(banners);
@@ -458,7 +493,16 @@ function renderBanners() {
   for (const b of banners) {
     const node = document.createElement("div");
     node.className = `banner ${b.cls}`;
-    node.textContent = b.text;
+    const head = document.createElement("div");
+    head.className = "head";
+    head.textContent = b.head;
+    node.appendChild(head);
+    if (b.body) {
+      const body = document.createElement("div");
+      body.className = "body";
+      body.textContent = b.body;
+      node.appendChild(body);
+    }
     box.appendChild(node);
   }
   fitTiles();
@@ -471,14 +515,9 @@ function renderEnded() {
   el("accounting").hidden = ended;
   el("banners").hidden = ended;
   if (!ended) return;
-  const lines = [`The temp folder is gone (${fmtDate(state.tempGone)} ${fmtHM(state.tempGone)}).`];
-  if (state.runStarted) lines.push(`Run started ${fmtDate(state.runStarted)} ${fmtHM(state.runStarted)}, ran for ${fmtDHM((state.tempGone - state.runStarted) / 1000)}.`);
-  const savePath = (state.config && state.config.save_path) || (state.status && state.status.save_drive && state.status.save_drive.path);
-  if (savePath && state.runId) lines.push(`Run metadata expected in ${shortPath(savePath)}/${METADATA_DIR}/${state.runId}`);
-  const outcome = state.logTail.filter((l) => OUTCOME_LINE.test(l)).slice(-10);
-  if (outcome.length) lines.push("", "Last from the terminal log:", ...outcome);
-  lines.push("", "This page reloads by itself when a new run starts in the same temp folder.");
-  el("ended-text").textContent = lines.join("\n");
+  el("ended-text").textContent = state.runStarted
+    ? `Last run started ${fmtDate(state.runStarted)} ${fmtHM(state.runStarted)} and ran for ${fmtDHM((state.tempGone - state.runStarted) / 1000)}`
+    : "";
 }
 
 // ---------- main ----------
@@ -499,6 +538,7 @@ async function main() {
   try { await loadConfig(); } catch (e) { state.config = null; }
   buildTiles();
   await tick();
+  fitTiles();
   setInterval(tick, previewInterval() * 1000);
   // the config is re-read occasionally in case the viewer was opened before the run started
   setInterval(async () => {

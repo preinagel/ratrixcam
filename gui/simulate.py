@@ -113,7 +113,12 @@ def main() -> int:
     print(f"simulating '{args.scenario}' from {sample}\n  in {temp_dir}\n  viewer: http://127.0.0.1:{args.port}/   (Ctrl-C to stop)")
 
     stopped = False
-    signal.signal(signal.SIGINT, lambda *_: (_ for _ in ()).throw(KeyboardInterrupt))
+
+    def stop(*_):
+        raise KeyboardInterrupt  # so that the finally clause below stops the server and cleans up
+
+    signal.signal(signal.SIGINT, stop)
+    signal.signal(signal.SIGTERM, stop)
     try:
         t0 = time.time()
         tick = 0

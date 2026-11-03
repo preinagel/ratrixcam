@@ -6,14 +6,17 @@ Start the server with the camera run's temp folder (the `temp_path` in the confi
 
 ```
 cd <this repository>/gui
-python3 serve.py ~/Desktop/<temp folder>
+python3 serve.py ~/Desktop/temp
 ```
 
 Then open http://127.0.0.1:8000/ in Safari. Ctrl-C in the terminal stops the server.
-Another port: `python3 serve.py <temp folder> --port 8001`.
+Another port: `python3 serve.py ~/Desktop/temp --port 8001`.
 
-To try it on the sample run in this folder:
+Without cameras, simulate a run from one of the sample folders (stills refreshed every
+second, a status file written as python will; `--scenario` picks a drive situation, see
+the top of `simulate.py`):
 
 ```
-python3 serve.py sample_data/temp
+python3 simulate.py "sample_data/temp from 7cam run"
+python3 simulate.py sample_data/temp --scenario fyi
 ```
