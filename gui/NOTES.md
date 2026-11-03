@@ -1,6 +1,21 @@
 # GUI developer notes (state and plan)
 
-Updated 2026-11-02. Working notes for the viewer session; not user documentation.
+Updated 2026-11-02 (end of day). Working notes for the viewer session; not user documentation.
+
+## RESUME HERE
+
+- Last commit 2bebcfc; tree clean. Everything described below is committed.
+- The user has NOT yet seen iteration 2 or the later changes in Safari. Next step is their
+  Safari test; expect layout feedback. Server command for them:
+  `cd /Users/rat_hub_01/Desktop/ratrixcam-gui/gui && python3 serve.py sample_data/temp`
+  URLs: `/`, `/?status=/sample_data/ratrixcam_status_almost_full.json`,
+  `..._nearly_full.json`, `..._save_full.json` on http://127.0.0.1:8000
+- Session rules confirmed by the user: write and edit under gui/ without asking, commit as
+  you go (one subject line + the Co-Authored-By line); never request anything outside the
+  sandbox, report sandbox failures instead; use the Edit tool for file changes, not shell
+  substitutions; test servers only as a child of a python script that stops them.
+- Open for the user: wishlist item C (persistent final status file after cleanup) is TBD;
+  the wishlist itself still has to be sent to the camera developer by the user.
 
 ## What exists
 
