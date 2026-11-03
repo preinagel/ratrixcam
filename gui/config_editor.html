@@ -34,17 +34,12 @@
     </fieldset>
 
     <fieldset>
-      <legend>Camera defaults</legend>
-      <div class="grid" id="default-fields"></div>
-    </fieldset>
-
-    <fieldset>
       <legend>Cameras</legend>
       <table id="cameras">
         <thead>
           <tr>
             <th>subject</th><th>view</th><th>position</th>
-            <th>crf</th><th>fps</th><th>width</th><th>height</th><th>exposure</th><th></th>
+            <th>crf</th><th>fps</th><th>resolution</th><th>exposure</th><th></th>
           </tr>
         </thead>
         <tbody></tbody>
@@ -53,6 +48,11 @@
       <div class="positions" title="display positions">
         <pre id="position-map"></pre>
       </div>
+    </fieldset>
+
+    <fieldset class="advanced">
+      <legend>Advanced: defaults for every camera</legend>
+      <div class="grid" id="default-fields"></div>
     </fieldset>
   </form>
 

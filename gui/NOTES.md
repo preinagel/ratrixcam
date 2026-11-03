@@ -27,7 +27,24 @@ Updated 2026-11-02 (end of day). Working notes for the viewer session; not user 
   - saving: the server validates with the camera code's Config class (pydantic) when
     importable, then its own duplicate checks, refuses a name not ending in .json and a
     location inside the temp or save folder, writes via tmp + rename. Overwrite asks first.
-  - file layout written: keys in the order of the hand-written configs, one camera per line.
+  - file layout written (by the server, the page preview matches): run-level keys, then
+    cameras one per line, then the advanced defaults at the bottom. The user will ask the
+    camera developer to restore this order in the repo's example config.
+  Second round (user feedback 2026-11-03):
+  - resolution is ONE field ("640x480"), split into width/height when written; per-camera
+    likewise. The form does not know what the hardware supports.
+  - advanced defaults (crf, fps, resolution, exposure, preview_interval) in a dashed
+    "Advanced" fieldset at the bottom, preset from `presets` in the options file.
+  - per-camera overrides draw on their own lists (camera_crf, camera_fps, camera_resolution,
+    camera_exposure), empty until the user adds values; "(default)" preselected.
+  - time_slice stays run-level: legal 10..3600 s, shipped values 60 and 600 only.
+  - name lengths: study_label and subject_prefix max 12, subjID and view max 24; case matters.
+  - paths must be absolute (the camera code does not expand ~); the server expands ~ anyway
+    before writing; the temp placeholder is the real home path.
+  - load_options() migrates an older options file: adds missing lists/presets, drops lists
+    this version does not know, expands ~ in path lists.
+  TO TEST ON HARDWARE (user): an unsupported resolution and an unsupported exposure code,
+  to learn the failure modes before deciding whether the form should constrain them.
   No tests for the editor yet (gui/tests/test_gui_editor.py would be the place).
 
 - 2026-11-03, pre-push checks done: `basedpyright gui/` 0 errors (warnings left on

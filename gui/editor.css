@@ -63,6 +63,8 @@ fieldset {
   padding: 8px 12px 12px;
 }
 legend { color: var(--muted); padding: 0 6px; }
+fieldset.advanced { margin-top: 24px; border-style: dashed; }
+fieldset.advanced legend { color: var(--warn); }
 
 .grid {
   display: grid;

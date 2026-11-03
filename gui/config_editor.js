@@ -7,52 +7,57 @@
 const POSITIONS = ["A", "B", "C", "D", "E", "F", "G", "H"];
 const ADD = "__add__";
 
-// kinds: name (used in file and folder names), int, float, path
+// kinds: name (used in file and folder names; maxLen per field), int, float, path,
+// resolution ("640x480"), machine (a free name for this computer)
 const RULES = {
-  name: { re: /^[A-Za-z0-9-]{1,24}$/, help: "Letters, digits and - only; no spaces, dots or _; up to 24 characters." },
-  machine: { re: /^[A-Za-z0-9][A-Za-z0-9 -]{0,31}$/, help: "Letters, digits, spaces and -; up to 32 characters." },
-  path: { re: /^(\/|~\/)[^\s]*\/$/, help: "An absolute path (or ~/...) ending in /; no spaces." },
+  name: { re: (f) => new RegExp(`^[A-Za-z0-9-]{1,${f.maxLen}}$`), help: (f) => `Letters, digits and - only (case matters); no spaces, dots or _; up to ${f.maxLen} characters.` },
+  machine: { re: () => /^[A-Za-z0-9][A-Za-z0-9 -]{0,31}$/, help: () => "Letters, digits, spaces and -; up to 32 characters." },
+  path: { re: () => /^\/[^\s]*\/$/, help: () => "An absolute path starting and ending with /, no spaces (the camera program does not expand ~)." },
+  resolution: { re: () => /^\d{2,5}x\d{2,5}$/, help: () => "Width x height in pixels, e.g. 640x480; the camera must support it." },
 };
 
-// the run-level and default fields, in the order they are written to the file
+// run-level fields
 const RUN_FIELDS = [
-  { key: "study_label", label: "Study label", kind: "name", hint: "first part of each clip folder's name" },
-  { key: "subject_prefix", label: "Subject prefix", kind: "name", hint: "goes before every subject ID, e.g. rat" },
-  { key: "time_slice", label: "Clip length (seconds)", kind: "int", min: 1, max: 86400 },
-  { key: "preview_interval", label: "Still image every (seconds)", kind: "int", min: 1, max: 3600 },
+  { key: "study_label", label: "Study label", kind: "name", maxLen: 12, hint: "first part of each clip folder's name; keep it short" },
+  { key: "subject_prefix", label: "Subject prefix", kind: "name", maxLen: 12, hint: "goes before every subject ID, e.g. rat; keep it short" },
+  { key: "time_slice", label: "Clip length (seconds)", kind: "int", min: 10, max: 3600, hint: "60 or 600 are the usual values" },
   { key: "save_path", label: "Save drive folder", kind: "path" },
   { key: "temp_path", label: "Temp folder", kind: "path", hint: "on the local disk; emptied at the end of a run" },
 ];
-const DEFAULT_FIELDS = [
+// advanced: defaults for every camera, at the bottom of the form and of the file
+const ADVANCED_FIELDS = [
   { key: "default_crf", label: "crf (0 best quality, 51 smallest files)", kind: "int", min: 0, max: 51 },
   { key: "default_fps", label: "Frames per second", kind: "int", min: 1, max: 240 },
-  { key: "default_width", label: "Width (pixels)", kind: "int", min: 16, max: 8192 },
-  { key: "default_height", label: "Height (pixels)", kind: "int", min: 16, max: 8192 },
+  { key: "default_resolution", label: "Resolution", kind: "resolution" },
   { key: "default_cam_exposure", label: "Exposure (camera LUT code)", kind: "float", min: -20, max: 20 },
+  { key: "preview_interval", label: "Still image every (seconds)", kind: "int", min: 1, max: 3600 },
 ];
-// per-camera: the required name fields, the position, then optional overrides of the defaults
+// per camera: the required name fields, the position, then optional overrides of the
+// defaults, each drawing on its own (initially empty) list of legal values
 const CAMERA_FIELDS = [
-  { key: "subjID", label: "Subject ID", kind: "name", options: "subjID" },
-  { key: "view", label: "View", kind: "name", options: "view" },
+  { key: "subjID", label: "Subject ID", kind: "name", maxLen: 24, options: "subjID" },
+  { key: "view", label: "View", kind: "name", maxLen: 24, options: "view" },
   { key: "position", label: "Position", kind: "position" },
-  { key: "crf", kind: "int", min: 0, max: 51, options: "default_crf", optional: true },
-  { key: "fps", kind: "int", min: 1, max: 240, options: "default_fps", optional: true },
-  { key: "width", kind: "int", min: 16, max: 8192, options: "default_width", optional: true },
-  { key: "height", kind: "int", min: 16, max: 8192, options: "default_height", optional: true },
-  { key: "exposure", kind: "float", min: -20, max: 20, options: "default_cam_exposure", optional: true },
+  { key: "crf", label: "crf for this camera", kind: "int", min: 0, max: 51, options: "camera_crf", optional: true },
+  { key: "fps", label: "fps for this camera", kind: "int", min: 1, max: 240, options: "camera_fps", optional: true },
+  { key: "resolution", label: "resolution for this camera", kind: "resolution", options: "camera_resolution", optional: true },
+  { key: "exposure", label: "exposure for this camera", kind: "float", min: -20, max: 20, options: "camera_exposure", optional: true },
 ];
-const FILE_KEY_ORDER = ["save_path", "temp_path", "study_label", "subject_prefix", "default_crf", "time_slice",
-  "default_fps", "default_width", "default_height", "default_cam_exposure", "preview_interval", "cameras"];
+// the file's key order (the server writes the same): run-level, cameras, then the defaults
+const FILE_KEY_ORDER = ["save_path", "temp_path", "study_label", "subject_prefix", "time_slice", "cameras",
+  "default_crf", "default_fps", "default_width", "default_height", "default_cam_exposure", "preview_interval"];
 const CAMERA_KEY_ORDER = ["subjID", "view", "position", "crf", "fps", "width", "height", "exposure"];
 
 const state = {
-  options: null, // the options file as served: {machine_id, machine_name, options: {field: [values]}, ...}
-  config: emptyConfig(),
+  options: null, // the options file as served: {machine_id, machine_name, options: {list: [values]}, presets, ...}
+  config: null, // the form's values; resolutions kept as "WxH" until written
 };
 
 function emptyConfig() {
+  const presets = (state.options && state.options.presets) || {};
   const c = {};
-  for (const f of [...RUN_FIELDS, ...DEFAULT_FIELDS]) c[f.key] = null;
+  for (const f of RUN_FIELDS) c[f.key] = null;
+  for (const f of ADVANCED_FIELDS) c[f.key] = presets[f.key] != null ? presets[f.key] : null;
   c.cameras = [emptyCamera()];
   return c;
 }
@@ -64,6 +69,15 @@ function emptyCamera() {
 }
 
 function el(id) { return document.getElementById(id); }
+
+function resolutionOf(width, height) {
+  return width != null && height != null ? `${width}x${height}` : null;
+}
+
+function splitResolution(text) {
+  const m = /^(\d+)x(\d+)$/.exec(String(text || ""));
+  return m ? [Number(m[1]), Number(m[2])] : [null, null];
+}
 
 // ---------- server ----------
 
@@ -102,33 +116,41 @@ function checkValue(field, raw) {
     return { value: n };
   }
   const rule = RULES[field.kind];
-  if (!rule.re.test(text)) return { error: rule.help };
+  if (!rule.re(field).test(text)) return { error: rule.help(field) };
   if (field.kind === "path" && text.split("/").includes("..")) return { error: "No .. in a path." };
   return { value: text };
+}
+
+function helpFor(field) {
+  if (field.kind === "int" || field.kind === "float") return `A number between ${field.min} and ${field.max}.`;
+  return RULES[field.kind].help(field);
 }
 
 function legalValues(optionsKey) {
   return (state.options && state.options.options && state.options.options[optionsKey]) || [];
 }
 
+function isLegal(optionsKey, value) {
+  return legalValues(optionsKey).some((v) => String(v) === String(value));
+}
+
 // ---------- drop-down menus ----------
 
 // a <select> for a field; optionsKey names the legal-values list it draws from
-function makeSelect(field, optionsKey, current, onChange) {
+function makeSelect(field, optionsKey, getCurrent, onChange) {
   const sel = document.createElement("select");
   sel.dataset.optionsKey = optionsKey || "";
-  fillSelect(sel, field, optionsKey, current);
+  sel._refresh = () => fillSelect(sel, field, optionsKey, getCurrent());
+  sel._refresh();
   sel.addEventListener("change", async () => {
     if (sel.value === ADD) {
       const added = await promptNewValue(field, optionsKey);
-      if (added === undefined) { fillSelect(sel, field, optionsKey, current); return; }
-      current = added;
-      refreshSelects(optionsKey);
+      if (added === undefined) { sel._refresh(); return; }
       onChange(added);
+      refreshSelects(optionsKey);
       return;
     }
-    current = sel.value === "" ? null : (field.kind === "int" || field.kind === "float" ? Number(sel.value) : sel.value);
-    onChange(current);
+    onChange(sel.value === "" ? null : (field.kind === "int" || field.kind === "float" ? Number(sel.value) : sel.value));
   });
   return sel;
 }
@@ -166,11 +188,7 @@ function fillSelect(sel, field, optionsKey, current) {
 
 // after a legal list changed: rebuild every menu that draws from it, keeping selections
 function refreshSelects(optionsKey) {
-  for (const sel of document.querySelectorAll(`select[data-options-key="${optionsKey}"]`)) {
-    const field = sel._field;
-    const current = sel._current();
-    fillSelect(sel, field, optionsKey, current);
-  }
+  for (const sel of document.querySelectorAll(`select[data-options-key="${optionsKey}"]`)) sel._refresh();
 }
 
 // ---------- the "Add new..." dialog ----------
@@ -179,8 +197,7 @@ function promptNewValue(field, optionsKey, title) {
   return new Promise((resolve) => {
     const box = el("prompt"), input = el("prompt-input"), err = el("prompt-error");
     el("prompt-title").textContent = title || `New legal value for ${field.label || field.key}`;
-    el("prompt-help").textContent = field.kind === "int" || field.kind === "float"
-      ? `A number between ${field.min} and ${field.max}.` : RULES[field.kind].help;
+    el("prompt-help").textContent = helpFor(field);
     input.value = "";
     err.textContent = "";
     box.hidden = false;
@@ -190,8 +207,8 @@ function promptNewValue(field, optionsKey, title) {
       const { value, error } = checkValue(field, input.value);
       if (error) { err.textContent = error; return; }
       if (optionsKey) {
-        const list = legalValues(optionsKey);
-        if (list.some((v) => String(v) === String(value))) { err.textContent = "Already in the list."; return; }
+        if (isLegal(optionsKey, value)) { err.textContent = "Already in the list."; return; }
+        const list = legalValues(optionsKey).slice();
         list.push(value);
         if (field.kind === "int" || field.kind === "float") list.sort((a, b) => a - b);
         state.options.options[optionsKey] = list;
@@ -214,14 +231,12 @@ function promptNewValue(field, optionsKey, title) {
 
 // ---------- form ----------
 
-function buildField(field, container, getValue, setValue) {
+function buildField(field, container) {
   const wrap = document.createElement("div");
   wrap.className = "field";
   const label = document.createElement("label");
   label.textContent = field.label || field.key;
-  const sel = makeSelect(field, field.key, getValue(), (v) => { setValue(v); render(); });
-  sel._field = field;
-  sel._current = getValue;
+  const sel = makeSelect(field, field.key, () => state.config[field.key], (v) => { state.config[field.key] = v; render(); });
   wrap.appendChild(label);
   wrap.appendChild(sel);
   if (field.hint) {
@@ -237,8 +252,8 @@ function buildForm() {
   const run = el("run-fields"), defaults = el("default-fields");
   run.textContent = "";
   defaults.textContent = "";
-  for (const f of RUN_FIELDS) buildField(f, run, () => state.config[f.key], (v) => { state.config[f.key] = v; });
-  for (const f of DEFAULT_FIELDS) buildField(f, defaults, () => state.config[f.key], (v) => { state.config[f.key] = v; });
+  for (const f of RUN_FIELDS) buildField(f, run);
+  for (const f of ADVANCED_FIELDS) buildField(f, defaults);
   buildCameraRows();
 }
 
@@ -249,10 +264,8 @@ function buildCameraRows() {
     const tr = document.createElement("tr");
     for (const f of CAMERA_FIELDS) {
       const td = document.createElement("td");
-      const sel = makeSelect(f, f.options || "", cam[f.key], (v) => { cam[f.key] = v; render(); });
-      sel._field = f;
-      sel._current = () => cam[f.key];
-      sel.title = f.label || `${f.key} for this camera (blank: the default above)`;
+      const sel = makeSelect(f, f.options || "", () => cam[f.key], (v) => { cam[f.key] = v; render(); });
+      sel.title = f.optional ? `${f.label}; (default) uses the value under Advanced` : f.label;
       td.appendChild(sel);
       tr.appendChild(td);
     }
@@ -272,9 +285,9 @@ function buildCameraRows() {
 
 function problems() {
   const c = state.config, out = [];
-  for (const f of [...RUN_FIELDS, ...DEFAULT_FIELDS]) {
+  for (const f of [...RUN_FIELDS, ...ADVANCED_FIELDS]) {
     if (c[f.key] == null) out.push(`${f.label} is not set`);
-    else if (!legalValues(f.key).some((v) => String(v) === String(c[f.key]))) out.push(`${f.label}: "${c[f.key]}" is not in the list of legal values`);
+    else if (!isLegal(f.key, c[f.key])) out.push(`${f.label}: "${c[f.key]}" is not in the list of legal values`);
   }
   if (c.temp_path && c.save_path && c.temp_path === c.save_path) out.push("The temp folder and the save drive folder must differ");
   if (c.cameras.length === 0) out.push("At least one camera is needed");
@@ -282,10 +295,11 @@ function problems() {
   c.cameras.forEach((cam, i) => {
     const n = i + 1;
     for (const f of CAMERA_FIELDS) {
-      if (f.optional) {
-        if (cam[f.key] != null && !legalValues(f.options).some((v) => String(v) === String(cam[f.key]))) out.push(`Camera ${n}: ${f.key} "${cam[f.key]}" is not in the list of legal values`);
-      } else if (cam[f.key] == null) out.push(`Camera ${n}: ${f.label.toLowerCase()} is not set`);
-      else if (f.options && !legalValues(f.options).some((v) => String(v) === String(cam[f.key]))) out.push(`Camera ${n}: ${f.label.toLowerCase()} "${cam[f.key]}" is not in the list of legal values`);
+      if (cam[f.key] == null) {
+        if (!f.optional) out.push(`Camera ${n}: ${f.label.toLowerCase()} is not set`);
+      } else if (f.options && !isLegal(f.options, cam[f.key])) {
+        out.push(`Camera ${n}: ${f.label.toLowerCase()} "${cam[f.key]}" is not in the list of legal values`);
+      }
     }
     if (cam.subjID != null && cam.view != null) {
       const key = `${cam.subjID}_${cam.view}`;
@@ -300,27 +314,42 @@ function problems() {
   return out;
 }
 
-// the config as it will be written: keys in the camera code's order, unset optionals omitted
+// the config as it will be written: keys in the file's order, resolutions split into
+// width and height, unset optionals omitted
 function fileObject() {
+  const c = state.config;
   const out = {};
+  const [dw, dh] = splitResolution(c.default_resolution);
+  const flat = { ...c, default_width: dw, default_height: dh };
   for (const k of FILE_KEY_ORDER) {
     if (k === "cameras") {
-      out.cameras = state.config.cameras.map((cam) => {
+      out.cameras = c.cameras.map((cam) => {
+        const [w, h] = splitResolution(cam.resolution);
+        const src = { ...cam, width: w, height: h };
         const o = {};
-        for (const key of CAMERA_KEY_ORDER) if (cam[key] != null) o[key] = cam[key];
+        for (const key of CAMERA_KEY_ORDER) if (src[key] != null) o[key] = src[key];
         return o;
       });
-    } else out[k] = state.config[k];
+    } else out[k] = flat[k];
   }
   return out;
 }
 
+// the same layout the server writes: one camera per line
 function fileText() {
-  // one camera per line, like the hand-written configs
   const obj = fileObject();
-  const cameras = obj.cameras.map((c) => "    " + JSON.stringify(c).replace(/,"/g, ', "').replace(/":/g, '": ')).join(",\n");
-  const head = JSON.stringify({ ...obj, cameras: [] }, null, 2).replace(/\n  "cameras": \[\]\n\}$/, "");
-  return `${head}\n  "cameras": [\n${cameras}\n  ]\n}\n`;
+  const lines = ["{"];
+  const keys = Object.keys(obj);
+  keys.forEach((key, i) => {
+    const comma = i < keys.length - 1 ? "," : "";
+    if (key === "cameras") {
+      lines.push('  "cameras": [');
+      lines.push(obj.cameras.map((cam) => "    " + JSON.stringify(cam).replace(/,"/g, ', "').replace(/":/g, '": ')).join(",\n"));
+      lines.push("  ]" + comma);
+    } else lines.push(`  ${JSON.stringify(key)}: ${JSON.stringify(obj[key])}${comma}`);
+  });
+  lines.push("}");
+  return lines.join("\n") + "\n";
 }
 
 function render() {
@@ -357,17 +386,20 @@ async function loadFile() {
   const { data } = await api("GET", `/api/config?path=${encodeURIComponent(path)}`);
   if (!data.exists) { setStatus(`${data.path} does not exist; Save will create it`, ""); return; }
   if (data.error) { setStatus(`Could not read ${data.path}: ${data.error}`, "error"); return; }
+  const src = data.config;
   const c = emptyConfig();
-  for (const f of [...RUN_FIELDS, ...DEFAULT_FIELDS]) if (data.config[f.key] !== undefined) c[f.key] = data.config[f.key];
-  c.cameras = (Array.isArray(data.config.cameras) ? data.config.cameras : []).map((src) => {
+  for (const f of [...RUN_FIELDS, ...ADVANCED_FIELDS]) if (f.key !== "default_resolution" && src[f.key] !== undefined) c[f.key] = src[f.key];
+  c.default_resolution = resolutionOf(src.default_width, src.default_height);
+  c.cameras = (Array.isArray(src.cameras) ? src.cameras : []).map((s) => {
     const cam = emptyCamera();
-    for (const f of CAMERA_FIELDS) if (src[f.key] !== undefined) cam[f.key] = src[f.key];
+    for (const f of CAMERA_FIELDS) if (f.key !== "resolution" && s[f.key] !== undefined) cam[f.key] = s[f.key];
+    cam.resolution = resolutionOf(s.width, s.height);
     return cam;
   });
   state.config = c;
   buildForm();
   render();
-  const extra = Object.keys(data.config).filter((k) => !FILE_KEY_ORDER.includes(k));
+  const extra = Object.keys(src).filter((k) => !FILE_KEY_ORDER.includes(k));
   setStatus(`Loaded ${data.path}` + (extra.length ? ` (unknown fields dropped: ${extra.join(", ")})` : ""), data.problems.length ? "error" : "ok");
 }
 
@@ -375,7 +407,7 @@ async function saveFile() {
   const path = el("file-path").value.trim();
   if (!path) { setStatus("Enter a file path first", "error"); return; }
   const found = problems();
-  if (found.length) { setStatus(`Not saved: ${found.length} problem${found.length === 1 ? "" : "s"} listed on the right`, "error"); return; }
+  if (found.length) { setStatus(`Not saved: ${found.length} problem${found.length === 1 ? "" : "s"} listed below`, "error"); return; }
   const { data: probe } = await api("GET", `/api/config?path=${encodeURIComponent(path)}`);
   if (probe.exists && !confirm(`${probe.path} exists. Overwrite it?`)) { setStatus("Not saved", ""); return; }
   const { ok, data } = await api("PUT", `/api/config?path=${encodeURIComponent(path)}`, fileObject());
@@ -394,6 +426,7 @@ async function renameMachine() {
 
 async function main() {
   await loadOptions();
+  state.config = emptyConfig();
   el("file-path").value = "~/Desktop/camera_config.json";
   buildForm();
   render();

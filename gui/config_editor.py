@@ -36,22 +36,40 @@ try:
 except Exception:  # noqa: BLE001  (any import problem: pydantic missing, repo moved)
     CameraConfigClass = None
 
-# placeholder legal values for a fresh options file; the user replaces them with "add"
+# legal values shipped with a fresh options file; the user extends them with "Add new...".
+# The per-camera override lists (camera_*) start empty: a camera uses the run's defaults
+# unless the user deliberately adds a value to choose from. Resolutions are one value
+# ("640x480"), written to the file as width and height.
 PLACEHOLDER_OPTIONS: dict[str, list[Any]] = {
     "study_label": ["Test"],
     "subject_prefix": ["rat"],
     "subjID": ["000", "999"],
     "view": ["face", "buddy", "home"],
+    "time_slice": [60, 600],
+    "save_path": ["/Volumes/data/"],
+    "temp_path": [os.path.expanduser("~/Desktop/temp/")],
     "default_crf": [25],
     "default_fps": [30],
-    "default_width": [640],
-    "default_height": [480],
+    "default_resolution": ["640x480"],
     "default_cam_exposure": [-8.0],
-    "time_slice": [60, 600, 3600],
     "preview_interval": [1],
-    "save_path": ["/Volumes/data/"],
-    "temp_path": ["~/Desktop/temp/"],
+    "camera_crf": [],
+    "camera_fps": [],
+    "camera_resolution": [],
+    "camera_exposure": [],
 }
+# what the advanced fields are set to on a fresh form
+PRESETS: dict[str, Any] = {
+    "default_crf": 25,
+    "default_fps": 30,
+    "default_resolution": "640x480",
+    "default_cam_exposure": -8.0,
+    "preview_interval": 1,
+}
+# the file's key order: run-level fields, the cameras, then the advanced defaults at the end
+FILE_KEY_ORDER = ["save_path", "temp_path", "study_label", "subject_prefix", "time_slice", "cameras",
+                  "default_crf", "default_fps", "default_width", "default_height", "default_cam_exposure", "preview_interval"]
+CAMERA_KEY_ORDER = ["subjID", "view", "position", "crf", "fps", "width", "height", "exposure"]
 
 
 def machine_id() -> str:
@@ -64,7 +82,9 @@ def machine_id() -> str:
 
 
 def load_options() -> dict[str, Any]:
-    """The options file, created with placeholders on first use."""
+    """The options file, created with placeholders on first use; a list or preset this
+    version knows and the file lacks is added, so an older file keeps working."""
+    data: dict[str, Any]
     try:
         with open(OPTIONS_FILE) as f:
             data = json.load(f)
@@ -73,10 +93,41 @@ def load_options() -> dict[str, Any]:
             "machine_id": machine_id(),
             "machine_name": socket.gethostname().split(".")[0],
             "created": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "options": PLACEHOLDER_OPTIONS,
         }
-        write_json(OPTIONS_FILE, data)
+    options = data.setdefault("options", {})
+    for key, values in PLACEHOLDER_OPTIONS.items():
+        options.setdefault(key, list(values))
+    for key in [k for k in options if k not in PLACEHOLDER_OPTIONS]:
+        del options[key]  # a list an earlier version of the editor kept
+    for key in ("save_path", "temp_path"):
+        options[key] = [os.path.expanduser(p) if isinstance(p, str) else p for p in options[key]]
+    presets = data.setdefault("presets", {})
+    for key, value in PRESETS.items():
+        presets.setdefault(key, value)
+    write_json(OPTIONS_FILE, data)
     return data
+
+
+def config_text(data: dict[str, Any]) -> str:
+    """The config as written: keys in FILE_KEY_ORDER, one camera per line, like the
+    hand-written configs."""
+    lines = ["{"]
+    keys = [k for k in FILE_KEY_ORDER if k in data] + [k for k in data if k not in FILE_KEY_ORDER]
+    for i, key in enumerate(keys):
+        comma = "," if i < len(keys) - 1 else ""
+        if key == "cameras":
+            cams = []
+            for cam in data["cameras"]:
+                ordered = {k: cam[k] for k in CAMERA_KEY_ORDER if k in cam}
+                ordered.update({k: v for k, v in cam.items() if k not in ordered})
+                cams.append("    " + json.dumps(ordered, separators=(", ", ": ")))
+            lines.append('  "cameras": [')
+            lines.append(",\n".join(cams))
+            lines.append("  ]" + comma)
+        else:
+            lines.append(f"  {json.dumps(key)}: {json.dumps(data[key])}{comma}")
+    lines.append("}")
+    return "\n".join(lines) + "\n"
 
 
 def write_json(path: str, data: Any) -> None:
@@ -205,6 +256,11 @@ class EditorHandler(SimpleHTTPRequestHandler):
         if path == "/api/config":
             target = expand(self.query().get("path", ""))
             data = self.read_body()
+            if isinstance(data, dict):
+                # the camera code does not expand ~: paths go into the file absolute
+                for key in ("temp_path", "save_path"):
+                    if isinstance(data.get(key), str) and data[key].startswith("~"):
+                        data[key] = os.path.expanduser(data[key])
             problems = check_config(data)
             if not target.lower().endswith(".json"):
                 problems.append("the file name must end in .json")
@@ -215,7 +271,10 @@ class EditorHandler(SimpleHTTPRequestHandler):
                 return
             try:
                 os.makedirs(os.path.dirname(target), exist_ok=True)
-                write_json(target, data)
+                tmp = target + ".tmp"
+                with open(tmp, "w") as f:
+                    _ = f.write(config_text(data))
+                os.replace(tmp, target)
             except OSError as e:
                 self.send_json({"ok": False, "problems": [f"could not write {target}: {e.strerror or e}"]}, HTTPStatus.BAD_REQUEST)
                 return
