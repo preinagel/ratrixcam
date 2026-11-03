@@ -10,48 +10,57 @@ accepted. Unknown extra fields are ignored, so python may add more later.
 {
   "schema": 1,
   "written": "2026-11-02 09:44:12.345",
-  "update_interval": 1,
   "run": {
     "run_id": "ratrixcam_20261102_094137_7e5a797f",
     "started": "2026-11-02 09:41:37.000",
-    "state": "running",
-    "stopped": null,
-    "config_file": "camera_config261019_desktop_test.json",
-    "code_version": "209e5cd"
+    "station": "Mac 4"
   },
   "save_drive": {
-    "path": "/Volumes/SSD/save/",
+    "path": "/Volumes/data/",
     "found": true,
     "total_bytes": 2000000000000,
     "used_bytes": 1500000000000,
     "free_bytes": 500000000000,
-    "seconds_until_full": 30000,
-    "warning": { "level": "none", "text": "" }
+    "seconds_until_full": 30000
   },
-  "cameras": {
-    "rat999_face": { "online": true, "offline_since": null }
+  "temp_drive": {
+    "path": "/Users/rat_hub_01/Desktop/temp/",
+    "found": true,
+    "total_bytes": 1000000000000,
+    "used_bytes": 400000000000,
+    "free_bytes": 600000000000,
+    "seconds_until_full": 36000
   }
 }
 ```
 
-## Fields, in order of need
+## Fields
 
 | field | used for | notes |
 |---|---|---|
-| `written` | staleness check | viewer warns when older than 5 update intervals |
-| `update_interval` | staleness check | seconds; defaults to the config's `preview_interval` |
-| `run.started` | "Started" line, "Running for" | until present, the viewer derives it from the terminal log's filename |
-| `run.run_id` | header | until present, taken from the terminal log's filename |
-| `run.state` | banner when not `running` | `running`, `stopping`, `stopped`, `aborted` |
-| `run.stopped` | banner | time the run stopped, null while running |
-| `save_drive.found` | NOT FOUND handling | false when `shutil.disk_usage(save_path)` raises |
-| `save_drive.free_bytes` | "Save drive free" | spec asks for bytes; the viewer also shows a rounded unit |
+| `run.started` | "Started", "Running for" | until present, the viewer takes it from the terminal log's filename |
+| `run.run_id` | "run ended" screen (where the metadata went) | until present, from the terminal log's filename |
+| `run.station` | optional, not displayed yet | a human-friendly machine name, if one exists |
+| `save_drive.found` | NOT FOUND banner | false when `shutil.disk_usage(save_path)` raises |
+| `save_drive.free_bytes` | "Save drive free"; 0 shown in red | |
 | `save_drive.total_bytes`, `used_bytes` | used bar | |
-| `save_drive.seconds_until_full` | "Recording time left" | python's `seconds_until_full(free)`; the viewer does not know the assumed write rate |
-| `save_drive.warning.level` | warning banner colour | `none`, `almost_full` (orange), `full` (red), `not_found` (red): the same thresholds as `drive_warning()` in ratrixcam_IO.py |
-| `save_drive.warning.text` | warning banner text | the exact text python would show, e.g. "SSD ALMOST FULL\n~45 min of recording left"; newlines kept |
-| `cameras.<name>.online` | optional | the viewer already detects a stale still by its mtime; python's own view would let the two agree |
-| `run.config_file`, `run.code_version` | footer, optional | |
+| `save_drive.seconds_until_full` | "Recording time left" and the warning level | python's `seconds_until_full(free)`; the viewer does not know the assumed write rate |
+| `temp_drive.free_bytes` | "Temp drive free" | the drive holding `temp_path` |
+| `temp_drive.seconds_until_full` | "SAVE DRIVE FULL. Temp drive cache capacity: ..." | same write-rate estimate applied to the temp drive's free space |
+| `written` | not used yet | kept for a future staleness check |
 
-Not needed from python: clip length (from the config), clip counts and last clip time
-(from the manifests), still freshness (from the stills' mtimes).
+## Warning levels (decided in the viewer, from `seconds_until_full`)
+
+| condition | banner |
+|---|---|
+| save drive not found | red: SAVE DRIVE NOT FOUND |
+| save full (free 0, or less than one clip left) and temp full | red: NO SPACE ON ANY DRIVE: cameras are not being recorded |
+| save full | red: SAVE DRIVE FULL. Temp drive cache capacity: d h min |
+| less than 1 hour left | red: SAVE DRIVE NEARLY FULL: d h min of recording left |
+| less than 24 hours left | orange: SAVE DRIVE ALMOST FULL: d h min of recording left |
+
+These thresholds replace the ones in `drive_warning()` in ratrixcam_IO.py (one clip, one hour),
+which the viewer no longer reads; python only needs to supply the numbers.
+
+Not needed from python: clip length (from the config), still freshness (from the stills' mtimes),
+clean stop vs crash (from the terminal log's tail), run ended (the temp folder disappears).

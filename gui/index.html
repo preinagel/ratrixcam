@@ -7,31 +7,17 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header id="header">
-  <div class="hgroup">
-    <div class="big" id="study-label">&mdash;</div>
-    <div class="muted" id="run-id">&mdash;</div>
-  </div>
-  <div class="hgroup">
-    <div class="kv"><span class="k">Started</span><span class="v" id="started">&mdash;</span></div>
-    <div class="kv"><span class="k">Running for</span><span class="v" id="duration">&mdash;</span></div>
-    <div class="kv"><span class="k">Clip length</span><span class="v" id="clip-length">&mdash;</span></div>
-  </div>
-  <div class="hgroup">
-    <div class="kv"><span class="k">Save drive free</span><span class="v" id="free">&mdash;</span></div>
-    <div class="kv"><span class="k">Recording time left</span><span class="v" id="time-left">&mdash;</span></div>
-    <div class="bar" title="save drive space used"><div class="bar-fill" id="used-bar"></div></div>
-    <div class="muted" id="used-text">&mdash;</div>
-  </div>
-  <div class="hgroup right">
-    <div class="big" id="clock">&mdash;</div>
-    <div class="muted" id="date">&mdash;</div>
-    <button id="layout-btn" type="button" title="strict: all eight positions keep their place; compact: empty rows and columns are dropped">Layout: strict</button>
-  </div>
-</header>
+<div id="topbar">
+  <button id="layout-btn" type="button" title="strict: all eight positions keep their place; compact: empty rows and columns are dropped">Layout: strict</button>
+  <span id="clock"></span>
+</div>
 <div id="banners"></div>
 <main id="grid-wrap"><div id="grid"></div></main>
-<footer id="footer"></footer>
+<section id="accounting"></section>
+<section id="ended" hidden>
+  <div class="ended-title">Recording run ended</div>
+  <div class="ended-text" id="ended-text"></div>
+</section>
 <script src="viewer.js"></script>
 </body>
 </html>

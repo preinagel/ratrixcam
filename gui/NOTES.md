@@ -13,7 +13,52 @@ Updated 2026-11-02. Working notes for the viewer session; not user documentation
   whose still has stopped updating.
 - `gui/sample_data/temp/`: the sample temp folder, committed earlier by the user.
 
-## Decisions taken (report back to the user, open to iteration)
+## Iteration 2 (2026-11-02, after the user's first Safari feedback)
+
+Feedback applied:
+- Header gone. Thin top strip: layout toggle at the left, gray date and time (no seconds) at
+  the right. Study label and run id no longer shown.
+- Accounting moved below the cameras into a 3-column table of single strings ("Started
+  Mon, Nov 2, 2026 09:41"), font scales with the window (`clamp(11px, 1.2vw, 18px)`), cells
+  clip with an ellipsis so nothing overlaps. Rows: started / running for / clip length;
+  save drive free / recording time left / used bar; temp folder / save drive / temp drive free.
+- Missing data is blank, never a dash. A real zero (free bytes, time left) is red.
+- Bytes shown with at most three digits (455 GB, 2.00 TB).
+- Paths shortened: home prefix dropped ("Desktop/.../temp"), more than three parts cut to
+  "…/last/two".
+- Removed: "N cameras offline" banner, status-file-missing note, stale-status-file banner,
+  footer, per-camera clip counts, "(from log name)" tag, red title on offline tiles.
+- Tile title: subject and view in white, "still HH:MM:SS" in gray, position letter at the right.
+  Offline tile shows offline_status.png (the same image python copies into the stills folder).
+- Drive warnings now decided in the viewer from `seconds_until_full`: orange under 24 h,
+  red under 1 h, red "SAVE DRIVE FULL. Temp drive cache capacity: ..." when the save drive
+  cannot take another clip, red "NO SPACE ON ANY DRIVE: cameras are not being recorded" when
+  the temp drive is full too. Wishlist updated: python supplies numbers for both drives, no
+  warning text. (Reverses decision 4 below.)
+- Crash vs clean stop: while every camera is offline, the log tail is read every 10 s.
+  "attempting graceful shutdown" -> blue "Recording stopped at HH:MM: shutting down";
+  "Run aborted" -> blue "Run aborted ..."; neither -> red "CAMERA PROGRAM STOPPED WITHOUT
+  SHUTTING DOWN: no still from any camera since HH:MM". With the static sample folder this
+  red banner appears after 10 s (expected: the folder was copied mid-run).
+- Run ended: when the temp folder listing stops answering after having answered, the page
+  shows "Recording run ended" with the run's start, duration and where the metadata moved
+  (`<save>/ratrixcam_run_metadata/<run id>`). It reloads itself when the folder reappears.
+  Reading the moved metadata on the save drive is NOT done (the server only exposes temp).
+
+Test URLs (server on sample_data/temp):
+- `/` placeholders; `/?status=/sample_data/ratrixcam_status_almost_full.json` orange;
+  `.../ratrixcam_status_nearly_full.json` red under an hour; `.../ratrixcam_status_save_full.json`
+  save full with temp cache capacity.
+
+Open questions for the user:
+1. Does a camera keep writing stills when there is nowhere to stream to? Decides whether
+   "NO SPACE ON ANY DRIVE" can coexist with live stills.
+2. A friendly station name: the log has only the hostname. Wishlist has an optional
+   `run.station`; not displayed until a source exists.
+3. Should the "run ended" screen read the moved metadata on the save drive? That needs the
+   server to expose the save path too (it could learn it from the config at start-up).
+
+## Decisions taken in iteration 1 (open to iteration)
 
 1. Launch: the start command takes the temp folder path as a mandatory argument, mirroring
    how the camera program takes its config path. The viewer never sees `temp_path` from the
@@ -58,11 +103,13 @@ opening. `touch sample_data/temp/status/*.png` in another terminal brings them b
 
 ## Next
 
-1. First Safari test by the user; fix what it shows.
-2. Review sizing on the lab display (tkinter window was 1424x1200).
-3. Possibly: a status-file field for per-camera online state, once python writes it.
+1. Safari test of iteration 2 by the user; fix what it shows.
+2. Answers to the open questions above.
 
-## Needed from the user
+## Working notes
 
-1. Open the page in Safari and report what is wrong (I cannot open a browser from the sandbox).
-2. Memory directory is write-denied in this session, so no memories are saved from here.
+- No node or browser inside the sandbox: JavaScript is self-reviewed only; the user tests
+  in Safari. Test servers are started as a child of a short python script that stops them
+  (a background server cannot be killed from the sandbox).
+- Memory directory is write-denied in this session, so no memories are saved from here.
+- Writes under gui/ are auto-allowed by the user's settings; commit as you go.

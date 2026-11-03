@@ -5,28 +5,35 @@
 
 const TEMP = "/temp/";
 const METADATA_DIR = "ratrixcam_run_metadata";
-const MANIFESTS_DIR = "manifests";
 const STILLS_DIR = "status";
 const STATUS_FILENAME = "ratrixcam_status.json"; // written by python (see STATUS_FILE_WISHLIST.md)
+const OFFLINE_IMAGE = "offline_status.png";
 
 // camera positions on the display: A B | E F over C D | G H; grid column 2 is the gap
 const POSITIONS = { A: [0, 0], B: [0, 1], E: [0, 3], F: [0, 4], C: [1, 0], D: [1, 1], G: [1, 3], H: [1, 4] };
 const GAP_COL = 2;
 
-const MANIFEST_POLL_S = 15;
-const STATUS_STALE_FACTOR = 5; // status file older than this many update intervals is reported stale
+// save-drive warning thresholds, on the expected recording time left
+const ALMOST_FULL_S = 24 * 3600; // orange
+const NEARLY_FULL_S = 3600; // red
+
+const LOG_CHECK_S = 10; // how often the log tail is read while every camera is offline
+const LOG_TAIL_LINES = 60;
 
 const state = {
   config: null,
   configName: null,
   configCandidates: [],
-  cameras: [], // {name, subjID, view, position, tile, stillMtime, offlineSince, clips, lastClip}
+  cameras: [], // {name, subjID, view, position, tile, stillMtime, lastSeen, offline}
   status: null, // last good status file contents
-  statusError: null, // "missing" | "unreadable" | null
   runStarted: null, // Date
-  runStartedSource: null, // "status file" | "log filename"
   runId: null,
+  logName: null,
   layout: "strict",
+  tempSeen: false, // the temp folder has answered at least once
+  tempGone: null, // Date the temp folder disappeared, or null
+  shutdown: null, // {kind: "graceful" | "aborted" | "crash", since: Date} while all cameras are offline
+  lastLogCheck: 0,
 };
 
 // ---------- fetch helpers ----------
@@ -44,39 +51,45 @@ async function fetchText(url) {
 }
 
 async function listDir(rel) {
-  const data = await fetchJSON(TEMP + rel + (rel.endsWith("/") || rel === "" ? "" : "/"));
+  const data = await fetchJSON(TEMP + rel + (rel === "" || rel.endsWith("/") ? "" : "/"));
   return data.entries || [];
 }
 
 // ---------- formatting ----------
 
 const pad2 = (n) => String(n).padStart(2, "0");
+const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-function fmtDateTime(d) {
-  const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-  const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-  return `${days[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}, ${fmtTime(d)}`;
+function fmtDate(d) {
+  return `${DAYS[d.getDay()]}, ${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
 }
 
-function fmtTime(d) {
-  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+function fmtHM(d) {
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+
+function fmtHMS(d) {
+  return `${fmtHM(d)}:${pad2(d.getSeconds())}`;
 }
 
 function fmtDHM(seconds) {
-  if (seconds == null || !isFinite(seconds) || seconds < 0) return null;
+  if (seconds == null || !isFinite(seconds)) return "";
+  seconds = Math.max(0, seconds);
   const days = Math.floor(seconds / 86400);
   const hours = Math.floor((seconds % 86400) / 3600);
   const mins = Math.floor((seconds % 3600) / 60);
   return `${days} d ${hours} h ${mins} min`;
 }
 
+// at most three digits, in the unit that makes that possible
 function fmtBytes(bytes) {
-  if (bytes == null || !isFinite(bytes)) return null;
-  const units = ["bytes", "kB", "MB", "GB", "TB"];
+  if (bytes == null || !isFinite(bytes)) return "";
+  const units = ["bytes", "kB", "MB", "GB", "TB", "PB"];
   let v = bytes, i = 0;
-  while (v >= 1000 && i < units.length - 1) { v /= 1000; i++; }
-  const approx = i === 0 ? `${bytes} bytes` : `${v.toFixed(v < 10 ? 2 : 1)} ${units[i]}`;
-  return i === 0 ? approx : `${approx} (${bytes.toLocaleString()} bytes)`;
+  while (v >= 999.5 && i < units.length - 1) { v /= 1000; i++; }
+  if (i === 0) return `${Math.round(v)} bytes`;
+  return `${v >= 99.5 ? v.toFixed(0) : v >= 9.95 ? v.toFixed(1) : v.toFixed(2)} ${units[i]}`;
 }
 
 // "2026-11-02 09:41:39.803" or ISO "2026-11-02T09:41:39" (local time) -> Date
@@ -85,6 +98,15 @@ function parseLocalTime(text) {
   const m = String(text).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?/);
   if (!m) return null;
   return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6], m[7] ? +m[7].slice(0, 3).padEnd(3, "0") : 0);
+}
+
+// a path for reading at a glance: the home folder prefix dropped, long paths cut to their tail
+function shortPath(path) {
+  if (!path) return "";
+  let s = String(path).replace(/\/+$/, "").replace(/^\/Users\/[^/]+\//, "");
+  const parts = s.split("/").filter(Boolean);
+  if (parts.length > 3) s = "…/" + parts.slice(-2).join("/");
+  return s || path;
 }
 
 // ---------- config ----------
@@ -108,49 +130,45 @@ async function loadConfig() {
   }
   candidates.sort((a, b) => b.mtime - a.mtime);
   state.configCandidates = candidates.map((c) => c.name);
-  if (candidates.length === 0) { state.config = null; state.configName = null; return; }
-  state.config = candidates[0].config;
-  state.configName = candidates[0].name;
+  state.config = candidates.length ? candidates[0].config : null;
+  state.configName = candidates.length ? candidates[0].name : null;
 }
 
 function cameraName(cfg, cam) {
   return `${cfg.subject_prefix}${cam.subjID}_${cam.view}`;
 }
 
-// ---------- run start fallback: from the terminal log's filename ----------
+function previewInterval() {
+  return state.config && state.config.preview_interval > 0 ? state.config.preview_interval : 1;
+}
 
-async function findRunIdFromLog() {
-  const entries = await listDir("");
-  for (const e of entries) {
-    const m = e.name.match(/^terminal_(ratrixcam_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})_[0-9a-f]+)\.log$/);
-    if (m) return { runId: m[1], started: new Date(+m[2], +m[3] - 1, +m[4], +m[5], +m[6], +m[7]) };
-  }
-  return null;
+function offlineAfterSeconds() {
+  return Math.max(10, 10 * previewInterval());
 }
 
 // ---------- camera grid ----------
 
+function el(id) { return document.getElementById(id); }
+
 function buildTiles() {
-  const grid = document.getElementById("grid");
+  const grid = el("grid");
   grid.textContent = "";
   state.cameras = [];
   if (!state.config) return;
   for (const cam of state.config.cameras) {
     const tile = document.createElement("div");
-    tile.className = "tile waiting";
+    tile.className = "tile";
     tile.innerHTML = `
-      <div class="title"><span class="subj"></span><span class="view"></span><span class="pos"></span></div>
-      <div class="still"><img alt=""><div class="overlay"></div></div>
-      <div class="clips">&mdash;</div>`;
+      <div class="title"><span class="subj"></span><span class="view"></span><span class="seen"></span><span class="pos"></span></div>
+      <div class="still"><img alt=""></div>`;
     tile.querySelector(".subj").textContent = `${state.config.subject_prefix}${cam.subjID}`;
     tile.querySelector(".view").textContent = cam.view;
     tile.querySelector(".pos").textContent = cam.position;
-    tile.querySelector("img").src = "offline_status.png";
-    tile.querySelector(".overlay").textContent = "waiting for first still";
+    tile.querySelector("img").src = OFFLINE_IMAGE;
     grid.appendChild(tile);
     state.cameras.push({
       name: cameraName(state.config, cam), subjID: cam.subjID, view: cam.view, position: cam.position,
-      tile, stillMtime: null, offlineSince: null, clips: null, lastClip: null,
+      tile, stillMtime: null, lastSeen: null, offline: false,
     });
   }
   applyLayout();
@@ -159,7 +177,7 @@ function buildTiles() {
 // strict: all eight positions keep their place; compact: rows and columns without a camera
 // are dropped, relative order preserved, the block gap kept only when both blocks are used
 function applyLayout() {
-  const grid = document.getElementById("grid");
+  const grid = el("grid");
   let rows = [0, 1], cols = [0, 1, GAP_COL, 3, 4];
   if (state.layout === "compact") {
     const used = state.cameras.map((c) => POSITIONS[c.position]).filter(Boolean);
@@ -173,8 +191,7 @@ function applyLayout() {
   grid.style.gridTemplateRows = rows.map(() => "auto").join(" ");
   for (const cam of state.cameras) {
     const p = POSITIONS[cam.position];
-    if (!p) { cam.tile.style.display = "none"; continue; }
-    const r = rows.indexOf(p[0]), c = cols.indexOf(p[1]);
+    const r = p ? rows.indexOf(p[0]) : -1, c = p ? cols.indexOf(p[1]) : -1;
     cam.tile.style.display = r < 0 || c < 0 ? "none" : "";
     cam.tile.style.gridRow = String(r + 1);
     cam.tile.style.gridColumn = String(c + 1);
@@ -185,101 +202,103 @@ function applyLayout() {
   fitTiles();
 }
 
-// choose --tile-w so the whole grid fits the space under the header
+// choose --tile-w so the whole grid fits the space left between the banners and the accounting
 function fitTiles() {
-  const wrap = document.getElementById("grid-wrap"), grid = document.getElementById("grid");
+  const wrap = el("grid-wrap"), grid = el("grid");
   const nRows = +grid.dataset.rows || 0, nCols = +grid.dataset.cols || 0;
   if (!nRows || !nCols) return;
   const css = getComputedStyle(document.documentElement);
   const tileGap = parseFloat(css.getPropertyValue("--tile-gap")) || 12;
   const blockGap = grid.dataset.gap === "1" ? (parseFloat(css.getPropertyValue("--block-gap")) || 36) + tileGap : 0;
-  const availW = wrap.clientWidth - 24, availH = wrap.clientHeight - 24;
-  const chrome = 34 + 22 + 2; // title + clips line + borders, per tile
+  const availW = wrap.clientWidth - 24, availH = wrap.clientHeight - 16;
+  const chrome = 32; // title bar and borders, per tile
   const byWidth = (availW - blockGap - tileGap * (nCols - 1)) / nCols;
   const byHeight = ((availH - tileGap * (nRows - 1)) / nRows - chrome) * 4 / 3;
-  const w = Math.max(160, Math.floor(Math.min(byWidth, byHeight)));
+  const w = Math.max(120, Math.floor(Math.min(byWidth, byHeight)));
   document.documentElement.style.setProperty("--tile-w", `${w}px`);
 }
 
 function setLayout(mode) {
   state.layout = mode;
-  document.getElementById("layout-btn").textContent = `Layout: ${mode}`;
+  el("layout-btn").textContent = `Layout: ${mode}`;
   try { localStorage.setItem("ratrixcam-viewer-layout", mode); } catch (e) { /* private window etc. */ }
   applyLayout();
 }
 
 // ---------- stills ----------
 
-function offlineAfterSeconds() {
-  const interval = state.config && state.config.preview_interval ? state.config.preview_interval : 1;
-  return Math.max(10, 10 * interval);
-}
-
-async function pollStills() {
-  let entries;
-  try { entries = await listDir(STILLS_DIR); } catch (e) { entries = []; }
-  const byName = new Map(entries.map((e) => [e.name, e]));
-  const now = Date.now() / 1000;
-  for (const cam of state.cameras) {
-    const entry = byName.get(`cam_${cam.name}_status.png`);
-    const age = entry ? now - entry.mtime : Infinity;
-    if (entry && entry.mtime !== cam.stillMtime) loadStill(cam, entry.mtime);
-    setOffline(cam, age > offlineAfterSeconds() ? (entry ? entry.mtime : null) : null, !entry);
-  }
-}
-
 // a still may be half-written: decode it off-screen and only then swap it in
 function loadStill(cam, mtime) {
   const img = new Image();
   const url = `${TEMP}${STILLS_DIR}/cam_${encodeURIComponent(cam.name)}_status.png?t=${mtime}`;
-  img.onload = () => {
-    cam.tile.querySelector("img").src = url;
-    cam.tile.classList.remove("waiting");
-  };
+  img.onload = () => { if (!cam.offline) cam.tile.querySelector("img").src = url; };
   img.onerror = () => { cam.stillMtime = null; }; // retry on the next poll
   cam.stillMtime = mtime;
   img.src = url;
 }
 
-function setOffline(cam, sinceEpoch, missing) {
-  const overlay = cam.tile.querySelector(".overlay");
-  if (sinceEpoch == null && !missing) {
-    if (cam.offlineSince != null) { cam.offlineSince = null; cam.tile.classList.remove("offline"); }
-    return;
-  }
-  const key = sinceEpoch == null ? -1 : sinceEpoch;
-  if (cam.offlineSince !== key) {
-    cam.offlineSince = key;
-    cam.tile.classList.add("offline");
-    cam.tile.classList.remove("waiting");
-    cam.tile.querySelector("img").src = "offline_status.png";
-    overlay.textContent = missing
-      ? "OFFLINE: no still image"
-      : `OFFLINE: no still since ${fmtTime(new Date(sinceEpoch * 1000))}`;
+function updateStills(entries) {
+  const byName = new Map(entries.map((e) => [e.name, e]));
+  const now = Date.now() / 1000;
+  for (const cam of state.cameras) {
+    const entry = byName.get(`cam_${cam.name}_status.png`);
+    if (entry) cam.lastSeen = new Date(entry.mtime * 1000);
+    const offline = !entry || now - entry.mtime > offlineAfterSeconds();
+    if (offline && !cam.offline) cam.tile.querySelector("img").src = OFFLINE_IMAGE;
+    cam.offline = offline;
+    if (entry && entry.mtime !== cam.stillMtime && !offline) loadStill(cam, entry.mtime);
+    cam.tile.querySelector(".seen").textContent = cam.lastSeen ? `still ${fmtHMS(cam.lastSeen)}` : "no still yet";
   }
 }
 
-// ---------- manifests ----------
+// ---------- temp folder, log and shutdown detection ----------
 
-async function pollManifests() {
-  for (const cam of state.cameras) {
-    let text;
-    try {
-      text = await fetchText(`${TEMP}${METADATA_DIR}/${MANIFESTS_DIR}/${encodeURIComponent(cam.name)}_manifest.csv`);
-    } catch (e) {
-      cam.tile.querySelector(".clips").textContent = "no manifest yet";
-      continue;
-    }
-    const lines = text.split(/\r?\n/).filter((l) => l.trim() !== "");
-    if (lines.length === 0) { cam.tile.querySelector(".clips").textContent = "manifest empty"; continue; }
-    const header = lines[0].split(",");
-    const col = header.indexOf("row_written");
-    const rows = lines.slice(1);
-    const last = rows.length && col >= 0 ? rows[rows.length - 1].split(",")[col] : null;
-    const lastDate = parseLocalTime(last);
-    cam.tile.querySelector(".clips").textContent =
-      `${rows.length} clip${rows.length === 1 ? "" : "s"} closed` + (lastDate ? `, last at ${fmtTime(lastDate)}` : "");
+function noteLogEntry(entries) {
+  for (const e of entries) {
+    const m = e.name.match(/^terminal_(ratrixcam_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})_[0-9a-f]+)\.log$/);
+    if (!m) continue;
+    state.logName = e.name;
+    // until the status file provides them, run id and start time come from the log's name
+    if (!state.runId) state.runId = m[1];
+    if (!state.runStarted) state.runStarted = new Date(+m[2], +m[3] - 1, +m[4], +m[5], +m[6], +m[7]);
+    return;
   }
+}
+
+// while every camera is offline: did the program shut down on purpose, or just stop?
+async function checkShutdown() {
+  const all = state.cameras.length > 0 && state.cameras.every((c) => c.offline);
+  if (!all) { state.shutdown = null; return; }
+  const now = Date.now();
+  if (now - state.lastLogCheck < LOG_CHECK_S * 1000) return;
+  state.lastLogCheck = now;
+  const since = state.cameras.reduce((d, c) => (c.lastSeen && (!d || c.lastSeen > d) ? c.lastSeen : d), null);
+  let kind = "crash";
+  if (state.logName) {
+    try {
+      const text = await fetchText(TEMP + encodeURIComponent(state.logName));
+      const tail = text.split(/\r?\n/).slice(-LOG_TAIL_LINES).join("\n");
+      if (tail.includes("attempting graceful shutdown")) kind = "graceful";
+      else if (tail.includes("Run aborted")) kind = "aborted";
+    } catch (e) { /* log unreadable: keep "crash" */ }
+  }
+  state.shutdown = { kind, since };
+}
+
+async function pollTemp() {
+  let root;
+  try { root = await listDir(""); } catch (e) { root = null; }
+  if (root === null) {
+    if (state.tempSeen && !state.tempGone) state.tempGone = new Date();
+    return;
+  }
+  if (state.tempGone) { location.reload(); return; } // a new run in the same temp folder
+  state.tempSeen = true;
+  noteLogEntry(root);
+  let stills = [];
+  try { stills = await listDir(STILLS_DIR); } catch (e) { /* no stills folder yet */ }
+  updateStills(stills);
+  await checkShutdown();
 }
 
 // ---------- status file (run accounting) ----------
@@ -291,111 +310,136 @@ function statusUrl() {
 
 async function pollStatus() {
   let r;
-  try { r = await fetch(statusUrl(), { cache: "no-store" }); } catch (e) { state.statusError = "missing"; return; }
-  if (!r.ok) { state.statusError = "missing"; return; }
-  try {
-    state.status = await r.json();
-    state.statusError = null;
-  } catch (e) {
-    state.statusError = "unreadable"; // half-written: keep the previous contents
-  }
+  try { r = await fetch(statusUrl(), { cache: "no-store" }); } catch (e) { return; }
+  if (!r.ok) return;
+  try { state.status = await r.json(); } catch (e) { return; } // half-written: keep the previous contents
   const run = state.status && state.status.run;
-  if (run && run.started) {
+  if (run) {
     const d = parseLocalTime(run.started);
-    if (d) { state.runStarted = d; state.runStartedSource = "status file"; }
+    if (d) state.runStarted = d;
     if (run.run_id) state.runId = run.run_id;
   }
 }
 
-function el(id) { return document.getElementById(id); }
+// {cls, text} for the save-drive banner, or null
+function driveWarning() {
+  const st = state.status;
+  if (!st) return null;
+  const save = st.save_drive || {}, temp = st.temp_drive || {};
+  const tempLeft = temp.seconds_until_full;
+  if (save.found === false) {
+    return { cls: "alarm", text: `SAVE DRIVE NOT FOUND: ${save.path || (state.config && state.config.save_path) || ""}` };
+  }
+  const left = save.seconds_until_full;
+  if (left == null) return null;
+  const clip = state.config ? state.config.time_slice : 0;
+  const saveFull = save.free_bytes === 0 || left < clip;
+  if (saveFull && (temp.free_bytes === 0 || (tempLeft != null && tempLeft < clip))) {
+    return { cls: "alarm", text: "NO SPACE ON ANY DRIVE: cameras are not being recorded" };
+  }
+  if (saveFull) {
+    return { cls: "alarm", text: `SAVE DRIVE FULL. Temp drive cache capacity: ${tempLeft != null ? fmtDHM(tempLeft) : "unknown"}` };
+  }
+  if (left < NEARLY_FULL_S) return { cls: "alarm", text: `SAVE DRIVE NEARLY FULL: ${fmtDHM(left)} of recording left` };
+  if (left < ALMOST_FULL_S) return { cls: "warn", text: `SAVE DRIVE ALMOST FULL: ${fmtDHM(left)} of recording left` };
+  return null;
+}
 
-function setValue(id, text) {
-  const node = el(id);
-  node.textContent = text == null ? "—" : text;
-  node.classList.toggle("placeholder", text == null);
+// ---------- rendering ----------
+
+function cellHTML(label, value, opts = {}) {
+  const span = document.createElement("span");
+  span.textContent = value;
+  const v = opts.zero ? `<span class="zero">${span.innerHTML}</span>` : span.innerHTML;
+  const l = document.createElement("span");
+  l.textContent = label;
+  return `<div class="cell"><span class="label">${l.innerHTML}</span>${v}</div>`;
 }
 
 function renderAccounting() {
   const cfg = state.config, st = state.status;
   const now = new Date();
-  el("clock").textContent = fmtTime(now);
-  el("date").textContent = fmtDateTime(now).replace(/, \d\d:\d\d:\d\d$/, "");
-  el("study-label").textContent = cfg ? cfg.study_label : "no config";
-  el("run-id").textContent = state.runId || (state.configName ? state.configName : "");
+  el("clock").textContent = `${fmtDate(now)}  ${fmtHM(now)}`;
 
-  setValue("started", state.runStarted ? fmtDateTime(state.runStarted) + (state.runStartedSource === "log filename" ? " (from log name)" : "") : null);
-  setValue("duration", state.runStarted ? fmtDHM((now - state.runStarted) / 1000) : null);
-  if (cfg) {
-    const mins = cfg.time_slice / 60;
-    setValue("clip-length", `${Number.isInteger(mins) ? mins : mins.toFixed(1)} min`);
-  } else setValue("clip-length", null);
+  const save = (st && st.save_drive) || {}, temp = (st && st.temp_drive) || {};
+  const warning = driveWarning();
+  const level = warning ? warning.cls : "";
+  const cells = [];
+  cells.push(cellHTML("Started", state.runStarted ? `${fmtDate(state.runStarted)} ${fmtHM(state.runStarted)}` : ""));
+  cells.push(cellHTML("Running for", state.runStarted ? fmtDHM((now - state.runStarted) / 1000) : ""));
+  cells.push(cellHTML("Clip length", cfg ? `${Number.isInteger(cfg.time_slice / 60) ? cfg.time_slice / 60 : (cfg.time_slice / 60).toFixed(1)} min` : ""));
 
-  const drive = st && st.save_drive;
-  setValue("free", drive && drive.found !== false ? fmtBytes(drive.free_bytes) : null);
-  setValue("time-left", drive && drive.found !== false ? fmtDHM(drive.seconds_until_full) : null);
-  const bar = el("used-bar");
-  if (drive && drive.total_bytes > 0 && drive.used_bytes != null) {
-    const pct = 100 * drive.used_bytes / drive.total_bytes;
-    bar.style.width = `${Math.min(100, pct).toFixed(1)}%`;
-    const level = drive.warning && drive.warning.level;
-    bar.className = "bar-fill" + (level === "full" || level === "not_found" ? " alarm" : level === "almost_full" ? " warn" : "");
-    el("used-text").textContent = `${pct.toFixed(1)}% used of ${fmtBytes(drive.total_bytes).split(" (")[0]}`;
+  const freeKnown = save.found !== false && save.free_bytes != null;
+  cells.push(cellHTML("Save drive free", freeKnown ? fmtBytes(save.free_bytes) : "", { zero: freeKnown && save.free_bytes === 0 }));
+  const leftKnown = save.found !== false && save.seconds_until_full != null;
+  cells.push(cellHTML("Recording time left", leftKnown ? fmtDHM(save.seconds_until_full) : "", { zero: leftKnown && save.seconds_until_full <= 0 }));
+  if (save.total_bytes > 0 && save.used_bytes != null) {
+    const pct = Math.min(100, 100 * save.used_bytes / save.total_bytes);
+    cells.push(`<div class="cell"><span class="bar"><span class="bar-fill ${level}" style="width:${pct.toFixed(1)}%"></span></span>${pct.toFixed(0)}% of ${fmtBytes(save.total_bytes)} used</div>`);
   } else {
-    bar.style.width = "0";
-    el("used-text").textContent = drive && drive.found === false ? "drive not found" : "—";
+    cells.push(cellHTML("Save drive used", ""));
   }
+
+  cells.push(cellHTML("Temp folder", cfg ? shortPath(cfg.temp_path) : ""));
+  cells.push(cellHTML("Save drive", cfg ? shortPath(cfg.save_path) : ""));
+  cells.push(cellHTML("Temp drive free", temp.free_bytes != null ? fmtBytes(temp.free_bytes) : "", { zero: temp.free_bytes === 0 }));
+
+  const html = cells.join("");
+  const box = el("accounting");
+  if (box.dataset.html !== html) { box.innerHTML = html; box.dataset.html = html; }
 }
 
 function renderBanners() {
   const banners = [];
-  const st = state.status;
-  const drive = st && st.save_drive;
-  const warning = drive && drive.warning;
-  if (warning && warning.level && warning.level !== "none") {
-    const cls = warning.level === "almost_full" ? "warn" : "alarm";
-    banners.push({ cls, text: warning.text || warning.level });
+  const drive = driveWarning();
+  if (drive) banners.push(drive);
+  if (state.shutdown) {
+    const when = state.shutdown.since ? fmtHM(state.shutdown.since) : "start";
+    if (state.shutdown.kind === "graceful") banners.push({ cls: "info", text: `Recording stopped at ${when}: shutting down` });
+    else if (state.shutdown.kind === "aborted") banners.push({ cls: "info", text: `Run aborted at ${when}: everything left in the temp folder` });
+    else banners.push({ cls: "alarm", text: `CAMERA PROGRAM STOPPED WITHOUT SHUTTING DOWN: no still from any camera since ${when}` });
   }
-  if (st && st.run && st.run.state && st.run.state !== "running") {
-    banners.push({ cls: "info", text: `Recording ${st.run.state}` + (st.run.stopped ? ` at ${st.run.stopped}` : "") });
-  }
-  if (!state.config) {
-    banners.push({ cls: "alarm", text: `No camera config found in <temp>/${METADATA_DIR}/: nothing to display` });
+  if (state.tempSeen && !state.config) {
+    banners.push({ cls: "alarm", text: `No camera config found in the temp folder (${METADATA_DIR}/)` });
   } else if (state.configCandidates.length > 1) {
-    banners.push({ cls: "warn", text: `Several config files in <temp>/${METADATA_DIR}/; showing the newest (${state.configName}). Others: ${state.configCandidates.slice(1).join(", ")}` });
-  }
-  const offline = state.cameras.filter((c) => c.offlineSince != null);
-  if (offline.length) {
-    banners.push({ cls: "alarm", text: `${offline.length} camera${offline.length === 1 ? "" : "s"} offline: ${offline.map((c) => `${c.name} (${c.position})`).join(", ")}` });
-  }
-  if (state.statusError === "missing") {
-    banners.push({ cls: "muted", text: `Status file ${STATUS_FILENAME} not found in the temp folder: run accounting shows placeholders` });
-  } else if (st && st.written) {
-    const written = parseLocalTime(st.written);
-    const interval = st.update_interval || (state.config && state.config.preview_interval) || 1;
-    if (written && (Date.now() - written) / 1000 > STATUS_STALE_FACTOR * interval) {
-      banners.push({ cls: "warn", text: `Status file not updated since ${fmtTime(written)}: is the camera program still running?` });
-    }
+    banners.push({ cls: "warn", text: `Several config files in ${METADATA_DIR}/; showing the newest (${state.configName}). Others: ${state.configCandidates.slice(1).join(", ")}` });
   }
   const box = el("banners");
-  const html = banners.map((b) => `<div class="banner ${b.cls}"></div>`).join("");
-  if (box.dataset.sig !== JSON.stringify(banners)) {
-    box.innerHTML = html;
-    [...box.children].forEach((node, i) => { node.textContent = banners[i].text; });
-    box.dataset.sig = JSON.stringify(banners);
-    fitTiles();
+  const sig = JSON.stringify(banners);
+  if (box.dataset.sig === sig) return;
+  box.dataset.sig = sig;
+  box.textContent = "";
+  for (const b of banners) {
+    const node = document.createElement("div");
+    node.className = `banner ${b.cls}`;
+    node.textContent = b.text;
+    box.appendChild(node);
   }
+  fitTiles();
 }
 
-function renderFooter() {
-  const parts = [];
-  if (state.configName) parts.push(`config: ${state.configName}`);
-  if (state.config && state.config.temp_path) parts.push(`temp: ${state.config.temp_path}`);
-  if (state.config && state.config.save_path) parts.push(`save: ${state.config.save_path}`);
-  parts.push(`stills every ${state.config && state.config.preview_interval ? state.config.preview_interval : 1} s, offline after ${offlineAfterSeconds()} s without one`);
-  el("footer").textContent = parts.join("   |   ");
+function renderEnded() {
+  const ended = !!state.tempGone;
+  el("ended").hidden = !ended;
+  el("grid-wrap").hidden = ended;
+  el("accounting").hidden = ended;
+  el("banners").hidden = ended;
+  if (!ended) return;
+  const lines = [`The temp folder is gone (noticed ${fmtDate(state.tempGone)} ${fmtHM(state.tempGone)}).`];
+  if (state.runStarted) lines.push(`Run started ${fmtDate(state.runStarted)} ${fmtHM(state.runStarted)}, ran for ${fmtDHM((state.tempGone - state.runStarted) / 1000)}.`);
+  if (state.config && state.runId) lines.push(`Run metadata moved to ${shortPath(state.config.save_path)}/${METADATA_DIR}/${state.runId}`);
+  lines.push("This page reloads by itself when a new run starts in the same temp folder.");
+  el("ended-text").textContent = lines.join("\n");
 }
 
 // ---------- main ----------
+
+async function tick() {
+  await pollStatus();
+  await pollTemp();
+  renderEnded();
+  if (!state.tempGone) { renderAccounting(); renderBanners(); }
+}
 
 async function main() {
   try { state.layout = localStorage.getItem("ratrixcam-viewer-layout") || "strict"; } catch (e) { /* ignore */ }
@@ -405,27 +449,13 @@ async function main() {
 
   try { await loadConfig(); } catch (e) { state.config = null; }
   buildTiles();
-  renderFooter();
-
-  try {
-    const fromLog = await findRunIdFromLog();
-    if (fromLog && !state.runStarted) { state.runStarted = fromLog.started; state.runStartedSource = "log filename"; state.runId = fromLog.runId; }
-  } catch (e) { /* no log: no fallback */ }
-
-  const interval = state.config && state.config.preview_interval ? state.config.preview_interval : 1;
-  await pollStatus();
-  await pollStills();
-  await pollManifests();
-  renderAccounting();
-  renderBanners();
-
-  setInterval(async () => { await pollStatus(); await pollStills(); renderAccounting(); renderBanners(); }, interval * 1000);
-  setInterval(pollManifests, MANIFEST_POLL_S * 1000);
+  await tick();
+  setInterval(tick, previewInterval() * 1000);
   // the config is re-read occasionally in case the viewer was opened before the run started
   setInterval(async () => {
-    if (state.config) return;
+    if (state.config || state.tempGone) return;
     try { await loadConfig(); } catch (e) { return; }
-    if (state.config) { buildTiles(); renderFooter(); pollManifests(); }
+    if (state.config) buildTiles();
   }, 5000);
 }
 

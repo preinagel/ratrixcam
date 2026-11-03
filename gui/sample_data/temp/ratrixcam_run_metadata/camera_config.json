@@ -15,7 +15,7 @@
   "cameras": [
     {"subjID": "999", "view": "face", "position": "A"},
     {"subjID": "999", "view": "buddy", "position": "B"},
-    {"subjID": "999", "view": "home", "position": "C"},
-    {"subjID": "999", "view": "foobar", "position": "D"}
+    {"subjID": "999", "view": "home", "position": "E"},
+    {"subjID": "999", "view": "foobar", "position": "F"}
   ]
 }
