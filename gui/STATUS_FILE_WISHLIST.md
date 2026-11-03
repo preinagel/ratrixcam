@@ -10,9 +10,8 @@ Every field below is always present. Where python has no value it writes the def
 in the table; it never omits a field. Extra fields may be added later and are ignored.
 
 Where in the loop the file is written matters: it must keep being rewritten for as long as
-the temp drive has room for it, even after the cameras no longer have room to write frames.
-The viewer reads "no space on any drive" from the file going quiet while its last contents
-showed both drives full.
+the temp drive has room for it, even after the cameras no longer have room to write frames,
+so that the viewer keeps seeing the drive numbers while the cameras are stuck.
 
 ```json
 {
@@ -47,7 +46,7 @@ showed both drives full.
 | field | used for | default when unknown |
 |---|---|---|
 | `schema` | future format changes | `1` |
-| `written` | out-of-space detection: a file older than 60 s whose last contents showed both drives full triggers the red NO SPACE banner | always known |
+| `written` | not displayed; kept for a future staleness check | always known |
 | `run.run_id` | "run ended" screen: where the metadata went | always known |
 | `run.started` | "Started", "Running for" | always known |
 | `run.machine_name` | top-right strip, before the date: a user-friendly name of the camera computer ("Mac 4", "Stations 9-10") | the hostname |
@@ -62,8 +61,8 @@ showed both drives full.
 | condition | banner |
 |---|---|
 | save drive not found | red: SAVE DRIVE NOT FOUND |
-| save full (free 0, or less than one clip left) | red: SAVE DRIVE FULL. Temp drive cache capacity: d h min |
-| save full, status file older than 60 s, its last temp free under 1 MB | red: NO SPACE ON ANY DRIVE: cameras are not being recorded |
+| save full (free 0, or less than one clip left) and temp drive full too | red: NO SPACE ON ANY DRIVE / Cameras are no longer being recorded |
+| save full, temp drive still has room | red: SAVE DRIVE FULL / Temp drive cache capacity: d h min |
 | less than 1 hour of recording left | red: SAVE DRIVE NEARLY FULL: d h min of recording left |
 | less than 24 hours left | orange: SAVE DRIVE ALMOST FULL: d h min of recording left |
 

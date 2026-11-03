@@ -25,12 +25,6 @@ const ACC_FONT_MIN = 11, ACC_FONT_MAX = 26;
 const FYI_S = 24 * 3600; // orange: space for less than a day
 const NEARLY_FULL_S = 3600; // red
 
-// "no space on any drive": the status file has not been rewritten for this long, and its last
-// contents showed the save drive full and the temp drive without room for even the status
-// file itself (python keeps writing it as long as the temp drive can hold it)
-const STATUS_STALE_S = 60;
-const STATUS_FILE_ROOM = 1000000; // bytes
-
 const LOG_CHECK_S = 10; // how often the log tail is read while every camera is offline
 const LOG_CHECK_SHUTDOWN_S = 1; // ... and once a shutdown is under way, to catch its last lines
 const LOG_TAIL_LINES = 60;
@@ -412,19 +406,17 @@ function driveWarning() {
   }
   const left = save.seconds_until_full;
   if (left == null) return null;
+  // "full" = no room for another clip. With the save drive full the cameras stream into the
+  // temp folder until that drive is full too; then frames are dropped (a still may still
+  // appear now and then; it is shown while fresh)
   const clip = state.config ? state.config.time_slice : 0;
   const saveFull = save.free_bytes === 0 || left < clip;
-  // the status file stopped coming after reporting the save drive full and the temp drive
-  // without room for the file itself: the cameras are dropping frames (a still may still
-  // appear now and then; it is shown while fresh)
-  const stale = state.statusWritten && Date.now() - state.statusWritten > STATUS_STALE_S * 1000;
-  if (stale && saveFull && temp.free_bytes != null && temp.free_bytes < STATUS_FILE_ROOM) {
+  const tempFull = temp.free_bytes === 0 || (tempLeft != null && tempLeft < clip);
+  if (saveFull && tempFull) {
     return { cls: "alarm", head: "NO SPACE ON ANY DRIVE", body: "Cameras are no longer being recorded" };
   }
   if (saveFull) {
-    const tempFull = temp.free_bytes === 0 || (tempLeft != null && tempLeft < clip);
-    return { cls: "alarm", head: "SAVE DRIVE FULL",
-      body: tempFull ? "Cameras are no longer being recorded" : `Temp drive cache capacity: ${tempLeft != null ? fmtDHM(tempLeft) : "unknown"}` };
+    return { cls: "alarm", head: "SAVE DRIVE FULL", body: `Temp drive cache capacity: ${tempLeft != null ? fmtDHM(tempLeft) : "unknown"}` };
   }
   if (left < NEARLY_FULL_S) return { cls: "alarm", head: "SAVE DRIVE NEARLY FULL", body: `${fmtDHM(left)} of recording left` };
   if (left < FYI_S) return { cls: "warn", head: `Save drive has space for another ${fmtDHM(left)}`, body: "" };
