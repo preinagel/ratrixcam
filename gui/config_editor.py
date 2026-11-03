@@ -242,6 +242,18 @@ class EditorHandler(SimpleHTTPRequestHandler):
     def do_PUT(self) -> None:
         path = unquote(urlsplit(self.path).path)
         if path == "/api/options":
+            if self.query().get("reset") == "1":
+                current = load_options()
+                fresh = {
+                    "machine_id": machine_id(),
+                    "machine_name": current.get("machine_name", ""),
+                    "created": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "options": {k: list(v) for k, v in PLACEHOLDER_OPTIONS.items()},
+                    "presets": dict(PRESETS),
+                }
+                write_json(OPTIONS_FILE, fresh)
+                self.send_json({"ok": True})
+                return
             data = self.read_body()
             if not isinstance(data, dict) or not isinstance(data.get("options"), dict):
                 self.send_json({"error": "options must be an object"}, HTTPStatus.BAD_REQUEST)

@@ -415,6 +415,79 @@ async function saveFile() {
   else setStatus(`Not saved: ${(data.problems || ["unknown error"]).join("; ")}`, "error");
 }
 
+// ---------- the legal-values panel ----------
+
+// every list the menus draw on, with its label and which field(s) use it
+function allLists() {
+  const lists = [];
+  for (const f of RUN_FIELDS) lists.push({ key: f.key, label: f.label, inUse: (v) => String(state.config[f.key]) === String(v) });
+  for (const f of CAMERA_FIELDS) {
+    if (!f.options) continue;
+    lists.push({ key: f.options, label: f.optional ? f.label : `${f.label} (cameras)`, inUse: (v) => state.config.cameras.some((cam) => String(cam[f.key]) === String(v)) });
+  }
+  for (const f of ADVANCED_FIELDS) lists.push({ key: f.key, label: `${f.label} (default)`, inUse: (v) => String(state.config[f.key]) === String(v) });
+  return lists;
+}
+
+function renderManage() {
+  const box = el("manage-lists");
+  box.textContent = "";
+  for (const list of allLists()) {
+    const wrap = document.createElement("div");
+    wrap.className = "vlist";
+    const name = document.createElement("div");
+    name.className = "name";
+    name.textContent = list.label;
+    wrap.appendChild(name);
+    const values = legalValues(list.key);
+    if (values.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "empty";
+      empty.textContent = "none";
+      wrap.appendChild(empty);
+    }
+    for (const v of values) {
+      const item = document.createElement("div");
+      item.className = "item";
+      const text = document.createElement("span");
+      text.className = "v";
+      text.textContent = String(v);
+      item.appendChild(text);
+      if (list.inUse(v)) {
+        const tag = document.createElement("span");
+        tag.className = "inuse";
+        tag.textContent = "in use";
+        item.appendChild(tag);
+      } else {
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "small";
+        remove.textContent = "remove";
+        remove.addEventListener("click", async () => {
+          state.options.options[list.key] = legalValues(list.key).filter((x) => String(x) !== String(v));
+          await saveOptions();
+          refreshSelects(list.key);
+          render();
+          renderManage();
+        });
+        item.appendChild(remove);
+      }
+      wrap.appendChild(item);
+    }
+    box.appendChild(wrap);
+  }
+}
+
+async function resetValues() {
+  if (!confirm("Replace every list with the values shipped with the program? Values added on this machine are lost (the machine name is kept).")) return;
+  const { ok, data } = await api("PUT", "/api/options?reset=1", {});
+  if (!ok) { alert(`Could not reset: ${data.error || "unknown error"}`); return; }
+  await loadOptions();
+  for (const list of allLists()) refreshSelects(list.key);
+  render();
+  renderManage();
+}
+
 async function renameMachine() {
   const name = await promptNewValue({ key: "machine_name", label: "machine name", kind: "machine" }, null, "Name of this machine");
   if (name === undefined) return;
@@ -434,6 +507,9 @@ async function main() {
   el("save").addEventListener("click", saveFile);
   el("add-camera").addEventListener("click", () => { state.config.cameras.push(emptyCamera()); buildCameraRows(); render(); });
   el("rename-machine").addEventListener("click", renameMachine);
+  el("manage-values").addEventListener("click", () => { renderManage(); el("manage").hidden = false; });
+  el("manage-close").addEventListener("click", () => { el("manage").hidden = true; });
+  el("manage-reset").addEventListener("click", resetValues);
   el("file-path").addEventListener("keydown", (e) => { if (e.key === "Enter") loadFile(); });
 }
 

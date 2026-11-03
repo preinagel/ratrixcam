@@ -13,6 +13,7 @@
     <span class="label">This machine</span>
     <span id="machine-name" class="value"></span>
     <button type="button" id="rename-machine" class="small">rename</button>
+    <button type="button" id="manage-values">Edit legal values</button>
   </div>
 </header>
 
@@ -73,6 +74,20 @@
     <div class="buttons">
       <button type="button" id="prompt-cancel">Cancel</button>
       <button type="button" id="prompt-ok" class="primary">Add</button>
+    </div>
+  </div>
+</div>
+
+<div id="manage" class="overlay" hidden>
+  <div class="dialog wide">
+    <div class="dialog-head">
+      <div>Legal values on this machine</div>
+      <div class="muted">Removing a value only takes it off the menus. A config file that still uses it will show the value as "(not in list)" when loaded, and cannot be saved until the value is added again.</div>
+    </div>
+    <div id="manage-lists"></div>
+    <div class="buttons">
+      <button type="button" id="manage-reset">Reset to shipped values…</button>
+      <button type="button" id="manage-close" class="primary">Close</button>
     </div>
   </div>
 </div>

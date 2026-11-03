@@ -136,6 +136,15 @@ aside {
   width: min(420px, 90vw);
   display: flex; flex-direction: column; gap: 8px;
 }
+.dialog.wide { width: min(720px, 94vw); max-height: 90vh; }
+.dialog-head { display: flex; flex-direction: column; gap: 4px; }
+.dialog-head > div:first-child { font-weight: 600; }
+#manage-lists { overflow: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px 16px; }
+.vlist .name { color: var(--muted); font-size: 12px; margin-bottom: 2px; }
+.vlist .item { display: flex; align-items: center; gap: 6px; padding: 1px 0; }
+.vlist .item .v { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vlist .item .inuse { color: var(--muted); font-size: 11px; }
+.vlist .empty { color: var(--muted); font-style: italic; font-size: 12px; }
 #prompt-title { font-weight: 600; }
 .error { color: var(--alarm); min-height: 1.2em; font-size: 12px; }
 .buttons { display: flex; justify-content: flex-end; gap: 8px; }

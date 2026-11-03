@@ -43,6 +43,11 @@ Updated 2026-11-02 (end of day). Working notes for the viewer session; not user 
     before writing; the temp placeholder is the real home path.
   - load_options() migrates an older options file: adds missing lists/presets, drops lists
     this version does not know, expands ~ in path lists.
+  Third round: "Edit legal values" button in the header opens a panel with every list;
+  each value has a remove button unless the current form uses it ("in use"); removal only
+  changes the menus (a config using the value shows "(not in list)" when loaded). "Reset to
+  shipped values…" (confirmed) rewrites the lists and presets from the placeholders via
+  `PUT /api/options?reset=1`, keeping the machine name.
   TO TEST ON HARDWARE (user): an unsupported resolution and an unsupported exposure code,
   to learn the failure modes before deciding whether the form should constrain them.
   No tests for the editor yet (gui/tests/test_gui_editor.py would be the place).
