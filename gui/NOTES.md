@@ -4,14 +4,13 @@ Updated 2026-11-02 (end of day). Working notes for the viewer session; not user 
 
 ## RESUME HERE
 
-- 2026-11-03, pre-push checks: `basedpyright gui/` 0 errors (63 warnings left on purpose).
-  Server tests `tests/test_gui_serve.py` (16 tests: traversal refused, 404s quiet, status
-  file, stills, listings, /last/) written and passing in a staged copy; the repository suite
-  passes (123). Writing into `tests/` was denied by the permission settings (only gui/ is
-  allowed), so the file is waiting at
-  `/private/tmp/claude-501/-Users-rat-hub-01-Desktop-ratrixcam-gui/b299f66a-4e7d-419d-97bb-54ca570be791/scratchpad/test_gui_serve.py`
-  until the user allows writes to tests/ or copies it in; then run `python3 -m pytest -q`
-  from the repository root (expect 139 passed) and commit.
+- 2026-11-03, pre-push checks done: `basedpyright gui/` 0 errors (warnings left on
+  purpose); `python3 -m pytest -q` from the repository root: 139 passed (123 existing + 16
+  in `gui/tests/test_gui_serve.py`: traversal refused, 404s quiet, status file, stills,
+  listings, /last/).
+- RULE: GUI tests live in `gui/tests/` and are named `test_gui_*.py`. A test file's basename
+  must never duplicate one in `tests/`: pytest imports test files by bare module name, so
+  two folders each holding a `test_x.py` collide. The `test_gui_` prefix keeps them apart.
 - Iteration 3 committed 2026-11-03 (see below); the user's Safari feedback rounds on it are
   done (font scaling, two-column accounting, no-space wording). A test with a LIVE camera
   run on this machine is still to come.
