@@ -17,8 +17,8 @@ const GAP_COL = 2;
 const TILE_GAP = 0.025;
 const BLOCK_GAP = 0.09;
 const TITLE_FONT = 0.05; // clamped to 9..18 px
-const ACC_ROWS = 5; // rows in the accounting table (two columns)
-const ACC_MIN_H = 96; // the accounting table never gets less than this (px)
+const ACC_ROWS = 4; // rows in the accounting table (two columns)
+const ACC_MIN_H = 80; // the accounting table never gets less than this (px)
 const ACC_FONT_MIN = 11, ACC_FONT_MAX = 26;
 
 // save-drive warning thresholds, on the expected recording time left
@@ -263,7 +263,9 @@ function fitAccounting() {
   const probe = 10; // measure every cell's text at this size, then scale
   root.setProperty("--acc-font", `${probe}px`);
   for (const cell of box.querySelectorAll(".cell")) {
-    if (cell.scrollWidth > 0) size = Math.min(size, probe * cell.clientWidth / cell.scrollWidth);
+    const inner = cell.firstElementChild; // the text, measured on its own so it can exceed the cell
+    const textW = inner ? inner.getBoundingClientRect().width : 0;
+    if (textW > 0) size = Math.min(size, probe * cell.clientWidth / textW);
   }
   size = Math.min(ACC_FONT_MAX, Math.max(ACC_FONT_MIN, size));
   root.setProperty("--acc-font", `${size.toFixed(1)}px`);
@@ -436,7 +438,7 @@ function cellHTML(label, value, cls = "") {
   const v = cls ? `<span class="${cls}">${span.innerHTML}</span>` : span.innerHTML;
   const l = document.createElement("span");
   l.textContent = label;
-  return `<div class="cell"><span class="label">${l.innerHTML}</span>${v}</div>`;
+  return `<div class="cell"><span class="inner"><span class="label">${l.innerHTML}</span>${v}</span></div>`;
 }
 
 function renderAccounting() {
@@ -448,31 +450,31 @@ function renderAccounting() {
   const save = (st && st.save_drive) || {}, temp = (st && st.temp_drive) || {};
   const warning = driveWarning();
   const level = warning ? warning.cls : "";
-  // two columns, ACC_ROWS rows, filled left to right
-  const cells = [];
-  cells.push(cellHTML("Started", state.runStarted ? `${fmtDate(state.runStarted)} ${fmtHM(state.runStarted)}` : ""));
-  cells.push(cellHTML("Running for", state.runStarted ? fmtDHM((now - state.runStarted) / 1000) : ""));
-
-  const freeKnown = save.found !== false && save.free_bytes != null;
-  cells.push(cellHTML("Save drive", cfg ? shortPath(cfg.save_path) : ""));
-  cells.push(cellHTML("Save drive free", freeKnown ? fmtBytes(save.free_bytes) : "", freeKnown && save.free_bytes === 0 ? "zero" : ""));
-
-  if (save.total_bytes > 0 && save.used_bytes != null) {
-    const pct = Math.min(100, 100 * save.used_bytes / save.total_bytes);
-    cells.push(`<div class="cell"><span class="bar"><span class="bar-fill ${level}" style="width:${pct.toFixed(1)}%"></span></span>${pct.toFixed(0)}% of ${fmtBytes(save.total_bytes)} used</div>`);
-  } else {
-    cells.push(cellHTML("Save drive used", ""));
-  }
+  // left column: the run in time; right column: the drives. Filled row by row.
+  const left = [], right = [];
+  left.push(cellHTML("Started", state.runStarted ? `${fmtDate(state.runStarted)} ${fmtHM(state.runStarted)}` : ""));
+  left.push(cellHTML("Running for", state.runStarted ? fmtDHM((now - state.runStarted) / 1000) : ""));
   const leftKnown = save.found !== false && save.seconds_until_full != null;
   const leftCls = !leftKnown ? "" : save.seconds_until_full <= 0 ? "zero" : save.seconds_until_full < FYI_S ? "warn" : "";
-  cells.push(cellHTML("Recording time left", leftKnown ? fmtDHM(save.seconds_until_full) : "", leftCls));
+  left.push(cellHTML("Recording time left", leftKnown ? fmtDHM(save.seconds_until_full) : "", leftCls));
+  left.push(cellHTML("Clip length", cfg ? `${Number.isInteger(cfg.time_slice / 60) ? cfg.time_slice / 60 : (cfg.time_slice / 60).toFixed(1)} min` : ""));
 
-  cells.push(cellHTML("Temp folder", cfg ? shortPath(cfg.temp_path) : ""));
-  cells.push(cellHTML("Temp drive free", temp.free_bytes != null ? fmtBytes(temp.free_bytes) : "", temp.free_bytes === 0 ? "zero" : ""));
+  right.push(cellHTML("Save drive", cfg ? shortPath(cfg.save_path) : ""));
+  const freeKnown = save.found !== false && save.free_bytes != null;
+  if (save.total_bytes > 0 && save.used_bytes != null && freeKnown) {
+    const pct = Math.min(100, 100 * save.used_bytes / save.total_bytes);
+    const free = document.createElement("span");
+    free.textContent = `${pct.toFixed(0)}% used, ${fmtBytes(save.free_bytes)} free`;
+    const freeCls = save.free_bytes === 0 ? "zero" : "";
+    right.push(`<div class="cell"><span class="inner"><span class="bar"><span class="bar-fill ${level}" style="width:${pct.toFixed(1)}%"></span></span><span class="${freeCls}">${free.innerHTML}</span></span></div>`);
+  } else {
+    right.push(cellHTML("Save drive free", freeKnown ? fmtBytes(save.free_bytes) : "", freeKnown && save.free_bytes === 0 ? "zero" : ""));
+  }
+  right.push(cellHTML("Temp folder", cfg ? shortPath(cfg.temp_path) : ""));
+  right.push(cellHTML("Temp drive free", temp.free_bytes != null ? fmtBytes(temp.free_bytes) : "", temp.free_bytes === 0 ? "zero" : ""));
 
-  cells.push(cellHTML("Clip length", cfg ? `${Number.isInteger(cfg.time_slice / 60) ? cfg.time_slice / 60 : (cfg.time_slice / 60).toFixed(1)} min` : ""));
-  cells.push(cellHTML("", ""));
-
+  const cells = [];
+  for (let i = 0; i < ACC_ROWS; i++) cells.push(left[i] || "", right[i] || "");
   const html = cells.join("");
   const box = el("accounting");
   if (box.dataset.html !== html) { box.innerHTML = html; box.dataset.html = html; fitAccounting(); }

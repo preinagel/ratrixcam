@@ -133,6 +133,7 @@ body { display: flex; flex-direction: column; }
   overflow: hidden;
   text-overflow: ellipsis;
 }
+#accounting .cell .inner { display: inline-block; white-space: nowrap; }
 #accounting .cell .label { color: var(--muted); margin-right: 0.5em; }
 #accounting .cell .zero { color: var(--alarm); font-weight: 600; }
 #accounting .cell .warn { color: var(--warn); }
@@ -142,7 +143,7 @@ body { display: flex; flex-direction: column; }
   width: 8em; height: 0.5em; margin-right: 0.5em;
   background: var(--line); border-radius: 3px; overflow: hidden;
 }
-#accounting .bar-fill { height: 100%; width: 0; background: var(--accent); transition: width 0.5s; }
+#accounting .bar-fill { display: block; height: 100%; width: 0; background: var(--accent); transition: width 0.5s; }
 #accounting .bar-fill.warn { background: var(--warn); }
 #accounting .bar-fill.alarm { background: var(--alarm); }
 
