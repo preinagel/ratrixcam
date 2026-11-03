@@ -50,13 +50,28 @@ Test URLs (server on sample_data/temp):
   `.../ratrixcam_status_nearly_full.json` red under an hour; `.../ratrixcam_status_save_full.json`
   save full with temp cache capacity.
 
-Open questions for the user:
-1. Does a camera keep writing stills when there is nowhere to stream to? Decides whether
-   "NO SPACE ON ANY DRIVE" can coexist with live stills.
-2. A friendly station name: the log has only the hostname. Wishlist has an optional
-   `run.station`; not displayed until a source exists.
-3. Should the "run ended" screen read the moved metadata on the save drive? That needs the
-   server to expose the save path too (it could learn it from the config at start-up).
+Answered 2026-11-02:
+1. Stills may keep updating, perhaps intermittently, when the disks are full (camera-side
+   issue, not fixed yet). Viewer: the NO SPACE banner is driven by the status file alone;
+   fresh stills are shown while fresh, the offline image when stale. Added: a status file
+   older than 60 s whose last contents showed save full and the temp drive under an hour
+   also triggers the red NO SPACE banner.
+2. Station name requested (`run.station`); shown in the top strip before the date when present.
+3. The viewer's server cannot see the save drive. Proposal pending (see below).
+
+Proposal for information after temp cleanup (user to decide):
+A. Viewer-side, no python change: once a graceful shutdown is seen in the log, read the log
+   tail every second and keep the last tail plus the last status file in memory; the "run
+   ended" screen then shows the outcome lines ("Run metadata folder moved to ...", any
+   WARNING lines). Lost on page reload.
+B. Server-side, no python change: serve.py keeps the last status file and last log tail it
+   served and offers them at /last/; the ended screen survives a page reload. Lost when
+   the server restarts.
+C. Python-side (wishlist): at cleanup, write the final status file (state "ended", outcome,
+   destination) somewhere persistent the viewer can be pointed at, e.g. next to the temp
+   folder as `<temp_path parent>/ratrixcam_last_run.json`, or as a second server argument.
+   Survives everything; adds a file outside temp.
+Suggested: A + B now, C later if the ended screen proves useful.
 
 ## Decisions taken in iteration 1 (open to iteration)
 

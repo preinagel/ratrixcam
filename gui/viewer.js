@@ -17,6 +17,10 @@ const GAP_COL = 2;
 const ALMOST_FULL_S = 24 * 3600; // orange
 const NEARLY_FULL_S = 3600; // red
 
+// a status file this old with the temp drive nearly full means the cameras most likely
+// stopped for lack of space (python's own staleness is not otherwise reported)
+const STATUS_STALE_S = 60;
+
 const LOG_CHECK_S = 10; // how often the log tail is read while every camera is offline
 const LOG_TAIL_LINES = 60;
 
@@ -26,6 +30,7 @@ const state = {
   configCandidates: [],
   cameras: [], // {name, subjID, view, position, tile, stillMtime, lastSeen, offline}
   status: null, // last good status file contents
+  statusWritten: null, // Date from its "written" field
   runStarted: null, // Date
   runId: null,
   logName: null,
@@ -313,6 +318,7 @@ async function pollStatus() {
   try { r = await fetch(statusUrl(), { cache: "no-store" }); } catch (e) { return; }
   if (!r.ok) return;
   try { state.status = await r.json(); } catch (e) { return; } // half-written: keep the previous contents
+  state.statusWritten = parseLocalTime(state.status && state.status.written);
   const run = state.status && state.status.run;
   if (run) {
     const d = parseLocalTime(run.started);
@@ -337,6 +343,12 @@ function driveWarning() {
   if (saveFull && (temp.free_bytes === 0 || (tempLeft != null && tempLeft < clip))) {
     return { cls: "alarm", text: "NO SPACE ON ANY DRIVE: cameras are not being recorded" };
   }
+  // the status file stopped coming while the temp drive was nearly full: the cameras most
+  // likely ran out of space (stills may still appear now and then; they are shown while fresh)
+  const stale = state.statusWritten && Date.now() - state.statusWritten > STATUS_STALE_S * 1000;
+  if (stale && saveFull && tempLeft != null && tempLeft < NEARLY_FULL_S) {
+    return { cls: "alarm", text: `NO SPACE ON ANY DRIVE: cameras are not being recorded\n(status last written ${fmtHM(state.statusWritten)} with ${fmtDHM(tempLeft)} left on the temp drive)` };
+  }
   if (saveFull) {
     return { cls: "alarm", text: `SAVE DRIVE FULL. Temp drive cache capacity: ${tempLeft != null ? fmtDHM(tempLeft) : "unknown"}` };
   }
@@ -359,7 +371,8 @@ function cellHTML(label, value, opts = {}) {
 function renderAccounting() {
   const cfg = state.config, st = state.status;
   const now = new Date();
-  el("clock").textContent = `${fmtDate(now)}  ${fmtHM(now)}`;
+  const station = st && st.run && st.run.station ? `${st.run.station}   ` : "";
+  el("clock").textContent = `${station}${fmtDate(now)}  ${fmtHM(now)}`;
 
   const save = (st && st.save_drive) || {}, temp = (st && st.temp_drive) || {};
   const warning = driveWarning();
