@@ -4,6 +4,32 @@ Updated 2026-11-02 (end of day). Working notes for the viewer session; not user 
 
 ## RESUME HERE
 
+- 2026-11-03: FIRST DRAFT of the config editor committed, not yet seen by the user:
+  `config_editor.py` (server, port 8001, writes files) + `config_editor.html/.js`, `editor.css`.
+  Start: `cd /Users/rat_hub_01/Desktop/ratrixcam-gui/gui && python3 config_editor.py`,
+  open http://127.0.0.1:8001/. Decisions taken (open to iteration):
+  - separate server from the viewer, since the editor writes files and serve.py must stay
+    read-only; how to link the two pages is undecided (menu, tabs, or nothing).
+  - legal values in `gui/local_options.json` (gitignored via gui/.gitignore), created with
+    placeholders on first start, holding machine_id (MAC of the first interface, or
+    "host:<name>" when there is none) and machine_name (default: the host name). The page
+    warns when machine_id differs from this machine's; any save rebinds the file.
+  - every field is a <select> of legal values + "Add new…" which opens a dialog that checks
+    the value (name fields: [A-Za-z0-9-]{1,24}, no _ because it separates name parts;
+    ints within ranges; paths absolute or ~/, ending in /; machine name allows spaces) and
+    rejects duplicates, then saves the list through the server.
+  - per-camera crf/fps/width/height/exposure are optional overrides drawn from the same lists
+    as the defaults, "(default)" when blank; omitted from the file when blank.
+  - form-level checks: required fields, values in the legal lists (a loaded file's unknown
+    values show as "(not in list)" and block saving until added), unique (subjID, view),
+    unique position, temp != save, at least one camera. Position map A B | E F over C D | G H
+    shows which positions are taken.
+  - saving: the server validates with the camera code's Config class (pydantic) when
+    importable, then its own duplicate checks, refuses a name not ending in .json and a
+    location inside the temp or save folder, writes via tmp + rename. Overwrite asks first.
+  - file layout written: keys in the order of the hand-written configs, one camera per line.
+  No tests for the editor yet (gui/tests/test_gui_editor.py would be the place).
+
 - 2026-11-03, pre-push checks done: `basedpyright gui/` 0 errors (warnings left on
   purpose); `python3 -m pytest -q` from the repository root: 139 passed (123 existing + 16
   in `gui/tests/test_gui_serve.py`: traversal refused, 404s quiet, status file, stills,

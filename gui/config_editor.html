@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ratrixcam config editor</title>
+<link rel="stylesheet" href="editor.css">
+</head>
+<body>
+<header>
+  <h1>Camera config editor</h1>
+  <div class="machine">
+    <span class="label">This machine</span>
+    <span id="machine-name" class="value"></span>
+    <button type="button" id="rename-machine" class="small">rename</button>
+  </div>
+</header>
+
+<div id="machine-warning" class="notice warn" hidden></div>
+
+<section class="file">
+  <label for="file-path">Config file</label>
+  <input id="file-path" type="text" spellcheck="false">
+  <button type="button" id="load">Load</button>
+  <button type="button" id="save" class="primary">Save</button>
+  <span id="file-status" class="muted"></span>
+</section>
+
+<main>
+  <form id="form" autocomplete="off">
+    <fieldset>
+      <legend>Run</legend>
+      <div class="grid" id="run-fields"></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Camera defaults</legend>
+      <div class="grid" id="default-fields"></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Cameras</legend>
+      <table id="cameras">
+        <thead>
+          <tr>
+            <th>subject</th><th>view</th><th>position</th>
+            <th>crf</th><th>fps</th><th>width</th><th>height</th><th>exposure</th><th></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <button type="button" id="add-camera">Add camera</button>
+      <div class="positions" title="display positions">
+        <pre id="position-map"></pre>
+      </div>
+    </fieldset>
+  </form>
+
+  <aside>
+    <h2>Problems</h2>
+    <ul id="problems"></ul>
+    <h2>File contents</h2>
+    <pre id="preview"></pre>
+  </aside>
+</main>
+
+<div id="prompt" class="overlay" hidden>
+  <div class="dialog">
+    <div id="prompt-title"></div>
+    <div id="prompt-help" class="muted"></div>
+    <input id="prompt-input" type="text" spellcheck="false">
+    <div id="prompt-error" class="error"></div>
+    <div class="buttons">
+      <button type="button" id="prompt-cancel">Cancel</button>
+      <button type="button" id="prompt-ok" class="primary">Add</button>
+    </div>
+  </div>
+</div>
+
+<script src="config_editor.js"></script>
+</body>
+</html>
