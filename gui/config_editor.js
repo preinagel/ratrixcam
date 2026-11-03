@@ -151,6 +151,7 @@ function makeSelect(field, optionsKey, getCurrent, onChange) {
       return;
     }
     onChange(sel.value === "" ? null : (field.kind === "int" || field.kind === "float" ? Number(sel.value) : sel.value));
+    sel._refresh(); // drops a "(not in list)" entry once a legal value replaced it, and the red outline with it
   });
   return sel;
 }
@@ -423,7 +424,7 @@ function allLists() {
   for (const f of RUN_FIELDS) lists.push({ key: f.key, label: f.label, inUse: (v) => String(state.config[f.key]) === String(v) });
   for (const f of CAMERA_FIELDS) {
     if (!f.options) continue;
-    lists.push({ key: f.options, label: f.optional ? f.label : `${f.label} (cameras)`, inUse: (v) => state.config.cameras.some((cam) => String(cam[f.key]) === String(v)) });
+    lists.push({ key: f.options, label: f.optional ? f.label : `${f.label} (cameras)`, hasDefault: !!f.optional, inUse: (v) => state.config.cameras.some((cam) => String(cam[f.key]) === String(v)) });
   }
   for (const f of ADVANCED_FIELDS) lists.push({ key: f.key, label: `${f.label} (default)`, inUse: (v) => String(state.config[f.key]) === String(v) });
   return lists;
@@ -440,7 +441,15 @@ function renderManage() {
     name.textContent = list.label;
     wrap.appendChild(name);
     const values = legalValues(list.key);
-    if (values.length === 0) {
+    if (list.hasDefault) { // always on the menu, never removable
+      const item = document.createElement("div");
+      item.className = "item";
+      const text = document.createElement("span");
+      text.className = "v";
+      text.textContent = "(default)";
+      item.appendChild(text);
+      wrap.appendChild(item);
+    } else if (values.length === 0) {
       const empty = document.createElement("div");
       empty.className = "empty";
       empty.textContent = "none";
