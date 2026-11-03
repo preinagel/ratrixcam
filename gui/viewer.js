@@ -419,11 +419,12 @@ function driveWarning() {
   // appear now and then; it is shown while fresh)
   const stale = state.statusWritten && Date.now() - state.statusWritten > STATUS_STALE_S * 1000;
   if (stale && saveFull && temp.free_bytes != null && temp.free_bytes < STATUS_FILE_ROOM) {
-    return { cls: "alarm", head: "NO SPACE ON ANY DRIVE: cameras are not being recorded",
-      body: `Status last written ${fmtHM(state.statusWritten)} with ${fmtBytes(temp.free_bytes)} left on the temp drive` };
+    return { cls: "alarm", head: "NO SPACE ON ANY DRIVE", body: "Cameras are no longer being recorded" };
   }
   if (saveFull) {
-    return { cls: "alarm", head: "SAVE DRIVE FULL", body: `Temp drive cache capacity: ${tempLeft != null ? fmtDHM(tempLeft) : "unknown"}` };
+    const tempFull = temp.free_bytes === 0 || (tempLeft != null && tempLeft < clip);
+    return { cls: "alarm", head: "SAVE DRIVE FULL",
+      body: tempFull ? "Cameras are no longer being recorded" : `Temp drive cache capacity: ${tempLeft != null ? fmtDHM(tempLeft) : "unknown"}` };
   }
   if (left < NEARLY_FULL_S) return { cls: "alarm", head: "SAVE DRIVE NEARLY FULL", body: `${fmtDHM(left)} of recording left` };
   if (left < FYI_S) return { cls: "warn", head: `Save drive has space for another ${fmtDHM(left)}`, body: "" };
