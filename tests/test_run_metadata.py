@@ -23,7 +23,7 @@ from ratrixcam_manifest import write_row  # noqa: E402
 from ratrixcam_naming import NOTES_FILENAME, RUN_METADATA_DIRNAME, STILLS_DIRNAME, manifest_warning, manifests_dir, temp_manifests_dir  # noqa: E402
 import ratrixcam_run_metadata  # noqa: E402
 import ratrixcam_server  # noqa: E402
-from ratrixcam_run_metadata import RunMetadata  # noqa: E402
+from ratrixcam_run_metadata import STOP_SPACE_FACTOR, RunMetadata, save_drive_problem  # noqa: E402
 from ratrixcam_utils import Config, not_writable, stills_dir, temp_is_clear  # noqa: E402
 
 
@@ -336,6 +336,42 @@ def test_a_failed_gathering_skips_the_move(tmp_path, monkeypatch, capsys):
     assert "WARNING: run metadata folder not moved because the gathering failed; left in <temp>/" in out
     assert (temp / "Screenshot.png").exists()
     assert run.log_path.exists()
+
+
+# ------------------------------------------------- the save drive check at the stop click
+
+def test_save_drive_check_passes_on_a_good_drive(tmp_path):
+    config, _ = make_config(tmp_path)
+    assert save_drive_problem(config) is None
+
+
+def test_save_drive_check_reports_a_missing_drive(tmp_path):
+    config, _ = make_config(tmp_path)
+    shutil.rmtree(config.save_path)
+    assert save_drive_problem(config) == "SSD drive not reachable"
+
+
+def test_save_drive_check_reports_an_unwritable_drive(tmp_path, monkeypatch):
+    config, _ = make_config(tmp_path)
+    monkeypatch.setattr(ratrixcam_run_metadata, "not_writable", lambda _f: "Read-only file system")
+    assert save_drive_problem(config) == "SSD drive not writable (Read-only file system)"
+
+
+def test_save_drive_check_demands_room_for_temp_plus_the_margin(tmp_path, monkeypatch):
+    """Temp holds 3 MB in clips (largest 2 MB) and 1 MB of other files: the drive must have
+    4 MB + 11 x 2 MB = 26 MB free."""
+    config, _ = make_config(tmp_path)
+    temp = Path(config.temp_path)
+    (temp / "cam").mkdir()
+    (temp / "cam" / "a.mp4").write_bytes(b"x" * 2_000_000)
+    (temp / "cam" / "b.mp4").write_bytes(b"x" * 1_000_000)
+    (temp / "notes.txt").write_bytes(b"x" * 1_000_000)
+    needed = 4_000_000 + STOP_SPACE_FACTOR * 2_000_000
+    Usage = namedtuple("Usage", "total used free")
+    monkeypatch.setattr(shutil, "disk_usage", lambda _p: Usage(10**12, 10**12 - needed, needed))
+    assert save_drive_problem(config) is None
+    monkeypatch.setattr(shutil, "disk_usage", lambda _p: Usage(10**12, 10**12 - needed + 1, needed - 1))
+    assert save_drive_problem(config) == "SSD drive full: 26 MB needed to finish this run, 26 MB free"
 
 
 # ------------------------------------------------- clips left in temp at shutdown

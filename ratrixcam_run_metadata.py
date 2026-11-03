@@ -33,13 +33,57 @@ from ratrixcam_naming import (
     temp_run_metadata_dir,
     terminal_log_filename,
 )
-from ratrixcam_utils import Config, ensure_dir_exists, flush_to_device, stills_dir
+from ratrixcam_utils import Config, ensure_dir_exists, flush_to_device, not_writable, stills_dir
 
 LOG_START_ATTEMPTS = 3
 LOG_START_RETRY_DELAY = 0.5  # seconds
 RE_REQUEST_RETRY_WINDOW = 15  # seconds a re-requested transfer keeps retrying at cleanup: long enough for a
-                              # glitch, not for a drive swap. PENDING: the stop-time drive check planned for
-                              # the next stage will run before the cleanup; until then nothing does
+                              # glitch, not for a drive swap; save_drive_problem has just passed when the
+                              # cleanup starts, so what fails here is a glitch or permanent
+STOP_SPACE_FACTOR = 11  # free space a stop requires beyond everything in temp: the largest clip there, this
+                        # many times over, so that the clips still open at the stop click fit as well
+
+
+def save_drive_problem(config: Config) -> str | None:
+    """Why the save drive cannot take the shutdown cleanup right now, or None if it can: the
+    save folder is missing, refuses a write (the same probe as at launch), or has less free
+    space than everything in temp plus STOP_SPACE_FACTOR times the largest clip there. Run
+    at the stop click and on Ctrl-C, before the cameras are stopped; the message is shown to
+    the operator and says what the drive needs."""
+    if not os.path.isdir(config.save_path):
+        return "SSD drive not reachable"
+    reason = not_writable(config.save_path)
+    if reason is not None:
+        return f"SSD drive not writable ({reason})"
+    try:
+        free = shutil.disk_usage(config.save_path).free
+    except OSError as e:
+        return f"SSD drive not reachable ({e.strerror or e})"
+    in_temp, largest_clip = _temp_usage(config.temp_path)
+    needed = in_temp + STOP_SPACE_FACTOR * largest_clip
+    if free < needed:
+        return f"SSD drive full: {_size_text(needed)} needed to finish this run, {_size_text(free)} free"
+    return None
+
+
+def _size_text(nbytes: float) -> str:
+    """'12.3 GB' from a gigabyte up, '456 MB' below."""
+    return f"{nbytes / 1e9:.1f} GB" if nbytes >= 1e9 else f"{nbytes / 1e6:.0f} MB"
+
+
+def _temp_usage(temp_path: str) -> tuple[int, int]:
+    """(bytes of everything under temp, size of the largest clip there)."""
+    total = largest = 0
+    for folder, _dirs, files in os.walk(temp_path):
+        for name in files:
+            try:
+                size = os.path.getsize(os.path.join(folder, name))
+            except OSError:
+                continue
+            total += size
+            if name.endswith(VIDEO_EXT):
+                largest = max(largest, size)
+    return total, largest
 
 
 def computer_identity() -> str:

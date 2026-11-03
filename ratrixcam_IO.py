@@ -18,7 +18,7 @@ import PIL.ImageTk
 from PIL import Image, ImageTk
 
 import ratrixcam_multi
-from ratrixcam_run_metadata import RunMetadata
+from ratrixcam_run_metadata import RunMetadata, save_drive_problem
 from ratrixcam_naming import camera_name, still_path
 from ratrixcam_utils import (
     BLANK_IMAGE,
@@ -38,6 +38,8 @@ class State:
         self.camera_process: Process | None = None
         self.current_window: tk.Tk | None = None
         self.run_metadata: RunMetadata | None = None
+        self.config: Config | None = None
+        self.abort = False  # the run ends without a usable save drive: the cleanup leaves temp untouched
 
 
 def cameras_are_distinct(config: Config) -> bool:
@@ -234,6 +236,48 @@ def grid_cell(position: str) -> tuple[int, int]:
     return GRID_CELLS[position]
 
 
+REPLACE_SSD_CHOICES = {"SSD Ready": "ready", "Abort Run": "abort", "Continue Run": "continue"}
+
+
+def replace_ssd_dialog(window: tk.Tk, problem: str) -> str:
+    """Block on a small window telling the operator what is wrong with the save drive, with
+    three buttons; returns 'ready', 'abort' or 'continue'. No timeout: the window stays until
+    a button is pressed. Its close box counts as Continue Run, the choice that changes nothing.
+    A message box cannot carry three custom buttons, hence a Toplevel."""
+    dialog = tk.Toplevel(window)
+    dialog.title("Replace SSD")
+    dialog.transient(window)
+    dialog.resizable(False, False)
+    choice = {"value": "continue"}
+
+    def choose(value: str):
+        choice["value"] = value
+        dialog.destroy()
+
+    dialog.protocol("WM_DELETE_WINDOW", lambda: choose("continue"))
+    tk.Label(
+        dialog,
+        text=(
+            f"{problem}\n\n"
+            "The recording cannot be finished onto this drive.\n"
+            "Eject it and mount a drive with enough space at the same path, then press SSD Ready.\n"
+            "Abort Run ends the run with every file left in the temp folder.\n"
+            "Continue Run returns to recording."
+        ),
+        justify="left",
+        wraplength=520,
+        padx=16,
+        pady=12,
+    ).pack()
+    row = tk.Frame(dialog)
+    row.pack(pady=(0, 12))
+    for text, value in REPLACE_SSD_CHOICES.items():
+        tk.Button(row, text=text, width=14, command=lambda v=value: choose(v)).pack(side="left", padx=8)
+    dialog.grab_set()
+    window.wait_window(dialog)
+    return choice["value"]
+
+
 def create_recording_window(state: State, bgcolor: str, config: Config) -> tk.Tk:
     window = tk.Tk()
     _ = window.configure(background=bgcolor)
@@ -409,6 +453,10 @@ def create_recording_window(state: State, bgcolor: str, config: Config) -> tk.Tk
         )
 
     def stop_recording():
+        """The stop button, and the window's close box. With the cameras running, the save
+        drive is checked instead of asking 'are you sure': a drive that passes means the
+        shutdown proceeds at once; one that fails brings up the Replace SSD dialog until the
+        operator has fixed the drive, chosen to abort, or chosen to go on recording."""
         if state.camera_process is None or not state.camera_process.is_alive():
             confirmation = messagebox.askquestion(
                 "Cameras appear to be off already", "Are you sure?", icon="warning"
@@ -416,12 +464,21 @@ def create_recording_window(state: State, bgcolor: str, config: Config) -> tk.Tk
             if confirmation == "no":
                 return
         else:
-            confirmation = messagebox.askquestion(
-                "STOP all recordings", "Are you sure?", icon="warning"
-            )
-            if confirmation == "no":
-                return
+            problem = save_drive_problem(config)
+            while problem is not None:
+                print(f"Stop requested, save drive check failed: {problem}")
+                choice = replace_ssd_dialog(window, problem)
+                if choice == "continue":
+                    print("Continue Run chosen: recording goes on")
+                    return
+                if choice == "abort":
+                    print("Abort Run chosen: the run ends with everything left in temp")
+                    state.abort = True
+                    break
+                problem = save_drive_problem(config)  # SSD Ready: the check again, never the cached result
         window.destroy()
+
+    window.protocol("WM_DELETE_WINDOW", stop_recording)  # the close box takes the same path as the button
 
     tk.Button(
         window,
@@ -471,10 +528,11 @@ def graceful_shutdown(state: State, stop_event: Event):
         state.camera_process.kill()
     print("ratrixcam IO: shutdown complete")
 
-    # cameras are down: gather the run's artifacts (terminal log, stills, loose temp files)
+    # cameras are down: gather the run's artifacts (terminal log, stills, loose temp files),
+    # or on an abort leave temp as it is
     if state.run_metadata is not None:
         try:
-            state.run_metadata.collect_at_shutdown()
+            state.run_metadata.collect_at_shutdown(abort=state.abort)
         except Exception as e:
             print(f"WARNING: run metadata collection failed: {e}")
 
@@ -491,6 +549,13 @@ def main():
             "Received signal to terminate, shutting down gracefully.\nTo force exit, press Ctrl+C again."
         )
         _ = signal.signal(signal.SIGINT, signal.SIG_DFL)
+        # the same drive check as the stop button, with no dialog: a drive that fails it means
+        # the run is aborted, so the cleanup leaves temp exactly as the cameras wrote it
+        if state.config is not None and state.camera_process is not None and state.camera_process.is_alive():
+            problem = save_drive_problem(state.config)
+            if problem is not None:
+                print(f"Save drive check failed ({problem}): aborting the run; everything stays in temp")
+                state.abort = True
         graceful_shutdown(state, stop_event)
 
     _ = signal.signal(signal.SIGINT, int_handler)
@@ -510,6 +575,7 @@ def main():
     config = load_settings(config_path)
     if config is None:
         return
+    state.config = config
     if not cameras_are_distinct(config):
         return
     if not temp_is_clear(config.temp_path):
