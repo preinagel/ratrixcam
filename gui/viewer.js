@@ -17,12 +17,17 @@ const GAP_COL = 2;
 const ALMOST_FULL_S = 24 * 3600; // orange
 const NEARLY_FULL_S = 3600; // red
 
-// a status file this old with the temp drive nearly full means the cameras most likely
-// stopped for lack of space (python's own staleness is not otherwise reported)
+// "no space on any drive": the status file has not been rewritten for this long, and its last
+// contents showed the save drive full and the temp drive without room for even the status
+// file itself (python keeps writing it as long as the temp drive can hold it)
 const STATUS_STALE_S = 60;
+const STATUS_FILE_ROOM = 1000000; // bytes
 
 const LOG_CHECK_S = 10; // how often the log tail is read while every camera is offline
+const LOG_CHECK_SHUTDOWN_S = 1; // ... and once a shutdown is under way, to catch its last lines
 const LOG_TAIL_LINES = 60;
+const LAST = "/last/"; // serve.py keeps the last status file and log it served, for after cleanup
+const OUTCOME_LINE = /Run metadata folder moved to|WARNING|Run aborted|Temp folder removed|Manifest rows added|shutdown complete|Collecting the run metadata/;
 
 const state = {
   config: null,
@@ -39,6 +44,8 @@ const state = {
   tempGone: null, // Date the temp folder disappeared, or null
   shutdown: null, // {kind: "graceful" | "aborted" | "crash", since: Date} while all cameras are offline
   lastLogCheck: 0,
+  logTail: [], // last lines of the terminal log, from the most recent read
+  lastChecked: false, // /last/ was consulted because the temp folder was never seen
 };
 
 // ---------- fetch helpers ----------
@@ -275,19 +282,44 @@ async function checkShutdown() {
   const all = state.cameras.length > 0 && state.cameras.every((c) => c.offline);
   if (!all) { state.shutdown = null; return; }
   const now = Date.now();
-  if (now - state.lastLogCheck < LOG_CHECK_S * 1000) return;
+  const every = state.shutdown && state.shutdown.kind !== "crash" ? LOG_CHECK_SHUTDOWN_S : LOG_CHECK_S;
+  if (now - state.lastLogCheck < every * 1000) return;
   state.lastLogCheck = now;
   const since = state.cameras.reduce((d, c) => (c.lastSeen && (!d || c.lastSeen > d) ? c.lastSeen : d), null);
-  let kind = "crash";
   if (state.logName) {
-    try {
-      const text = await fetchText(TEMP + encodeURIComponent(state.logName));
-      const tail = text.split(/\r?\n/).slice(-LOG_TAIL_LINES).join("\n");
-      if (tail.includes("attempting graceful shutdown")) kind = "graceful";
-      else if (tail.includes("Run aborted")) kind = "aborted";
-    } catch (e) { /* log unreadable: keep "crash" */ }
+    try { noteLogText(await fetchText(TEMP + encodeURIComponent(state.logName))); } catch (e) { /* unreadable: keep the last tail */ }
   }
-  state.shutdown = { kind, since };
+  state.shutdown = { kind: shutdownKind(state.logTail), since };
+}
+
+function noteLogText(text) {
+  state.logTail = text.split(/\r?\n/).filter((l) => l !== "").slice(-LOG_TAIL_LINES);
+}
+
+function shutdownKind(lines) {
+  const tail = lines.join("\n");
+  if (tail.includes("attempting graceful shutdown")) return "graceful";
+  if (tail.includes("Run aborted")) return "aborted";
+  return "crash";
+}
+
+// the temp folder is already gone when the page opens: what serve.py last saw of the run
+async function loadLast() {
+  state.lastChecked = true;
+  let found = false;
+  try {
+    const st = await fetchJSON(LAST + "status.json");
+    state.status = st;
+    state.statusWritten = parseLocalTime(st.written);
+    if (st.run) {
+      const d = parseLocalTime(st.run.started);
+      if (d) state.runStarted = d;
+      if (st.run.run_id) state.runId = st.run.run_id;
+    }
+    found = true;
+  } catch (e) { /* nothing cached */ }
+  try { noteLogText(await fetchText(LAST + "log.txt")); found = true; } catch (e) { /* nothing cached */ }
+  if (found) state.tempGone = state.statusWritten || new Date();
 }
 
 async function pollTemp() {
@@ -295,6 +327,7 @@ async function pollTemp() {
   try { root = await listDir(""); } catch (e) { root = null; }
   if (root === null) {
     if (state.tempSeen && !state.tempGone) state.tempGone = new Date();
+    else if (!state.tempSeen && !state.lastChecked) await loadLast();
     return;
   }
   if (state.tempGone) { location.reload(); return; } // a new run in the same temp folder
@@ -340,14 +373,12 @@ function driveWarning() {
   if (left == null) return null;
   const clip = state.config ? state.config.time_slice : 0;
   const saveFull = save.free_bytes === 0 || left < clip;
-  if (saveFull && (temp.free_bytes === 0 || (tempLeft != null && tempLeft < clip))) {
-    return { cls: "alarm", text: "NO SPACE ON ANY DRIVE: cameras are not being recorded" };
-  }
-  // the status file stopped coming while the temp drive was nearly full: the cameras most
-  // likely ran out of space (stills may still appear now and then; they are shown while fresh)
+  // the status file stopped coming after reporting the save drive full and the temp drive
+  // without room for the file itself: the cameras are dropping frames (a still may still
+  // appear now and then; it is shown while fresh)
   const stale = state.statusWritten && Date.now() - state.statusWritten > STATUS_STALE_S * 1000;
-  if (stale && saveFull && tempLeft != null && tempLeft < NEARLY_FULL_S) {
-    return { cls: "alarm", text: `NO SPACE ON ANY DRIVE: cameras are not being recorded\n(status last written ${fmtHM(state.statusWritten)} with ${fmtDHM(tempLeft)} left on the temp drive)` };
+  if (stale && saveFull && temp.free_bytes != null && temp.free_bytes < STATUS_FILE_ROOM) {
+    return { cls: "alarm", text: `NO SPACE ON ANY DRIVE: cameras are not being recorded\n(status last written ${fmtHM(state.statusWritten)} with ${fmtBytes(temp.free_bytes)} left on the temp drive)` };
   }
   if (saveFull) {
     return { cls: "alarm", text: `SAVE DRIVE FULL. Temp drive cache capacity: ${tempLeft != null ? fmtDHM(tempLeft) : "unknown"}` };
@@ -371,8 +402,8 @@ function cellHTML(label, value, opts = {}) {
 function renderAccounting() {
   const cfg = state.config, st = state.status;
   const now = new Date();
-  const station = st && st.run && st.run.station ? `${st.run.station}   ` : "";
-  el("clock").textContent = `${station}${fmtDate(now)}  ${fmtHM(now)}`;
+  const machine = st && st.run && st.run.machine_name ? `${st.run.machine_name}   ` : "";
+  el("clock").textContent = `${machine}${fmtDate(now)}  ${fmtHM(now)}`;
 
   const save = (st && st.save_drive) || {}, temp = (st && st.temp_drive) || {};
   const warning = driveWarning();
@@ -412,7 +443,9 @@ function renderBanners() {
     else if (state.shutdown.kind === "aborted") banners.push({ cls: "info", text: `Run aborted at ${when}: everything left in the temp folder` });
     else banners.push({ cls: "alarm", text: `CAMERA PROGRAM STOPPED WITHOUT SHUTTING DOWN: no still from any camera since ${when}` });
   }
-  if (state.tempSeen && !state.config) {
+  if (!state.tempSeen) {
+    banners.push({ cls: "info", text: "Temp folder not found: no run in progress?" });
+  } else if (!state.config) {
     banners.push({ cls: "alarm", text: `No camera config found in the temp folder (${METADATA_DIR}/)` });
   } else if (state.configCandidates.length > 1) {
     banners.push({ cls: "warn", text: `Several config files in ${METADATA_DIR}/; showing the newest (${state.configName}). Others: ${state.configCandidates.slice(1).join(", ")}` });
@@ -438,10 +471,13 @@ function renderEnded() {
   el("accounting").hidden = ended;
   el("banners").hidden = ended;
   if (!ended) return;
-  const lines = [`The temp folder is gone (noticed ${fmtDate(state.tempGone)} ${fmtHM(state.tempGone)}).`];
+  const lines = [`The temp folder is gone (${fmtDate(state.tempGone)} ${fmtHM(state.tempGone)}).`];
   if (state.runStarted) lines.push(`Run started ${fmtDate(state.runStarted)} ${fmtHM(state.runStarted)}, ran for ${fmtDHM((state.tempGone - state.runStarted) / 1000)}.`);
-  if (state.config && state.runId) lines.push(`Run metadata moved to ${shortPath(state.config.save_path)}/${METADATA_DIR}/${state.runId}`);
-  lines.push("This page reloads by itself when a new run starts in the same temp folder.");
+  const savePath = (state.config && state.config.save_path) || (state.status && state.status.save_drive && state.status.save_drive.path);
+  if (savePath && state.runId) lines.push(`Run metadata expected in ${shortPath(savePath)}/${METADATA_DIR}/${state.runId}`);
+  const outcome = state.logTail.filter((l) => OUTCOME_LINE.test(l)).slice(-10);
+  if (outcome.length) lines.push("", "Last from the terminal log:", ...outcome);
+  lines.push("", "This page reloads by itself when a new run starts in the same temp folder.");
   el("ended-text").textContent = lines.join("\n");
 }
 

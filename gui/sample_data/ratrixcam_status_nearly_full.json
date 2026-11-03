@@ -4,7 +4,7 @@
   "run": {
     "run_id": "ratrixcam_20261102_094137_7e5a797f",
     "started": "2026-11-02 09:41:37.000",
-    "station": "Mac 4"
+    "machine_name": "Mac 4"
   },
   "save_drive": {
     "path": "/Volumes/data/",

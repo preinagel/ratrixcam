@@ -6,6 +6,10 @@
 The viewer's own files (this folder) are served at /, the temp folder at /temp/. A request
 for a folder under /temp/ returns a JSON listing of its entries, which is how the page finds
 the run's config file without knowing its name. Nothing is ever written.
+
+The status file and the terminal log are remembered as last served, and offered again at
+/last/status.json and /last/log.txt: the camera program deletes the temp folder at the end
+of a run, and the page uses these to describe the run that just ended.
 Python standard library only.
 """
 
@@ -13,6 +17,7 @@ import argparse
 import json
 import os
 import posixpath
+import re
 import sys
 from functools import partial
 from http import HTTPStatus
@@ -21,6 +26,14 @@ from urllib.parse import unquote, urlsplit
 
 GUI_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMP_PREFIX = "/temp/"
+LAST_PREFIX = "/last/"
+STATUS_FILENAME = "ratrixcam_status.json"
+LOG_FILENAME = re.compile(r"terminal_ratrixcam_\d{8}_\d{6}_[0-9a-f]+\.log$")
+
+# what was last read from the temp folder, by key: "status.json" (bytes, valid JSON only)
+# and "log.txt" (bytes); shared by all request threads, whole values swapped atomically
+last_served: dict[str, bytes] = {}
+LAST_TYPES = {"status.json": "application/json", "log.txt": "text/plain; charset=utf-8"}
 
 
 class ViewerHandler(SimpleHTTPRequestHandler):
@@ -45,6 +58,46 @@ class ViewerHandler(SimpleHTTPRequestHandler):
         if path.endswith("/") and os.path.isdir(full):
             full += "/"
         return full
+
+    def do_GET(self):
+        path = unquote(urlsplit(self.path).path)
+        if path.startswith(LAST_PREFIX):
+            key = path[len(LAST_PREFIX):]
+            body = last_served.get(key)
+            if body is None or key not in LAST_TYPES:
+                self.send_error(HTTPStatus.NOT_FOUND, "Nothing remembered")
+                return
+            self.send_bytes(body, LAST_TYPES[key])
+            return
+        if path.startswith(TEMP_PREFIX):
+            name = path[len(TEMP_PREFIX):]
+            key = "status.json" if name == STATUS_FILENAME else "log.txt" if LOG_FILENAME.fullmatch(name) else None
+            if key is not None:
+                try:
+                    with open(self.translate_path(self.path), "rb") as f:
+                        body = f.read()
+                except OSError:
+                    self.send_error(HTTPStatus.NOT_FOUND, "File not found")
+                    return
+                if key == "log.txt":
+                    last_served[key] = body
+                else:
+                    try:
+                        json.loads(body)
+                    except ValueError:
+                        pass  # half-written: served as is (the page keeps its previous copy), not remembered
+                    else:
+                        last_served[key] = body
+                self.send_bytes(body, LAST_TYPES[key])
+                return
+        super().do_GET()
+
+    def send_bytes(self, body: bytes, content_type: str):
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
 
     def list_directory(self, path: str):
         """JSON listing for folders under /temp/; the viewer folder keeps the default HTML."""

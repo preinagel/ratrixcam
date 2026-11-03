@@ -59,19 +59,22 @@ Answered 2026-11-02:
 2. Station name requested (`run.station`); shown in the top strip before the date when present.
 3. The viewer's server cannot see the save drive. Proposal pending (see below).
 
-Proposal for information after temp cleanup (user to decide):
-A. Viewer-side, no python change: once a graceful shutdown is seen in the log, read the log
-   tail every second and keep the last tail plus the last status file in memory; the "run
-   ended" screen then shows the outcome lines ("Run metadata folder moved to ...", any
-   WARNING lines). Lost on page reload.
-B. Server-side, no python change: serve.py keeps the last status file and last log tail it
-   served and offers them at /last/; the ended screen survives a page reload. Lost when
-   the server restarts.
-C. Python-side (wishlist): at cleanup, write the final status file (state "ended", outcome,
-   destination) somewhere persistent the viewer can be pointed at, e.g. next to the temp
-   folder as `<temp_path parent>/ratrixcam_last_run.json`, or as a second server argument.
-   Survives everything; adds a file outside temp.
-Suggested: A + B now, C later if the ended screen proves useful.
+Decided 2026-11-02 (second round):
+- NO SPACE banner only when the cameras are really dropping frames: status file older than
+  60 s AND its last contents showed the save drive full AND temp free under 1 MB (my choice
+  for "no room for the status file itself"). No live-status NO SPACE rule any more; while
+  the file is fresh the SAVE DRIVE FULL banner shows the temp cache capacity counting down.
+- Wishlist: all fields mandatory with defaults (my call); `run.machine_name` (default
+  hostname) replaces station; note on writing the file late in the loop so it keeps
+  updating while the temp drive has room.
+- After cleanup, A + B built, C left TBD in the wishlist:
+  A. once a shutdown is seen, the log tail is read every second; the ended screen lists the
+     outcome lines (metadata moved to ..., WARNING ..., Temp folder removed ...).
+  B. serve.py remembers the last valid status file and last log it served, at /last/status.json
+     and /last/log.txt; a page opened after the temp folder is gone loads them and shows the
+     ended screen. Lost on server restart.
+- With no temp folder and nothing remembered, the page shows a blue "Temp folder not found:
+  no run in progress?" banner.
 
 ## Decisions taken in iteration 1 (open to iteration)
 
