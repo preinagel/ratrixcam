@@ -55,7 +55,7 @@ def stamp(t: datetime) -> str:
     return t.strftime("%Y-%m-%d %H:%M:%S.") + f"{t.microsecond // 1000:03d}"
 
 
-def drive(path: str, total: float, free: float) -> dict:
+def drive(path: str, total: float, free: float) -> dict[str, object]:
     return {
         "path": path, "found": True,
         "total_bytes": int(total), "used_bytes": int(total - free), "free_bytes": int(free),
@@ -63,13 +63,13 @@ def drive(path: str, total: float, free: float) -> dict:
     }
 
 
-def write_status(temp_dir: str, started: datetime, run_id: str, config: dict, save_total: float, save_free: float, temp_free: float):
+def write_status(temp_dir: str, started: datetime, run_id: str, config: dict[str, object], save_total: float, save_free: float, temp_free: float):
     status = {
         "schema": 1,
         "written": stamp(datetime.now()),
         "run": {"run_id": run_id, "started": stamp(started), "machine_name": "Simulated Mac"},
-        "save_drive": drive(config.get("save_path", ""), save_total, save_free),
-        "temp_drive": drive(config.get("temp_path", ""), 1 * TB, temp_free),
+        "save_drive": drive(str(config.get("save_path", "")), save_total, save_free),
+        "temp_drive": drive(str(config.get("temp_path", "")), 1 * TB, temp_free),
     }
     tmp = os.path.join(temp_dir, STATUS_FILENAME + ".tmp")
     with open(tmp, "w") as f:
@@ -78,7 +78,7 @@ def write_status(temp_dir: str, started: datetime, run_id: str, config: dict, sa
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    parser = argparse.ArgumentParser(description=(__doc__ or "").split("\n")[0])
     parser.add_argument("sample", help="a sample temp folder, e.g. sample_data/temp")
     parser.add_argument("--scenario", default="normal", choices=["normal", "fyi", "nearly_full", "save_full", "no_space", "crash", "shutdown"])
     parser.add_argument("--port", type=int, default=8000)
@@ -93,19 +93,18 @@ def main() -> int:
     temp_dir = os.path.join(scratch, "temp")
     shutil.copytree(sample, temp_dir, ignore=shutil.ignore_patterns("*.mp4", ".DS_Store"))
 
-    config, log_name, run_id = {}, None, None
+    config: dict[str, object] = {}
     meta = os.path.join(temp_dir, "ratrixcam_run_metadata")
     for name in sorted(os.listdir(meta)):
         if name.endswith(".json"):
             with open(os.path.join(meta, name)) as f:
                 config = json.load(f)
+    run_id = "ratrixcam_simulated"
     for name in os.listdir(temp_dir):
         if name.startswith("terminal_") and name.endswith(".log"):
-            log_name, run_id = name, name[len("terminal_"):-len(".log")]
-    if run_id is None:
-        run_id = "ratrixcam_simulated"
-        log_name = f"terminal_{run_id}.log"
-        open(os.path.join(temp_dir, log_name), "a").close()
+            run_id = name[len("terminal_"):-len(".log")]
+    log_name = f"terminal_{run_id}.log"
+    open(os.path.join(temp_dir, log_name), "a").close()
     started = datetime.now()
     stills = [os.path.join(temp_dir, "status", n) for n in os.listdir(os.path.join(temp_dir, "status"))]
     save_total, save_free, temp_free = scenario_drives(args.scenario)

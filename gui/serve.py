@@ -99,10 +99,11 @@ class ViewerHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def list_directory(self, path: str):
+    def list_directory(self, path: "str | os.PathLike[str]"):
         """JSON listing for folders under /temp/; the viewer folder keeps the default HTML."""
         if not unquote(urlsplit(self.path).path).startswith(TEMP_PREFIX):
             return super().list_directory(path)
+        path = os.fspath(path)
         entries = []
         try:
             with os.scandir(path) as it:
