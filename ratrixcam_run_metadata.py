@@ -112,7 +112,10 @@ class TerminalLog:
         sys.stdout.flush()
         sys.stderr.flush()
         self._saved = (os.dup(1), os.dup(2))
-        self._tee = subprocess.Popen(["tee", "-a", str(path)], stdin=subprocess.PIPE)
+        # tee runs in its own session: a Ctrl-C in the terminal goes to the whole foreground
+        # process group, and a tee that died with it would take every later line, the whole
+        # shutdown report, with it. Detached, it ends when the pipe closes in stop()
+        self._tee = subprocess.Popen(["tee", "-a", str(path)], stdin=subprocess.PIPE, start_new_session=True)
         assert self._tee.stdin is not None  # stdin=PIPE above
         self._pipe = self._tee.stdin
         os.dup2(self._pipe.fileno(), 1)

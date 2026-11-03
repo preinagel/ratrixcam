@@ -47,7 +47,7 @@ def test_terminal_log_captures_parent_and_spawned_child_output(tmp_path):
     """Run a tiny program in a subprocess so the fd juggling cannot disturb pytest itself."""
     config, config_path = make_config(tmp_path)
     program = textwrap.dedent(f"""
-        import multiprocessing, sys
+        import multiprocessing, os, sys
         sys.path.insert(0, {str(REPO)!r})
         from ratrixcam_run_metadata import RunMetadata
         from ratrixcam_utils import load_settings
@@ -63,8 +63,10 @@ def test_terminal_log_captures_parent_and_spawned_child_output(tmp_path):
             print("PARENT before child")
             p = multiprocessing.Process(target=child); p.start(); p.join()
             print("PARENT after child")
+            tee_detached = os.getsid(run.terminal_log._tee.pid) != os.getsid(0)
             run.terminal_log.stop()
             print("AFTER STOP: terminal only")
+            print("TEE DETACHED", tee_detached)
             print(run.log_path)
     """)
     script = tmp_path / "prog.py"
@@ -77,6 +79,7 @@ def test_terminal_log_captures_parent_and_spawned_child_output(tmp_path):
         assert line in log, f"missing from log: {line!r}\n{log}"
     assert "AFTER STOP" not in log
     assert "AFTER STOP: terminal only" in result.stdout  # terminal restored after stop
+    assert "TEE DETACHED True" in result.stdout  # a terminal Ctrl-C must not reach the log writer
     assert log_path.parent == Path(config.temp_path)
 
 
