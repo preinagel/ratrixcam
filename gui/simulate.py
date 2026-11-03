@@ -37,15 +37,17 @@ WRITE_RATE = 1e9 / 60  # bytes per second, the camera code's assumed rig write r
 
 
 def scenario_drives(name: str):
-    """(save free bytes, temp free bytes) for a scenario."""
+    """(save drive total, save free, temp free) in bytes for a scenario. At the assumed
+    write rate (1 GB per minute) a day of recording is 1.44 TB, so a normal run needs a
+    big save drive to be more than a day from full."""
     return {
-        "normal": (1.4 * TB, 600 * GB),
-        "fyi": (7 * 3600 * WRITE_RATE, 600 * GB),
-        "nearly_full": (45 * 60 * WRITE_RATE, 600 * GB),
-        "save_full": (0, 35 * 60 * WRITE_RATE),
-        "no_space": (0, 200_000),
-        "crash": (1.4 * TB, 600 * GB),
-        "shutdown": (1.4 * TB, 600 * GB),
+        "normal": (10 * TB, 8 * TB, 600 * GB),
+        "fyi": (2 * TB, 7 * 3600 * WRITE_RATE, 600 * GB),
+        "nearly_full": (2 * TB, 45 * 60 * WRITE_RATE, 600 * GB),
+        "save_full": (2 * TB, 0, 35 * 60 * WRITE_RATE),
+        "no_space": (2 * TB, 0, 200_000),
+        "crash": (10 * TB, 8 * TB, 600 * GB),
+        "shutdown": (10 * TB, 8 * TB, 600 * GB),
     }[name]
 
 
@@ -61,12 +63,12 @@ def drive(path: str, total: float, free: float) -> dict:
     }
 
 
-def write_status(temp_dir: str, started: datetime, run_id: str, config: dict, save_free: float, temp_free: float):
+def write_status(temp_dir: str, started: datetime, run_id: str, config: dict, save_total: float, save_free: float, temp_free: float):
     status = {
         "schema": 1,
         "written": stamp(datetime.now()),
         "run": {"run_id": run_id, "started": stamp(started), "machine_name": "Simulated Mac"},
-        "save_drive": drive(config.get("save_path", ""), 2 * TB, save_free),
+        "save_drive": drive(config.get("save_path", ""), save_total, save_free),
         "temp_drive": drive(config.get("temp_path", ""), 1 * TB, temp_free),
     }
     tmp = os.path.join(temp_dir, STATUS_FILENAME + ".tmp")
@@ -106,7 +108,7 @@ def main() -> int:
         open(os.path.join(temp_dir, log_name), "a").close()
     started = datetime.now()
     stills = [os.path.join(temp_dir, "status", n) for n in os.listdir(os.path.join(temp_dir, "status"))]
-    save_free, temp_free = scenario_drives(args.scenario)
+    save_total, save_free, temp_free = scenario_drives(args.scenario)
     end_after = args.end_after if args.end_after is not None else (15 if args.scenario in ("crash", "shutdown") else None)
 
     server = subprocess.Popen([sys.executable, os.path.join(GUI_DIR, "serve.py"), temp_dir, "--port", str(args.port)])
@@ -145,7 +147,7 @@ def main() -> int:
                 for still in stills:
                     os.utime(still, (now, now))
                 if not (args.scenario == "no_space" and elapsed > 5):
-                    write_status(temp_dir, started, run_id, config, save_free, temp_free)
+                    write_status(temp_dir, started, run_id, config, save_total, save_free, temp_free)
             tick += 1
             time.sleep(max(0, t0 + tick - time.time()))
     except KeyboardInterrupt:
