@@ -17,31 +17,33 @@ const RULES = {
 };
 
 // run-level fields
+// labels are the words users see; the json keys are the camera code's. No explanations
+// here: the documentation has them.
 const RUN_FIELDS = [
-  { key: "study_label", label: "Study label", kind: "name", maxLen: 12, hint: "first part of each clip folder's name; keep it short" },
-  { key: "subject_prefix", label: "Subject prefix", kind: "name", maxLen: 12, hint: "goes before every subject ID, e.g. rat; keep it short" },
-  { key: "time_slice", label: "Clip length (seconds)", kind: "int", min: 10, max: 3600, hint: "60 or 600 are the usual values" },
+  { key: "study_label", label: "Study label", kind: "name", maxLen: 12 },
+  { key: "subject_prefix", label: "Subject prefix", kind: "name", maxLen: 12 },
+  { key: "time_slice", label: "Clip length (s)", kind: "int", min: 10, max: 3600 },
   { key: "save_path", label: "Save drive folder", kind: "path" },
-  { key: "temp_path", label: "Temp folder", kind: "path", hint: "on the local disk; emptied at the end of a run" },
+  { key: "temp_path", label: "Temp folder", kind: "path" },
 ];
 // advanced: defaults for every camera, at the bottom of the form and of the file
 const ADVANCED_FIELDS = [
-  { key: "default_crf", label: "crf (0 best quality, 51 smallest files)", kind: "int", min: 0, max: 51 },
-  { key: "default_fps", label: "Frames per second", kind: "int", min: 1, max: 240 },
-  { key: "default_resolution", label: "Resolution", kind: "resolution" },
-  { key: "default_cam_exposure", label: "Exposure (camera LUT code)", kind: "float", min: -20, max: 20 },
-  { key: "preview_interval", label: "Still image every (seconds)", kind: "int", min: 1, max: 3600 },
+  { key: "default_crf", label: "Default crf", kind: "int", min: 0, max: 51 },
+  { key: "default_fps", label: "Default fps", kind: "int", min: 1, max: 240 },
+  { key: "default_resolution", label: "Default resolution", kind: "resolution" },
+  { key: "default_cam_exposure", label: "Default LUT code", kind: "float", min: -20, max: 20 },
+  { key: "preview_interval", label: "Still image interval (s)", kind: "int", min: 1, max: 3600 },
 ];
 // per camera: the required name fields, the position, then optional overrides of the
 // defaults, each drawing on its own (initially empty) list of legal values
 const CAMERA_FIELDS = [
-  { key: "subjID", label: "Subject ID", kind: "name", maxLen: 24, options: "subjID" },
+  { key: "subjID", label: "Subject", kind: "name", maxLen: 24, options: "subjID" },
   { key: "view", label: "View", kind: "name", maxLen: 24, options: "view" },
   { key: "position", label: "Position", kind: "position" },
-  { key: "crf", label: "crf for this camera", kind: "int", min: 0, max: 51, options: "camera_crf", optional: true },
-  { key: "fps", label: "fps for this camera", kind: "int", min: 1, max: 240, options: "camera_fps", optional: true },
-  { key: "resolution", label: "resolution for this camera", kind: "resolution", options: "camera_resolution", optional: true },
-  { key: "exposure", label: "exposure for this camera", kind: "float", min: -20, max: 20, options: "camera_exposure", optional: true },
+  { key: "crf", label: "crf", kind: "int", min: 0, max: 51, options: "camera_crf", optional: true },
+  { key: "fps", label: "fps", kind: "int", min: 1, max: 240, options: "camera_fps", optional: true },
+  { key: "resolution", label: "Resolution", kind: "resolution", options: "camera_resolution", optional: true },
+  { key: "exposure", label: "LUT", kind: "float", min: -20, max: 20, options: "camera_exposure", optional: true },
 ];
 // the file's key order (the server writes the same): run-level, cameras, then the defaults
 const FILE_KEY_ORDER = ["save_path", "temp_path", "study_label", "subject_prefix", "time_slice", "cameras",
@@ -266,7 +268,7 @@ function buildCameraRows() {
     for (const f of CAMERA_FIELDS) {
       const td = document.createElement("td");
       const sel = makeSelect(f, f.options || "", () => cam[f.key], (v) => { cam[f.key] = v; render(); });
-      sel.title = f.optional ? `${f.label}; (default) uses the value under Advanced` : f.label;
+      sel.title = f.optional ? `${f.label}: (default) uses the value under Advanced` : f.label;
       td.appendChild(sel);
       tr.appendChild(td);
     }
@@ -418,22 +420,41 @@ async function saveFile() {
 
 // ---------- the legal-values panel ----------
 
-// every list the menus draw on, with its label and which field(s) use it
+// every list the menus draw on, in the form's three sections, with which field(s) use it
+function listSections() {
+  const run = RUN_FIELDS.map((f) => ({ key: f.key, label: f.label, inUse: (v) => String(state.config[f.key]) === String(v) }));
+  const cameras = CAMERA_FIELDS.filter((f) => f.options).map((f) => ({
+    key: f.options, label: f.label, hasDefault: !!f.optional,
+    inUse: (v) => state.config.cameras.some((cam) => String(cam[f.key]) === String(v)),
+  }));
+  const defaults = ADVANCED_FIELDS.map((f) => ({ key: f.key, label: f.label, inUse: (v) => String(state.config[f.key]) === String(v) }));
+  return [{ title: "Run", lists: run }, { title: "Per-camera settings", lists: cameras }, { title: "Default settings", lists: defaults }];
+}
+
 function allLists() {
-  const lists = [];
-  for (const f of RUN_FIELDS) lists.push({ key: f.key, label: f.label, inUse: (v) => String(state.config[f.key]) === String(v) });
-  for (const f of CAMERA_FIELDS) {
-    if (!f.options) continue;
-    lists.push({ key: f.options, label: f.optional ? f.label : `${f.label} (cameras)`, hasDefault: !!f.optional, inUse: (v) => state.config.cameras.some((cam) => String(cam[f.key]) === String(v)) });
-  }
-  for (const f of ADVANCED_FIELDS) lists.push({ key: f.key, label: `${f.label} (default)`, inUse: (v) => String(state.config[f.key]) === String(v) });
-  return lists;
+  return listSections().flatMap((s) => s.lists);
 }
 
 function renderManage() {
   const box = el("manage-lists");
   box.textContent = "";
-  for (const list of allLists()) {
+  for (const section of listSections()) {
+    const block = document.createElement("div");
+    block.className = "vsection";
+    const title = document.createElement("div");
+    title.className = "vtitle";
+    title.textContent = section.title;
+    block.appendChild(title);
+    const grid = document.createElement("div");
+    grid.className = "vgrid";
+    block.appendChild(grid);
+    box.appendChild(block);
+    for (const list of section.lists) renderList(list, grid);
+  }
+}
+
+function renderList(list, box) {
+  {
     const wrap = document.createElement("div");
     wrap.className = "vlist";
     const name = document.createElement("div");

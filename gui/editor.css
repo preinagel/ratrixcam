@@ -139,7 +139,11 @@ aside {
 .dialog.wide { width: min(720px, 94vw); max-height: 90vh; }
 .dialog-head { display: flex; flex-direction: column; gap: 4px; }
 .dialog-head > div:first-child { font-weight: 600; }
-#manage-lists { overflow: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px 16px; }
+#manage-lists { overflow: auto; display: flex; flex-direction: column; gap: 12px; }
+.vsection { border-top: 1px solid var(--line); padding-top: 8px; }
+.vsection:first-child { border-top: none; padding-top: 0; }
+.vtitle { color: var(--muted); margin-bottom: 6px; }
+.vgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px 16px; }
 .vlist .name { color: var(--muted); font-size: 12px; margin-bottom: 2px; }
 .vlist .item { display: flex; align-items: center; gap: 6px; padding: 1px 0; }
 .vlist .item .v { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
