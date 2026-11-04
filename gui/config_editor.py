@@ -196,7 +196,6 @@ class EditorHandler(SimpleHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
         self.end_headers()
         _ = self.wfile.write(body)
 
@@ -206,6 +205,11 @@ class EditorHandler(SimpleHTTPRequestHandler):
 
     def query(self) -> dict[str, str]:
         return {k: v[0] for k, v in parse_qs(urlsplit(self.path).query).items()}
+
+    def end_headers(self) -> None:
+        # the page files change between sessions: never let the browser cache them
+        self.send_header("Cache-Control", "no-store")
+        super().end_headers()
 
     def log_message(self, format: str, *args: Any) -> None:
         pass
