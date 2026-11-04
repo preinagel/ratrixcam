@@ -18,8 +18,8 @@ const TILE_GAP = 0.025;
 const BLOCK_GAP = 0.09;
 const TITLE_FONT = 0.05; // clamped to 9..18 px
 const ACC_ROWS = 4; // rows in the accounting table (two columns)
-const ACC_MIN_H = 80; // the accounting table never gets less than this (px)
-const ACC_FONT_MIN = 11, ACC_FONT_MAX = 26;
+const ACC_FONT_MIN = 11, ACC_FONT_MAX = 20;
+const ACC_MAX_SHARE = 0.22; // of the window height, at most, for the accounting table
 
 // save-drive warning thresholds, on the expected recording time left
 const FYI_S = 24 * 3600; // orange: space for less than a day
@@ -220,16 +220,17 @@ function titleFont(w) {
 }
 
 // choose the tile width so the grid fills the window's width, or its height after the top
-// strip, the banners and a minimum accounting table; gaps and the title font follow the
-// tile width, so they shrink with the window
+// strip, the banners and the accounting table; gaps and the title font follow the tile
+// width, so they shrink with the window
 function fitTiles() {
   const grid = el("grid");
   const nRows = +grid.dataset.rows || 0, nCols = +grid.dataset.cols || 0;
   if (!nRows || !nCols) return;
+  fitAccounting(); // its height depends on the window's width, not on the grid
   const hasGap = grid.dataset.gap === "1";
   const pad = 2 * (parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--pad")) || 8);
   const availW = window.innerWidth - pad - 4;
-  const availH = window.innerHeight - el("topbar").offsetHeight - el("banners").offsetHeight - ACC_MIN_H - pad - 8;
+  const availH = window.innerHeight - el("topbar").offsetHeight - el("banners").offsetHeight - el("accounting").offsetHeight - pad - 10;
   const wByWidth = availW / (nCols + TILE_GAP * (nCols - 1) + (hasGap ? BLOCK_GAP : 0));
   let w = wByWidth;
   for (let i = 0; i < 4; i++) {
@@ -244,16 +245,16 @@ function fitTiles() {
   root.setProperty("--tile-gap", `${Math.max(2, Math.round(TILE_GAP * w))}px`);
   root.setProperty("--block-gap", `${Math.max(6, Math.round(BLOCK_GAP * w))}px`);
   root.setProperty("--title-font", `${titleFont(w).toFixed(1)}px`);
-  fitAccounting();
 }
 
-// the accounting table takes whatever height is left; its font grows to use it, as far as
-// the widest cell still fits its column
+// the accounting table sits under the grid at its natural height, one blank line between
+// rows; its font is as large as the widest cell allows in its column, within limits, and
+// never takes more than a modest share of the window's height
 function fitAccounting() {
   const box = el("accounting");
   if (box.hidden) return;
   const root = document.documentElement.style;
-  let size = (box.clientHeight - 8) / (ACC_ROWS * 1.5);
+  let size = (window.innerHeight * ACC_MAX_SHARE) / (ACC_ROWS * 2.4);
   const probe = 10; // measure every cell's text at this size, then scale
   root.setProperty("--acc-font", `${probe}px`);
   for (const cell of box.querySelectorAll(".cell")) {
