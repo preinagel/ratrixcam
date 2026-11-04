@@ -233,3 +233,15 @@ def test_stopping_window_shows_the_phase_and_the_elapsed_time():
     window.close()
     assert window.root is None
     window.show("after close")  # harmless
+
+
+def test_close_window_cancels_the_pending_timers_before_destroying():
+    tk, root = hidden_root()
+    fired = []
+    root.after(50, lambda: fired.append(1))
+    root.after(50, lambda: fired.append(2))
+    assert len(root.tk.call("after", "info")) == 2
+    io.close_window(root)
+    with pytest.raises(tk.TclError):
+        root.winfo_exists()  # destroyed
+    assert fired == []

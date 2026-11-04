@@ -561,7 +561,7 @@ def create_recording_window(state: State, bgcolor: str, config: Config) -> tk.Tk
                 print(STOP_BANNER)
             if not stop_requested(state, window):
                 return
-        window.destroy()
+        close_window(window)
 
     window.protocol("WM_DELETE_WINDOW", stop_recording)  # the close box takes the same path as the button
 
@@ -635,13 +635,27 @@ def wait_until(done: Callable[[], bool], timeout: float, tick: Callable[[], None
     return True
 
 
+def close_window(window: tk.Tk) -> None:
+    """Destroy the recording window after cancelling its pending timers (the stills, clock
+    and drive-poll loops reschedule themselves with after). Left pending, they fire later
+    from the stopping window's refreshes when the old event loop is still on the stack, as
+    on a Ctrl-C during the Replace SSD dialog, and each prints an 'invalid command name'
+    complaint into the log."""
+    try:
+        for timer in window.tk.call("after", "info"):
+            window.after_cancel(timer)
+    except tk.TclError:
+        pass
+    window.destroy()
+
+
 def graceful_shutdown(state: State, stop_event: Event):
     _ = signal.signal(signal.SIGINT, signal.SIG_DFL)
     _ = signal.signal(signal.SIGTERM, signal.SIG_DFL)
 
     if state.current_window is not None:
         print("ratrixcam IO: closing GUI window")
-        state.current_window.destroy()
+        close_window(state.current_window)
         state.current_window = None
 
     camera_process = state.camera_process
@@ -715,7 +729,8 @@ def main():
     def int_handler(_sig: int, _frame: FrameType | None):
         print(STOP_BANNER)
         print(
-            "Received signal to terminate, shutting down gracefully.\nTo force exit, press Ctrl+C again."
+            "Received signal to terminate, shutting down gracefully.\nTo force exit, press Ctrl+C again; "
+            "once the cameras have stopped, the collection finishes before the program exits."
         )
         _ = signal.signal(signal.SIGINT, signal.SIG_DFL)
         stop_from_signal()
