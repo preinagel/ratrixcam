@@ -21,7 +21,7 @@ SERVE = GUI_DIR / "serve.py"
 # the smallest valid PNG (1x1 pixel), enough for a still
 PNG = bytes.fromhex(
     "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d4944415478"
-    "9c6360f8cfc00000030101009a9c0e8e0000000049454e44ae426082"
+    + "9c6360f8cfc00000030101009a9c0e8e0000000049454e44ae426082"
 )
 LOG_NAME = "terminal_ratrixcam_20260101_120000_0123abcd.log"
 Server = tuple[str, Path]  # base url, path of the server's stderr
@@ -30,7 +30,9 @@ Server = tuple[str, Path]  # base url, path of the server's stderr
 def free_port() -> int:
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
-        return int(s.getsockname()[1])
+        port: object = s.getsockname()[1]
+        assert isinstance(port, int)
+        return port
 
 
 @pytest.fixture(scope="module")

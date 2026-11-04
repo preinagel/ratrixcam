@@ -13,14 +13,13 @@ be imported. It never touches a temp folder. Python standard library only.
 import argparse
 import json
 import os
-import re
 import socket
 import sys
 import uuid
 from datetime import datetime
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
-from typing import Any
+from typing import Any, cast, final, override
 from urllib.parse import parse_qs, unquote, urlsplit
 
 GUI_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -32,7 +31,7 @@ POSITIONS = ["A", "B", "C", "D", "E", "F", "G", "H"]
 # checks the same things more loosely
 sys.path.insert(0, REPO_DIR)
 try:
-    from ratrixcam_utils import Config as CameraConfigClass  # pyright: ignore[reportMissingImports]
+    from ratrixcam_utils import Config as CameraConfigClass
 except Exception:  # noqa: BLE001  (any import problem: pydantic missing, repo moved)
     CameraConfigClass = None
 
@@ -116,8 +115,8 @@ def config_text(data: dict[str, Any]) -> str:
     for i, key in enumerate(keys):
         comma = "," if i < len(keys) - 1 else ""
         if key == "cameras":
-            cams = []
-            for cam in data["cameras"]:
+            cams: list[str] = []
+            for cam in cast(list[dict[str, Any]], data["cameras"]):
                 ordered = {k: cam[k] for k in CAMERA_KEY_ORDER if k in cam}
                 ordered.update({k: v for k, v in cam.items() if k not in ordered})
                 cams.append("    " + json.dumps(ordered, separators=(", ", ": ")))
@@ -136,7 +135,7 @@ def write_json(path: str, data: Any) -> None:
     tmp = path + ".tmp"
     with open(tmp, "w") as f:
         json.dump(data, f, indent=2)
-        f.write("\n")
+        _ = f.write("\n")
     os.replace(tmp, path)
 
 
@@ -144,31 +143,36 @@ def expand(path: str) -> str:
     return os.path.abspath(os.path.expanduser(path))
 
 
-def check_config(data: Any) -> list[str]:
+def check_config(data: object) -> list[str]:
     """Problems that would stop the camera program from loading this config, as messages;
     empty when it is fine."""
     if CameraConfigClass is not None:
         try:
-            CameraConfigClass(**data)
+            _ = CameraConfigClass.model_validate(data)
         except Exception as e:  # noqa: BLE001  (pydantic's ValidationError, or a TypeError)
             return [line.strip() for line in str(e).splitlines() if line.strip()]
     problems: list[str] = []
     if not isinstance(data, dict):
         return ["the config must be a JSON object"]
+    fields = cast(dict[str, object], data)
     for key in ("cameras", "study_label", "subject_prefix", "default_fps", "default_width", "default_height",
                 "default_cam_exposure", "time_slice", "preview_interval", "save_path", "temp_path"):
-        if key not in data:
+        if key not in fields:
             problems.append(f"missing field: {key}")
-    cameras = data.get("cameras")
-    if not isinstance(cameras, list):
+    cameras_field = fields.get("cameras")
+    cameras: list[object]
+    if isinstance(cameras_field, list):
+        cameras = cast(list[object], cameras_field)
+    else:
         problems.append("cameras must be a list")
         cameras = []
     seen_names: set[tuple[str, str]] = set()
     seen_positions: set[str] = set()
-    for idx, cam in enumerate(cameras, start=1):
-        if not isinstance(cam, dict):
+    for idx, cam_item in enumerate(cameras, start=1):
+        if not isinstance(cam_item, dict):
             problems.append(f"camera {idx} is not an object")
             continue
+        cam = cast(dict[str, object], cam_item)
         key = (str(cam.get("subjID")), str(cam.get("view")))
         if key in seen_names:
             problems.append(f"camera {idx} repeats subjID {key[0]!r} and view {key[1]!r}")
@@ -185,13 +189,14 @@ def check_config(data: Any) -> list[str]:
     return problems
 
 
+@final
 class EditorHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(*args, directory=GUI_DIR, **kwargs)
 
     # ----- helpers -----
 
-    def send_json(self, data: Any, status: HTTPStatus = HTTPStatus.OK) -> None:
+    def send_json(self, data: object, status: HTTPStatus = HTTPStatus.OK) -> None:
         body = json.dumps(data).encode()
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
@@ -199,23 +204,26 @@ class EditorHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         _ = self.wfile.write(body)
 
-    def read_body(self) -> Any:
+    def read_body(self) -> object:
         length = int(self.headers.get("Content-Length") or 0)
         return json.loads(self.rfile.read(length) or b"null")
 
     def query(self) -> dict[str, str]:
         return {k: v[0] for k, v in parse_qs(urlsplit(self.path).query).items()}
 
+    @override
     def end_headers(self) -> None:
         # the page files change between sessions: never let the browser cache them
         self.send_header("Cache-Control", "no-store")
         super().end_headers()
 
-    def log_message(self, format: str, *args: Any) -> None:
+    @override
+    def log_message(self, format: str, *args: object) -> None:
         pass
 
     # ----- routes -----
 
+    @override
     def do_GET(self) -> None:
         path = unquote(urlsplit(self.path).path)
         if path == "/":
@@ -235,7 +243,7 @@ class EditorHandler(SimpleHTTPRequestHandler):
             try:
                 with open(target) as f:
                     text = f.read()
-                data = json.loads(text)
+                data: object = json.loads(text)
             except (OSError, ValueError) as e:
                 self.send_json({"path": target, "exists": True, "error": str(e)})
                 return
@@ -258,38 +266,45 @@ class EditorHandler(SimpleHTTPRequestHandler):
                 write_json(OPTIONS_FILE, fresh)
                 self.send_json({"ok": True})
                 return
-            data = self.read_body()
-            if not isinstance(data, dict) or not isinstance(data.get("options"), dict):
+            body = self.read_body()
+            if not isinstance(body, dict):
+                self.send_json({"error": "options must be an object"}, HTTPStatus.BAD_REQUEST)
+                return
+            data = cast(dict[str, object], body)
+            if not isinstance(data.get("options"), dict):
                 self.send_json({"error": "options must be an object"}, HTTPStatus.BAD_REQUEST)
                 return
             data["machine_id"] = machine_id()  # saving from this machine binds the file to it
-            data.pop("machine_id_now", None)
-            data.pop("machine_mismatch", None)
-            data.pop("options_file", None)
+            for key in ("machine_id_now", "machine_mismatch", "options_file"):
+                _ = data.pop(key, None)
             write_json(OPTIONS_FILE, data)
             self.send_json({"ok": True})
             return
         if path == "/api/config":
             target = expand(self.query().get("path", ""))
-            data = self.read_body()
-            if isinstance(data, dict):
+            body = self.read_body()
+            problems = check_config(body)
+            config = cast(dict[str, object], body) if isinstance(body, dict) else None
+            if config is not None:
                 # the camera code does not expand ~: paths go into the file absolute
                 for key in ("temp_path", "save_path"):
-                    if isinstance(data.get(key), str) and data[key].startswith("~"):
-                        data[key] = os.path.expanduser(data[key])
-            problems = check_config(data)
+                    value = config.get(key)
+                    if isinstance(value, str) and value.startswith("~"):
+                        config[key] = os.path.expanduser(value)
             if not target.lower().endswith(".json"):
                 problems.append("the file name must end in .json")
-            if isinstance(data, dict) and os.path.dirname(target) in {expand(str(data.get(k, ""))) for k in ("temp_path", "save_path") if data.get(k)}:
-                problems.append("the config must not be saved inside the temp or save folder")
-            if problems:
+            if config is not None:
+                folders = {expand(str(config[k])) for k in ("temp_path", "save_path") if config.get(k)}
+                if os.path.dirname(target) in folders:
+                    problems.append("the config must not be saved inside the temp or save folder")
+            if problems or config is None:
                 self.send_json({"ok": False, "problems": problems}, HTTPStatus.BAD_REQUEST)
                 return
             try:
                 os.makedirs(os.path.dirname(target), exist_ok=True)
                 tmp = target + ".tmp"
                 with open(tmp, "w") as f:
-                    _ = f.write(config_text(data))
+                    _ = f.write(config_text(config))
                 os.replace(tmp, target)
             except OSError as e:
                 self.send_json({"ok": False, "problems": [f"could not write {target}: {e.strerror or e}"]}, HTTPStatus.BAD_REQUEST)
@@ -303,7 +318,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Serve the ratrixcam camera config editor.")
     _ = parser.add_argument("--port", type=int, default=8001)
     args = parser.parse_args()
-    port = int(args.port)
+    port = int(cast(int, args.port))
     _ = load_options()
     server = ThreadingHTTPServer(("127.0.0.1", port), EditorHandler)
     print(f"ratrixcam config editor: http://127.0.0.1:{port}/   (options in {OPTIONS_FILE}; Ctrl-C to stop)")

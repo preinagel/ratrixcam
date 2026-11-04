@@ -28,6 +28,7 @@ import sys
 import tempfile
 import time
 from datetime import datetime
+from typing import cast
 
 GUI_DIR = os.path.dirname(os.path.abspath(__file__))
 STATUS_FILENAME = "ratrixcam_status.json"
@@ -79,19 +80,22 @@ def write_status(temp_dir: str, started: datetime, run_id: str, config: dict[str
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=(__doc__ or "").split("\n")[0])
-    parser.add_argument("sample", help="a sample temp folder, e.g. sample_data/temp")
-    parser.add_argument("--scenario", default="normal", choices=["normal", "fyi", "nearly_full", "save_full", "no_space", "crash", "shutdown"])
-    parser.add_argument("--port", type=int, default=8000)
-    parser.add_argument("--end-after", type=float, default=None, metavar="SECONDS")
+    _ = parser.add_argument("sample", help="a sample temp folder, e.g. sample_data/temp")
+    _ = parser.add_argument("--scenario", default="normal", choices=["normal", "fyi", "nearly_full", "save_full", "no_space", "crash", "shutdown"])
+    _ = parser.add_argument("--port", type=int, default=8000)
+    _ = parser.add_argument("--end-after", type=float, default=None, metavar="SECONDS")
     args = parser.parse_args()
+    scenario = cast(str, args.scenario)
+    port = cast(int, args.port)
+    end_after_arg = cast("float | None", args.end_after)
 
-    sample = os.path.abspath(args.sample)
+    sample = os.path.abspath(cast(str, args.sample))
     if not os.path.isdir(sample):
         print(f"ERROR: sample folder not found: {sample}")
         return 1
     scratch = tempfile.mkdtemp(prefix="ratrixcam_sim_")
     temp_dir = os.path.join(scratch, "temp")
-    shutil.copytree(sample, temp_dir, ignore=shutil.ignore_patterns("*.mp4", ".DS_Store"))
+    _ = shutil.copytree(sample, temp_dir, ignore=shutil.ignore_patterns("*.mp4", ".DS_Store"))
 
     config: dict[str, object] = {}
     meta = os.path.join(temp_dir, "ratrixcam_run_metadata")
@@ -107,19 +111,19 @@ def main() -> int:
     open(os.path.join(temp_dir, log_name), "a").close()
     started = datetime.now()
     stills = [os.path.join(temp_dir, "status", n) for n in os.listdir(os.path.join(temp_dir, "status"))]
-    save_total, save_free, temp_free = scenario_drives(args.scenario)
-    end_after = args.end_after if args.end_after is not None else (15 if args.scenario in ("crash", "shutdown") else None)
+    save_total, save_free, temp_free = scenario_drives(scenario)
+    end_after = end_after_arg if end_after_arg is not None else (15 if scenario in ("crash", "shutdown") else None)
 
-    server = subprocess.Popen([sys.executable, os.path.join(GUI_DIR, "serve.py"), temp_dir, "--port", str(args.port)])
-    print(f"simulating '{args.scenario}' from {sample}\n  in {temp_dir}\n  viewer: http://127.0.0.1:{args.port}/   (Ctrl-C to stop)")
+    server = subprocess.Popen([sys.executable, os.path.join(GUI_DIR, "serve.py"), temp_dir, "--port", str(port)])
+    print(f"simulating '{scenario}' from {sample}\n  in {temp_dir}\n  viewer: http://127.0.0.1:{port}/   (Ctrl-C to stop)")
 
     stopped = False
 
-    def stop(*_):
+    def stop(*_: object) -> None:
         raise KeyboardInterrupt  # so that the finally clause below stops the server and cleans up
 
-    signal.signal(signal.SIGINT, stop)
-    signal.signal(signal.SIGTERM, stop)
+    _ = signal.signal(signal.SIGINT, stop)
+    _ = signal.signal(signal.SIGTERM, stop)
     try:
         t0 = time.time()
         tick = 0
@@ -127,17 +131,19 @@ def main() -> int:
             elapsed = time.time() - t0
             if end_after is not None and elapsed >= end_after and not stopped:
                 stopped = True
-                if args.scenario == "crash":
+                if scenario == "crash":
                     print("  simulating a crash: stills and status stop")
                 else:
                     print("  simulating a graceful shutdown; temp folder goes away in 20 s")
                     with open(os.path.join(temp_dir, log_name), "a") as f:
-                        f.write("ratrixcam IO: attempting graceful shutdown...\n")
-                        f.write("Multicam attempting to shut down nicely\n")
-                        f.write(f"Collecting the run metadata as ratrixcam_run_metadata/{run_id}\n")
-                        f.write("Manifest rows added at cleanup: 0\n")
-                        f.write(f"Run metadata folder moved to <save>/ratrixcam_run_metadata/{run_id}\n")
-                        f.write("ratrixcam multi: shutdown complete\n")
+                        _ = f.write(
+                            "ratrixcam IO: attempting graceful shutdown...\n"
+                            + "Multicam attempting to shut down nicely\n"
+                            + f"Collecting the run metadata as ratrixcam_run_metadata/{run_id}\n"
+                            + "Manifest rows added at cleanup: 0\n"
+                            + f"Run metadata folder moved to <save>/ratrixcam_run_metadata/{run_id}\n"
+                            + "ratrixcam multi: shutdown complete\n"
+                        )
                     time.sleep(20)
                     shutil.rmtree(temp_dir)
                     print("  temp folder removed; the viewer should show 'run ended'")
@@ -145,7 +151,7 @@ def main() -> int:
                 now = time.time()
                 for still in stills:
                     os.utime(still, (now, now))
-                if not (args.scenario == "no_space" and elapsed > 5):
+                if not (scenario == "no_space" and elapsed > 5):
                     write_status(temp_dir, started, run_id, config, save_total, save_free, temp_free)
             tick += 1
             time.sleep(max(0, t0 + tick - time.time()))

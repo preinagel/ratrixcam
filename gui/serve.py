@@ -22,6 +22,7 @@ import sys
 from functools import partial
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+from typing import Any, cast, final, override
 from urllib.parse import unquote, urlsplit
 
 GUI_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -36,11 +37,13 @@ last_served: dict[str, bytes] = {}
 LAST_TYPES = {"status.json": "application/json", "log.txt": "text/plain; charset=utf-8"}
 
 
+@final
 class ViewerHandler(SimpleHTTPRequestHandler):
-    def __init__(self, *args, temp_dir: str, **kwargs):
-        self.temp_dir = temp_dir
+    def __init__(self, *args: Any, temp_dir: str, **kwargs: Any):
+        self.temp_dir: str = temp_dir
         super().__init__(*args, directory=GUI_DIR, **kwargs)
 
+    @override
     def translate_path(self, path: str) -> str:
         """Map /temp/... onto the temp folder and everything else onto the viewer folder,
         dropping any '..' components so neither root can be escaped."""
@@ -59,7 +62,8 @@ class ViewerHandler(SimpleHTTPRequestHandler):
             full += "/"
         return full
 
-    def do_GET(self):
+    @override
+    def do_GET(self) -> None:
         path = unquote(urlsplit(self.path).path)
         if path.startswith(LAST_PREFIX):
             key = path[len(LAST_PREFIX):]
@@ -92,19 +96,20 @@ class ViewerHandler(SimpleHTTPRequestHandler):
                 return
         super().do_GET()
 
-    def send_bytes(self, body: bytes, content_type: str):
+    def send_bytes(self, body: bytes, content_type: str) -> None:
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
-        self.wfile.write(body)
+        _ = self.wfile.write(body)
 
+    @override
     def list_directory(self, path: "str | os.PathLike[str]"):
         """JSON listing for folders under /temp/; the viewer folder keeps the default HTML."""
         if not unquote(urlsplit(self.path).path).startswith(TEMP_PREFIX):
             return super().list_directory(path)
         path = os.fspath(path)
-        entries = []
+        entries: list[dict[str, object]] = []
         try:
             with os.scandir(path) as it:
                 for entry in it:
@@ -118,42 +123,47 @@ class ViewerHandler(SimpleHTTPRequestHandler):
         except OSError:
             self.send_error(HTTPStatus.NOT_FOUND, "No permission to list directory")
             return None
-        body = json.dumps({"entries": sorted(entries, key=lambda e: e["name"])}).encode()
+        entries.sort(key=lambda e: str(e["name"]))
+        body = json.dumps({"entries": entries}).encode()
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
-        self.wfile.write(body)
+        _ = self.wfile.write(body)
         return None
 
-    def end_headers(self):
+    @override
+    def end_headers(self) -> None:
         # stills and the status file change every second: never let the browser cache anything
         self.send_header("Cache-Control", "no-store")
         super().end_headers()
 
-    def log_message(self, format: str, *args):
+    @override
+    def log_message(self, format: str, *args: object) -> None:
         # one line per still per second would drown the terminal; errors still go through log_error
         pass
 
-    def log_error(self, format: str, *args):
+    @override
+    def log_error(self, format: str, *args: object) -> None:
         # a missing file is normal here: the viewer polls for the status file and for manifests
         # that the cameras may not have written yet
         if args and args[0] == HTTPStatus.NOT_FOUND:
             return
-        sys.stderr.write("%s - %s\n" % (self.address_string(), format % args))
+        _ = sys.stderr.write("%s - %s\n" % (self.address_string(), format % args))
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Serve the ratrixcam viewer for one camera temp folder.")
-    parser.add_argument("temp_folder", help="the running cameras' temp folder (temp_path in the config)")
-    parser.add_argument("--port", type=int, default=8000)
+    _ = parser.add_argument("temp_folder", help="the running cameras' temp folder (temp_path in the config)")
+    _ = parser.add_argument("--port", type=int, default=8000)
     args = parser.parse_args()
-    temp_dir = os.path.abspath(os.path.expanduser(args.temp_folder))
+    temp_dir = os.path.abspath(os.path.expanduser(cast(str, args.temp_folder)))
+    port = cast(int, args.port)
     if not os.path.isdir(temp_dir):
         print(f"ERROR: temp folder not found: {temp_dir}")
         return 1
-    server = ThreadingHTTPServer(("127.0.0.1", args.port), partial(ViewerHandler, temp_dir=temp_dir))
-    print(f"ratrixcam viewer: http://127.0.0.1:{args.port}/   (temp folder {temp_dir}; Ctrl-C to stop)")
+    server = ThreadingHTTPServer(("127.0.0.1", port), partial(ViewerHandler, temp_dir=temp_dir))
+    print(f"ratrixcam viewer: http://127.0.0.1:{port}/   (temp folder {temp_dir}; Ctrl-C to stop)")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
