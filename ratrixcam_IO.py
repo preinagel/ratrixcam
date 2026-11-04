@@ -21,6 +21,7 @@ from PIL import Image, ImageTk
 
 import ratrixcam_multi
 from ratrixcam_run_metadata import RunMetadata, save_drive_problem
+from ratrixcam_server import TRANSFER_PAUSE, TRANSFER_RETRY_WINDOW
 from ratrixcam_naming import camera_name, still_path
 from ratrixcam_utils import (
     BLANK_IMAGE,
@@ -41,6 +42,7 @@ class State:
         self.run_metadata: RunMetadata | None = None
         self.config: Config | None = None
         self.abort = False  # the run ends without a usable save drive: the cleanup leaves temp untouched
+        self.stopping = False  # a stop request is being handled (the Replace SSD dialog may be up)
 
 
 def cameras_are_distinct(config: Config) -> bool:
@@ -244,6 +246,52 @@ STOP_BANNER = "=" * 72  # printed before the stop click's lines, so they can be 
 CHECK_PAUSE = 0.7  # seconds the dialog shows "Checking the drive..." so that a press is seen to do something
 
 
+def stop_requested(state: State, window: tk.Tk | None) -> bool:
+    """Every way a running recording is stopped comes through here: the stop button and the
+    window's close box (window given: the Replace SSD dialog can be shown), Ctrl-C and
+    SIGTERM (no window: no dialog). The save drive is checked; a drive that passes means
+    the shutdown proceeds. One that fails means the dialog, where given, decides between
+    SSD Ready, Abort Run and Continue Run; without a dialog the run is aborted. Returns
+    True when the shutdown is to proceed, with state.abort saying how, False when the
+    operator chose to go on recording. A second request from the window while one is being
+    handled is ignored (the dialog's grab does not stop the close box); a signal arriving
+    then counts as Abort."""
+    if state.stopping:
+        if window is not None:
+            return False
+        print("Signal received while the Replace SSD dialog is up: aborting the run; the cleanup will move nothing")
+        state.abort = True
+        return True
+    config = state.config
+    if config is None:
+        return True
+    state.stopping = True
+    try:
+        problem = save_drive_problem(config)
+        if problem is None:
+            print("Stop requested, save drive check passed: shutting down")
+            return True
+        if window is None:
+            print(f"Save drive check failed ({problem}): aborting the run; the cleanup will move nothing")
+            state.abort = True
+            return True
+        print(f"Stop requested, save drive check failed: {problem}")
+        # SSD Ready re-runs the check inside the dialog, never the cached result; the
+        # dialog returns 'ready' only once a check has passed
+        choice = replace_ssd_dialog(window, problem, lambda: save_drive_problem(config), config.temp_path)
+        if choice == "continue":
+            print("Continue Run chosen: recording goes on")
+            return False
+        if choice == "abort":
+            print("Abort Run chosen: the run ends; the cleanup will move nothing")
+            state.abort = True
+            return True
+        print("Stop requested, save drive check passed: shutting down")
+        return True
+    finally:
+        state.stopping = False
+
+
 def temp_time_left_text(temp_path: str) -> str:
     """How long the cameras can go on before the temp drive is full, at the assumed write
     rate, or 'unknown' if the drive cannot be queried."""
@@ -257,7 +305,7 @@ def replace_ssd_text(problem: str, temp_path: str) -> str:
     """The body of the Replace SSD dialog for this problem."""
     return (
         f"{problem}\n\n"
-        "This drive cannot take the files waiting in the temp folder.\n"
+        "This drive cannot take the files waiting in the temp folder. Recording continues while this window is up.\n"
         "Eject it and mount a drive with enough space at the same path, then press SSD Ready.\n"
         "Abort Run ends the run with every file left in the temp folder.\n"
         f"Continue Run returns to recording; the temp drive has room for {temp_time_left_text(temp_path)} more."
@@ -297,6 +345,7 @@ def replace_ssd_dialog(window: tk.Tk, problem: str, check: Callable[[], str | No
         checks["count"] += 1
         for button in buttons:
             _ = button.config(state="disabled")
+        dialog.protocol("WM_DELETE_WINDOW", lambda: None)  # inert while the check runs: the update below services the close box too
         _ = status.config(text="Checking the drive...")
         dialog.update()
         time.sleep(CHECK_PAUSE)
@@ -307,6 +356,7 @@ def replace_ssd_dialog(window: tk.Tk, problem: str, check: Callable[[], str | No
         print(f"SSD Ready pressed, save drive check failed again: {found}")
         _ = message.config(text=replace_ssd_text(found, temp_path))
         _ = status.config(text=f"Checked {checks['count']} time(s), last at {dt.datetime.now():%H:%M:%S}: still {found}")
+        dialog.protocol("WM_DELETE_WINDOW", lambda: choose("continue"))
         for button in buttons:
             _ = button.config(state="normal")
 
@@ -315,6 +365,8 @@ def replace_ssd_dialog(window: tk.Tk, problem: str, check: Callable[[], str | No
         button = tk.Button(row, text=text, width=14, command=actions[value])
         button.pack(side="left", padx=8)
         buttons.append(button)
+    # KNOWN: taken before the window is mapped. Fine on macOS, the only target; X11 would
+    # want wait_visibility() first, which the tests' withdrawn windows could never satisfy
     dialog.grab_set()
     window.wait_window(dialog)
     return choice["value"]
@@ -496,9 +548,8 @@ def create_recording_window(state: State, bgcolor: str, config: Config) -> tk.Tk
 
     def stop_recording():
         """The stop button, and the window's close box. With the cameras running, the save
-        drive is checked instead of asking 'are you sure': a drive that passes means the
-        shutdown proceeds at once; one that fails brings up the Replace SSD dialog until the
-        operator has fixed the drive, chosen to abort, or chosen to go on recording."""
+        drive is checked instead of asking 'are you sure' (stop_requested); with no cameras
+        running, the old 'are you sure' question is all there is to ask."""
         if state.camera_process is None or not state.camera_process.is_alive():
             confirmation = messagebox.askquestion(
                 "Cameras appear to be off already", "Are you sure?", icon="warning"
@@ -506,21 +557,10 @@ def create_recording_window(state: State, bgcolor: str, config: Config) -> tk.Tk
             if confirmation == "no":
                 return
         else:
-            print(STOP_BANNER)
-            problem = save_drive_problem(config)
-            if problem is not None:
-                print(f"Stop requested, save drive check failed: {problem}")
-                # SSD Ready re-runs the check inside the dialog, never the cached result;
-                # the dialog returns 'ready' only once a check has passed
-                choice = replace_ssd_dialog(window, problem, lambda: save_drive_problem(config), config.temp_path)
-                if choice == "continue":
-                    print("Continue Run chosen: recording goes on")
-                    return
-                if choice == "abort":
-                    print("Abort Run chosen: the run ends; the cleanup will move nothing")
-                    state.abort = True
-            if not state.abort:
-                print("Stop requested, save drive check passed: shutting down")
+            if not state.stopping:
+                print(STOP_BANNER)
+            if not stop_requested(state, window):
+                return
         window.destroy()
 
     window.protocol("WM_DELETE_WINDOW", stop_recording)  # the close box takes the same path as the button
@@ -619,7 +659,12 @@ def graceful_shutdown(state: State, stop_event: Event):
     timeout = 600 #transcoding takes ~50% video duration, so wait 10min before killing unfinished processes
                   #would be better to set this based on the slice duration but this is not available info
     print("Waiting for child processes to terminate...")
-    phase = f"{verb}.\nStopping the cameras and waiting for the clips in transfer to finish or give up\n(up to 3 minutes)."
+    # PENDING (next commit): on an abort the cameras' final transfers still retry for the whole
+    # window against a drive just declared unusable; an abort event to the cameras will end that
+    phase = (
+        f"{verb}.\nStopping the cameras and waiting for the clips in transfer to finish or give up\n"
+        f"(up to {time_left_text(TRANSFER_RETRY_WINDOW + TRANSFER_PAUSE)})."
+    )
     if not wait_until(lambda: not camera_process.is_alive(), timeout, lambda: stopping.show(phase)):
         print("ratrixcam IO: timed out waiting for child processes to terminate, killing")
         camera_process.kill()
@@ -657,6 +702,15 @@ def graceful_shutdown(state: State, stop_event: Event):
 # ------------------------------------------------------------------------
 def main():
     stop_event = multiprocessing.Event()
+    state = State()  # exists before any handler that uses it is installed
+
+    def stop_from_signal():
+        """Ctrl-C and SIGTERM: the same stop as the button, with no dialog. With the cameras
+        running the save drive is checked and a failure aborts the run; with no cameras
+        running there is nothing to check."""
+        cameras_running = state.camera_process is not None and state.camera_process.is_alive()
+        if not cameras_running or stop_requested(state, None):
+            graceful_shutdown(state, stop_event)
 
     def int_handler(_sig: int, _frame: FrameType | None):
         print(STOP_BANNER)
@@ -664,29 +718,21 @@ def main():
             "Received signal to terminate, shutting down gracefully.\nTo force exit, press Ctrl+C again."
         )
         _ = signal.signal(signal.SIGINT, signal.SIG_DFL)
-        # the same drive check as the stop button, with no dialog: a drive that fails it means
-        # the run is aborted, so the cleanup leaves temp exactly as the cameras wrote it
-        if state.config is not None and state.camera_process is not None and state.camera_process.is_alive():
-            problem = save_drive_problem(state.config)
-            if problem is None:
-                print("Save drive check passed: shutting down")
-            else:
-                print(f"Save drive check failed ({problem}): aborting the run; the cleanup will move nothing")
-                state.abort = True
-        graceful_shutdown(state, stop_event)
+        stop_from_signal()
+
+    def term_handler(_sig: int, _frame: FrameType | None):
+        print(STOP_BANNER)
+        print("Received SIGTERM, shutting down gracefully.")
+        stop_from_signal()
 
     _ = signal.signal(signal.SIGINT, int_handler)
-    _ = signal.signal(
-        signal.SIGTERM,
-        lambda sig, frame: graceful_shutdown(state, stop_event),
-    )
+    _ = signal.signal(signal.SIGTERM, term_handler)
 
     parser = argparse.ArgumentParser(description="ratrixcam", add_help=False)
     _ = parser.add_argument("-c", "--config", type=str, required=True)
     args = vars(parser.parse_args())
     config_path: str = args["config"]
 
-    state = State()
     ensure_config_file_exists(config_path)
 
     config = load_settings(config_path)
@@ -741,10 +787,7 @@ def main():
     state.current_window = create_recording_window(state, bgcolor, config)
 
     _ = signal.signal(signal.SIGINT, int_handler)
-    _ = signal.signal(
-        signal.SIGTERM,
-        lambda sig, frame: graceful_shutdown(state, stop_event),
-    )
+    _ = signal.signal(signal.SIGTERM, term_handler)
 
     state.current_window.mainloop()
     state.current_window = None

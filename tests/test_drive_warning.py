@@ -157,6 +157,58 @@ def test_replace_ssd_dialog_closed_by_its_close_box_means_continue(tmp_path):
 
 # ------------------------------------------------- the wait while the run stops
 
+class RunningCameras:
+    def is_alive(self):
+        return True
+
+
+def stopping_state(monkeypatch, problem):
+    """A state with the cameras running and a save drive check that reports `problem`."""
+    from types import SimpleNamespace
+
+    state = io.State()
+    state.config = SimpleNamespace(temp_path="/nowhere")  # only what the stop reads
+    state.camera_process = RunningCameras()
+    monkeypatch.setattr(io, "save_drive_problem", lambda _c: problem)
+    return state
+
+
+def test_stop_proceeds_when_the_check_passes(monkeypatch, capsys):
+    state = stopping_state(monkeypatch, None)
+    assert io.stop_requested(state, None) is True
+    assert state.abort is False and state.stopping is False
+    assert "save drive check passed: shutting down" in capsys.readouterr().out
+
+
+def test_stop_without_a_window_aborts_when_the_check_fails(monkeypatch, capsys):
+    state = stopping_state(monkeypatch, "SSD drive not reachable")
+    assert io.stop_requested(state, None) is True
+    assert state.abort is True
+    assert "Save drive check failed (SSD drive not reachable): aborting the run" in capsys.readouterr().out
+
+
+def test_stop_with_a_window_follows_the_dialog(monkeypatch, capsys):
+    state = stopping_state(monkeypatch, "SSD drive not reachable")
+    monkeypatch.setattr(io, "replace_ssd_dialog", lambda *a: "continue")
+    assert io.stop_requested(state, object()) is False
+    assert state.abort is False
+    monkeypatch.setattr(io, "replace_ssd_dialog", lambda *a: "abort")
+    assert io.stop_requested(state, object()) is True
+    assert state.abort is True
+    out = capsys.readouterr().out
+    assert "Continue Run chosen" in out and "Abort Run chosen" in out
+
+
+def test_a_second_window_request_during_the_dialog_is_ignored_but_a_signal_aborts(monkeypatch, capsys):
+    state = stopping_state(monkeypatch, "SSD drive not reachable")
+    state.stopping = True  # the dialog is up
+    assert io.stop_requested(state, object()) is False
+    assert state.abort is False
+    assert io.stop_requested(state, None) is True
+    assert state.abort is True
+    assert "Signal received while the Replace SSD dialog is up: aborting the run" in capsys.readouterr().out
+
+
 def test_wait_until_ticks_until_done():
     ticks = []
     assert io.wait_until(lambda: len(ticks) >= 3, timeout=5, tick=lambda: ticks.append(1), interval=0) is True

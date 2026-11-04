@@ -31,8 +31,8 @@ TRANSFER_PAUSE: float = 3  # seconds before the first attempt; hand tuned to pre
 TRANSFER_RETRY_DELAY: float = 5  # seconds between attempts
 TRANSFER_RETRY_WINDOW: float = 180  # seconds of silent retrying before a clip is left in temp: long enough for a
                                     # planned SSD swap (eject, unplug, plug in, mount) without a frame lost; the
-                                    # stop click waits this long on a missing or full drive, so it must stay well
-                                    # under the 10-minute shutdown kill timeout
+                                    # cameras' final transfers at stop wait this long on a missing or full drive,
+                                    # so it must stay well under the 10-minute shutdown kill timeout
 TRANSFER_SPACE_FACTOR = 10  # free space required at the destination, as a multiple of the clip's size;
                             # generous so that the cameras' near-simultaneous transfers all fit or all wait
 

@@ -49,7 +49,10 @@ def save_drive_problem(config: Config) -> str | None:
     save folder is missing, refuses a write (the same probe as at launch), or has less free
     space than everything in temp plus STOP_SPACE_FACTOR times the largest clip there. Run
     at the stop click and on Ctrl-C, before the cameras are stopped; the message is shown to
-    the operator and says what the drive needs."""
+    the operator and says what the drive needs.
+
+    KNOWN: this overlaps the launch check in ratrixcam_IO and _no_room_for below. Kept as
+    three probes on purpose: each runs at its own moment and reports in its own words."""
     if not os.path.isdir(config.save_path):
         return "SSD drive not reachable"
     reason = not_writable(config.save_path)
@@ -62,10 +65,7 @@ def save_drive_problem(config: Config) -> str | None:
     in_temp, largest_clip = _temp_usage(config.temp_path)
     needed = in_temp + STOP_SPACE_FACTOR * largest_clip
     if free < needed:
-        return (
-            f"SSD drive full: {_size_text(needed)} needed for the backlog now in temp, {_size_text(free)} free; "
-            "recording continues meanwhile"
-        )
+        return f"SSD drive full: {_size_text(needed)} needed for the backlog now in temp, {_size_text(free)} free"
     return None
 
 
@@ -472,7 +472,7 @@ class RunMetadata:
             return f"save drive unavailable: {e.strerror or e}"
         needed = sum(f.stat().st_size for f in folder.rglob("*") if f.is_file())
         if free < needed:
-            return f"save drive short of space ({needed / 1e6:.0f} MB needed, {free / 1e6:.0f} MB free)"
+            return f"save drive short of space ({_size_text(needed)} needed, {_size_text(free)} free)"
         return None
 
 
