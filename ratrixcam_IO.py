@@ -11,6 +11,7 @@ import tkinter as tk
 import tkinter.font as font
 from collections.abc import Callable
 from multiprocessing import Process
+from typing import cast
 from multiprocessing.synchronize import Event
 from tkinter import messagebox, ttk
 from types import FrameType
@@ -41,8 +42,8 @@ class State:
         self.current_window: tk.Tk | None = None
         self.run_metadata: RunMetadata | None = None
         self.config: Config | None = None
-        self.abort = False  # the run ends without a usable save drive: the cleanup leaves temp untouched
-        self.stopping = False  # a stop request is being handled (the Replace SSD dialog may be up)
+        self.abort: bool = False  # the run ends without a usable save drive: the cleanup leaves temp untouched
+        self.stopping: bool = False  # a stop request is being handled (the Replace SSD dialog may be up)
 
 
 def cameras_are_distinct(config: Config) -> bool:
@@ -56,11 +57,11 @@ def cameras_are_distinct(config: Config) -> bool:
         if key in seen_names:
             print(f"ERROR: cameras {seen_names[key]} and {idx} both have subjID {camera.subjID!r} and view {camera.view!r}")
             ok = False
-        seen_names.setdefault(key, idx)
+        _ = seen_names.setdefault(key, idx)
         if camera.position in seen_positions:
             print(f"ERROR: cameras {seen_positions[camera.position]} and {idx} both have position {camera.position!r}")
             ok = False
-        seen_positions.setdefault(camera.position, idx)
+        _ = seen_positions.setdefault(camera.position, idx)
     return ok
 
 
@@ -589,7 +590,7 @@ class StoppingWindow:
     freezes. Without a display it does nothing and the terminal lines carry the story."""
 
     def __init__(self, title: str):
-        self.started = time.monotonic()
+        self.started: float = time.monotonic()
         self.root: tk.Tk | None = None
         self.label: tk.Label | None = None
         try:
@@ -642,7 +643,8 @@ def close_window(window: tk.Tk) -> None:
     on a Ctrl-C during the Replace SSD dialog, and each prints an 'invalid command name'
     complaint into the log."""
     try:
-        for timer in window.tk.call("after", "info"):
+        timers = cast(tuple[str, ...], window.tk.call("after", "info"))  # Tk returns untyped
+        for timer in timers:
             window.after_cancel(timer)
     except tk.TclError:
         pass
@@ -730,7 +732,7 @@ def main():
         print(STOP_BANNER)
         print(
             "Received signal to terminate, shutting down gracefully.\nTo force exit, press Ctrl+C again; "
-            "once the cameras have stopped, the collection finishes before the program exits."
+            + "once the cameras have stopped, the collection finishes before the program exits."
         )
         _ = signal.signal(signal.SIGINT, signal.SIG_DFL)
         stop_from_signal()
@@ -746,7 +748,7 @@ def main():
     parser = argparse.ArgumentParser(description="ratrixcam", add_help=False)
     _ = parser.add_argument("-c", "--config", type=str, required=True)
     args = vars(parser.parse_args())
-    config_path: str = args["config"]
+    config_path: str = args["config"]  # pyright: ignore[reportAny]  # argparse hands back Any
 
     ensure_config_file_exists(config_path)
 

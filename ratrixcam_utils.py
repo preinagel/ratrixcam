@@ -1,7 +1,7 @@
 import fcntl
 import os
 import shutil
-from typing import Literal
+from typing import ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 
@@ -11,7 +11,7 @@ Position = Literal["A", "B", "C", "D", "E", "F", "G", "H"]
 
 
 class CameraConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     subjID: str  # subject identifier without the prefix, e.g. "556"
     view: str  # camera view, e.g. "buddy"
@@ -24,7 +24,7 @@ class CameraConfig(BaseModel):
 
 
 class Config(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     cameras: list[CameraConfig]
     study_label: str
@@ -92,7 +92,7 @@ def not_writable(folder: str) -> str | None:
     probe = os.path.join(folder, f"ratrixcam_write_test_{os.getpid()}.tmp")
     try:
         with open(probe, "w") as f:
-            f.write("ratrixcam write test\n")
+            _ = f.write("ratrixcam write test\n")
     except OSError as e:
         return e.strerror or str(e)
     try:
@@ -109,7 +109,7 @@ def flush_to_device(path: str) -> None:
     clip transfer and by the shutdown cleanup."""
     fd = os.open(path, os.O_RDONLY)
     try:
-        full_sync = getattr(fcntl, "F_FULLFSYNC", None)
+        full_sync: int | None = getattr(fcntl, "F_FULLFSYNC", None)
         if full_sync is not None:
             try:
                 _ = fcntl.fcntl(fd, full_sync)

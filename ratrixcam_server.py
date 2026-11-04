@@ -132,7 +132,7 @@ def _transfer_attempt(temp_file: str, out_file: str, save_root: str, size: int, 
             # HEADS-UP before enabling: os.system hands this string to the shell with the two paths
             # unquoted, so a folder name with a space or a shell character breaks or alters the
             # command; use subprocess.run with an argument list instead.
-            conversion_failed: int = os.system(command=f"ffmpeg -i {temp_file} -c:v hevc_videotoolbox -q:v 65 -tag:v hvc1 -loglevel error {out_file}")
+            conversion_failed: int = os.system(command=f"ffmpeg -i {temp_file} -c:v hevc_videotoolbox -q:v 65 -tag:v hvc1 -loglevel error {out_file}")  # pyright: ignore[reportDeprecated]  # disabled branch kept as an extension point; see the HEADS-UP above
             if conversion_failed:  # returns 0 for success, other outcomes
                 print(f"fmpeg conversion of {temp_file} failed with exit code {conversion_failed}")
             # verify existence of the transcoded output file (its size differs from the original)
@@ -228,7 +228,7 @@ class WriterState(NamedTuple):
 
 def close_writer(writer_state: WriterState, file_transfer_processes: list[Process], manifest: ManifestMetadata, save_root: str):
     writer_state.writer.release()
-    manifest.append(os.path.basename(writer_state.save_dir), writer_state.file_name, writer_state.started)
+    _ = manifest.append(os.path.basename(writer_state.save_dir), writer_state.file_name, writer_state.started)
 
     temp_video_path = os.path.join(writer_state.temp_dir, writer_state.file_name)
     out_path = os.path.join(writer_state.save_dir, writer_state.file_name)
@@ -410,12 +410,12 @@ def main():
     _ = parser.add_argument("-i", "--index", type=int, required=True)
     args = vars(parser.parse_args())
 
-    config = load_settings(args["config"])
+    config = load_settings(args["config"])  # pyright: ignore[reportAny]  # argparse hands back Any
     if config is None:
         print("ERROR: Cannot load settings")
         return
 
-    device_id = int(args["index"]) - 1
+    device_id = int(args["index"]) - 1  # pyright: ignore[reportAny]  # argparse hands back Any
     if device_id < 0:
         print("ERROR: Invalid device index. Must be a positive integer.")
         return

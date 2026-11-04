@@ -15,6 +15,7 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
+from typing import IO, cast
 
 from ratrixcam_manifest import write_row
 from ratrixcam_naming import (
@@ -109,27 +110,27 @@ class TerminalLog:
     share Python's sys.stdout) and native libraries -- reaches both the terminal and the file."""
 
     def __init__(self, path: Path):
-        self.path = path
+        self.path: Path = path
         path.parent.mkdir(parents=True, exist_ok=True)
         open(path, "a").close()  # fail here, before touching the file descriptors, if the log cannot be written
-        sys.stdout.flush()
-        sys.stderr.flush()
-        self._saved = (os.dup(1), os.dup(2))
+        _ = sys.stdout.flush()
+        _ = sys.stderr.flush()
+        self._saved: tuple[int, int] = (os.dup(1), os.dup(2))
         # tee runs in its own session: a Ctrl-C in the terminal goes to the whole foreground
         # process group, and a tee that died with it would take every later line, the whole
         # shutdown report, with it. Detached, it ends when the pipe closes in stop()
-        self._tee = subprocess.Popen(["tee", "-a", str(path)], stdin=subprocess.PIPE, start_new_session=True)
+        self._tee: subprocess.Popen[bytes] = subprocess.Popen(["tee", "-a", str(path)], stdin=subprocess.PIPE, start_new_session=True)
         assert self._tee.stdin is not None  # stdin=PIPE above
-        self._pipe = self._tee.stdin
-        os.dup2(self._pipe.fileno(), 1)
-        os.dup2(self._pipe.fileno(), 2)
+        self._pipe: IO[bytes] = self._tee.stdin
+        _ = os.dup2(self._pipe.fileno(), 1)
+        _ = os.dup2(self._pipe.fileno(), 2)
         # fd 1 is now a pipe: keep this process line-buffered, and make spawned children
         # unbuffered, so messages reach the terminal when printed rather than at exit
         for stream in (sys.stdout, sys.stderr):
             if isinstance(stream, io.TextIOWrapper):
                 stream.reconfigure(line_buffering=True)
         os.environ["PYTHONUNBUFFERED"] = "1"
-        self._active = True
+        self._active: bool = True
 
     def stop(self) -> None:
         """Restore the terminal and let tee finish writing. Call after the camera processes
@@ -137,15 +138,15 @@ class TerminalLog:
         if not self._active:
             return
         self._active = False
-        sys.stdout.flush()
-        sys.stderr.flush()
-        os.dup2(self._saved[0], 1)
-        os.dup2(self._saved[1], 2)
+        _ = sys.stdout.flush()
+        _ = sys.stderr.flush()
+        _ = os.dup2(self._saved[0], 1)
+        _ = os.dup2(self._saved[1], 2)
         for fd in self._saved:
             os.close(fd)
         self._pipe.close()
         try:
-            self._tee.wait(timeout=10)
+            _ = self._tee.wait(timeout=10)
         except subprocess.TimeoutExpired:
             print(f"WARNING: terminal log writer still busy; {self.path} may be incomplete")
 
@@ -155,15 +156,15 @@ class RunMetadata:
     and moved whole to the save drive at shutdown."""
 
     def __init__(self, config: Config, config_path: str | Path, started: datetime | None = None):
-        self.config = config
-        self.config_path = config_path
-        self.started = started or datetime.now()
-        self.run_id = run_id(self.started)
-        self.log_path = Path(config.temp_path) / terminal_log_filename(self.run_id)
-        self.temp_run_dir = temp_run_metadata_dir(config.temp_path)  # during the run
-        self.run_dir = run_metadata_dir(config.save_path, self.run_id)  # after shutdown
+        self.config: Config = config
+        self.config_path: str | Path = config_path
+        self.started: datetime = started or datetime.now()
+        self.run_id: str = run_id(self.started)
+        self.log_path: Path = Path(config.temp_path) / terminal_log_filename(self.run_id)
+        self.temp_run_dir: Path = temp_run_metadata_dir(config.temp_path)  # during the run
+        self.run_dir: Path = run_metadata_dir(config.save_path, self.run_id)  # after shutdown
         self.terminal_log: TerminalLog | None = None
-        self._collected = False
+        self._collected: bool = False
 
     def start_terminal_log(self) -> bool:
         """Start the tee into the log file; False if the temp folder or the log file cannot be
@@ -204,16 +205,16 @@ class RunMetadata:
         the shutdown collection moves the whole folder over the provisional one."""
         try:
             self.temp_run_dir.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(self.config_path, self.temp_run_dir / os.path.basename(self.config_path))
+            _ = shutil.copy2(self.config_path, self.temp_run_dir / os.path.basename(self.config_path))
             notes = self.temp_run_dir / NOTES_FILENAME
             if not notes.exists():
-                notes.write_text(NOTES_TEMPLATE)
+                _ = notes.write_text(NOTES_TEMPLATE)
         except OSError as e:
             print(f"WARNING: could not create the run metadata folder {self.short(self.temp_run_dir)}: {e.strerror or e}")
             return
         try:
             self.run_dir.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(self.config_path, self.run_dir / os.path.basename(self.config_path))
+            _ = shutil.copy2(self.config_path, self.run_dir / os.path.basename(self.config_path))
             print(f"Provisional copy of the config file: {self.short(self.run_dir)}")
         except OSError as e:
             print(f"WARNING: could not write the provisional config copy to {self.short(self.run_dir)}: {e.strerror or e}")
@@ -260,7 +261,7 @@ class RunMetadata:
             self.terminal_log.stop()
         if moved and self.log_path.exists():
             try:
-                shutil.move(str(self.log_path), str(self.run_dir / self.log_path.name))
+                _ = shutil.move(str(self.log_path), str(self.run_dir / self.log_path.name))
             except OSError as e:
                 print(f"WARNING: could not move the terminal log into {self.short(self.run_dir)}: {e.strerror or e}")
         if moved and temp.is_dir() and _remove_if_empty(temp):
@@ -288,7 +289,7 @@ class RunMetadata:
             deleted, kept = self._triage_unlisted([clip for clip in clips if clip.name not in rows], all_read)
             print(
                 f"Clips found in temp: {len(clips)}; {transferred} transferred, {len(listed) - transferred} not transferred "
-                f"(they travel with their folder into the run metadata folder); without a manifest row: {deleted} deleted, {kept} kept"
+                + f"(they travel with their folder into the run metadata folder); without a manifest row: {deleted} deleted, {kept} kept"
             )
             self._rename_complete_partial_copies(rows, {clip.name for clip in clips})
         except OSError as e:
@@ -412,15 +413,15 @@ class RunMetadata:
                 stills_dst.mkdir(exist_ok=True)
                 for f in sorted(stills_src.iterdir()):
                     if f.is_file() and f.name != ".DS_Store":
-                        shutil.move(str(f), str(stills_dst / f.name))
+                        _ = shutil.move(str(f), str(stills_dst / f.name))
                         gathered += 1
-                _remove_if_empty(stills_src)
+                _ = _remove_if_empty(stills_src)
             for entry in sorted(Path(self.config.temp_path).iterdir()):
                 if entry == self.log_path or entry == self.temp_run_dir:
                     continue  # the log is closed and moved last; the run folder is the destination
                 if entry.is_file():
                     if entry.name != ".DS_Store":
-                        shutil.move(str(entry), str(self.temp_run_dir / entry.name))
+                        _ = shutil.move(str(entry), str(self.temp_run_dir / entry.name))
                         gathered += 1
                 elif entry.is_dir() and not _remove_if_empty(entry):
                     # BY DESIGN (design document item 4): a camera folder still holding clips
@@ -435,7 +436,7 @@ class RunMetadata:
                     while target.exists():  # a name the metadata folder already uses
                         n += 1
                         target = self.temp_run_dir / f"{entry.name}_from_temp{n if n > 2 else ''}"
-                    shutil.move(str(entry), str(target))
+                    _ = shutil.move(str(entry), str(target))
                     print(f"WARNING: folder {entry.name} with {count} file(s) moved into the run metadata folder")
         except OSError as e:
             print(f"WARNING: gathering stills and loose temp files into the run metadata folder failed after {gathered} file(s): {_error_text(e)}")
@@ -517,7 +518,7 @@ def _error_text(e: OSError) -> str:
     each why being a full error string with both paths: reported as the first why alone and
     the count."""
     if isinstance(e, shutil.Error) and e.args and isinstance(e.args[0], list):
-        failures: list[tuple[str, str, str]] = e.args[0]
+        failures = cast(list[tuple[str, str, str]], e.args[0])
         if failures and len(failures[0]) == 3:
             why = re.sub(r"^\[Errno \d+\] ", "", str(failures[0][2])).split(": '")[0]
             return f"{why} ({len(failures)} file(s) could not be copied)"
@@ -530,7 +531,7 @@ def _move_tree(src: Path, dst: Path) -> bool:
     remove the source. False, with the source kept, if anything is missing or differs in size
     after the copy. The flush matters because the tree may carry clips whose transfers failed
     and which exist nowhere else: a drive pulled right after the move must still hold them."""
-    shutil.copytree(src, dst, dirs_exist_ok=True)
+    _ = shutil.copytree(src, dst, dirs_exist_ok=True)
     copied: list[Path] = []
     for f in src.rglob("*"):
         if f.is_file():

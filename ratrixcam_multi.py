@@ -193,7 +193,7 @@ def main():
     args = vars(parser.parse_args())
 
     print("Accessing settings file...")  # get settings from the json file
-    config = load_settings(args["config"])
+    config = load_settings(args["config"])  # pyright: ignore[reportAny]  # argparse hands back Any
     if config is None:
         return
 
