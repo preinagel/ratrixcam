@@ -5,6 +5,7 @@ import os
 import shutil
 import signal
 import sys
+import threading
 import time
 import tkinter as tk
 import tkinter.font as font
@@ -542,6 +543,58 @@ def create_recording_window(state: State, bgcolor: str, config: Config) -> tk.Tk
     return window
 
 
+class StoppingWindow:
+    """A small window shown while the run stops, in place of the recording window: it names
+    the phase and counts the seconds. It is serviced from the wait loops below, so it never
+    freezes. Without a display it does nothing and the terminal lines carry the story."""
+
+    def __init__(self, title: str):
+        self.started = time.monotonic()
+        self.root: tk.Tk | None = None
+        self.label: tk.Label | None = None
+        try:
+            self.root = tk.Tk()
+            self.root.title(title)
+            self.root.geometry("+600+400")
+            self.root.protocol("WM_DELETE_WINDOW", lambda: None)  # closing it would stop nothing
+            self.label = tk.Label(self.root, text="", justify="left", padx=24, pady=18, font=("Helvetica", 14))
+            self.label.pack()
+            self.root.update()
+        except tk.TclError:
+            self.root = None
+
+    def show(self, text: str) -> None:
+        """Refresh the window with this text and the time elapsed since the stop began."""
+        if self.root is None or self.label is None:
+            return
+        minutes, seconds = divmod(int(time.monotonic() - self.started), 60)
+        try:
+            _ = self.label.config(text=f"{text}\n\nElapsed {minutes}:{seconds:02d}")
+            self.root.update()
+        except tk.TclError:
+            self.root = None
+
+    def close(self) -> None:
+        if self.root is not None:
+            try:
+                self.root.destroy()
+            except tk.TclError:
+                pass
+            self.root = None
+
+
+def wait_until(done: Callable[[], bool], timeout: float, tick: Callable[[], None], interval: float = 0.1) -> bool:
+    """Call tick() every interval seconds until done() is true or timeout seconds have passed;
+    True if done() came true. The tick keeps a window alive during a long wait."""
+    deadline = time.monotonic() + timeout
+    while not done():
+        if time.monotonic() >= deadline:
+            return False
+        tick()
+        time.sleep(interval)
+    return True
+
+
 def graceful_shutdown(state: State, stop_event: Event):
     _ = signal.signal(signal.SIGINT, signal.SIG_DFL)
     _ = signal.signal(signal.SIGTERM, signal.SIG_DFL)
@@ -551,35 +604,52 @@ def graceful_shutdown(state: State, stop_event: Event):
         state.current_window.destroy()
         state.current_window = None
 
-    if state.camera_process is None:
+    camera_process = state.camera_process
+    if camera_process is None:
         print("No camera process to stop")
         if state.run_metadata is not None and state.run_metadata.terminal_log is not None:
             state.run_metadata.terminal_log.stop()
         return
 
+    verb = "Aborting the run" if state.abort else "Stopping the run"
+    stopping = StoppingWindow(f"ratrixcam: {verb.lower()}")
     print("ratrixcam IO: attempting graceful shutdown...")
     stop_event.set()
 
     timeout = 600 #transcoding takes ~50% video duration, so wait 10min before killing unfinished processes
                   #would be better to set this based on the slice duration but this is not available info
     print("Waiting for child processes to terminate...")
-    for _ in range(int(timeout / 0.1)):
-        if not state.camera_process.is_alive():
-            break
-        time.sleep(0.1)  # wait a bit before trying again
-    else:
+    phase = f"{verb}.\nStopping the cameras and waiting for the clips in transfer to finish or give up\n(up to 3 minutes)."
+    if not wait_until(lambda: not camera_process.is_alive(), timeout, lambda: stopping.show(phase)):
         print("ratrixcam IO: timed out waiting for child processes to terminate, killing")
-        state.camera_process.kill()
+        camera_process.kill()
     print("ratrixcam IO: shutdown complete")
 
     # cameras are down: gather the run's artifacts (terminal log, stills, loose temp files),
-    # or on an abort leave temp as it is
-    if state.run_metadata is not None:
-        try:
-            state.run_metadata.collect_at_shutdown(abort=state.abort)
-        except Exception as e:
-            print(f"WARNING: run metadata collection failed: {e}")
+    # or on an abort leave temp as it is. The collection runs on a thread so that the
+    # window can be serviced meanwhile; it can take minutes when clips are re-requested
+    run_metadata = state.run_metadata
+    if run_metadata is not None:
+        phase = "Cameras stopped.\n" + (
+            "Leaving the temp folder as it is and closing the log."
+            if state.abort
+            else "Moving the run's files to the save drive; the terminal shows the details."
+        )
+        failure: list[Exception] = []
 
+        def collect():
+            try:
+                run_metadata.collect_at_shutdown(abort=state.abort)
+            except Exception as e:
+                failure.append(e)
+
+        worker = threading.Thread(target=collect)
+        worker.start()
+        _ = wait_until(lambda: not worker.is_alive(), float("inf"), lambda: stopping.show(phase))
+        if failure:
+            print(f"WARNING: run metadata collection failed: {failure[0]}")
+
+    stopping.close()
     sys.exit(0)
 
 

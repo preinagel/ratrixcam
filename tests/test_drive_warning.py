@@ -43,6 +43,29 @@ def test_time_left_text_switches_to_hours_at_two_hours():
 
 # ------------------------------------------------- the Replace SSD dialog at the stop click
 
+@pytest.fixture(autouse=True)
+def no_window_on_screen(monkeypatch):
+    """Every Tk window a test makes is created withdrawn, so nothing flashes on the screen
+    of whoever runs the suite; the widgets inside behave the same."""
+    tk = pytest.importorskip("tkinter")
+
+    class HiddenTk(tk.Tk):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.withdraw()
+
+    class HiddenToplevel(tk.Toplevel):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.withdraw()
+
+        def grab_set(self):
+            pass  # a withdrawn window cannot take the grab, and the tests do not need it
+
+    monkeypatch.setattr(io.tk, "Tk", HiddenTk)
+    monkeypatch.setattr(io.tk, "Toplevel", HiddenToplevel)
+
+
 def hidden_root():
     tk = pytest.importorskip("tkinter")
     try:
@@ -130,3 +153,31 @@ def test_replace_ssd_dialog_closed_by_its_close_box_means_continue(tmp_path):
     result = io.replace_ssd_dialog(root, "SSD drive not reachable", lambda: None, str(tmp_path))
     root.destroy()
     assert result == "continue"
+
+
+# ------------------------------------------------- the wait while the run stops
+
+def test_wait_until_ticks_until_done():
+    ticks = []
+    assert io.wait_until(lambda: len(ticks) >= 3, timeout=5, tick=lambda: ticks.append(1), interval=0) is True
+    assert len(ticks) == 3
+
+
+def test_wait_until_gives_up_at_the_timeout():
+    ticks = []
+    assert io.wait_until(lambda: False, timeout=0.05, tick=lambda: ticks.append(1), interval=0.01) is False
+    assert ticks
+
+
+def test_stopping_window_shows_the_phase_and_the_elapsed_time():
+    tk, root = hidden_root()
+    root.destroy()  # the stopping window makes its own root, as it does after the recording window is gone
+    window = io.StoppingWindow("ratrixcam: stopping the run")
+    if window.root is None:
+        pytest.skip("no display")
+    window.show("Stopping the run.\nWaiting for the cameras.")
+    assert window.label is not None
+    assert window.label.cget("text") == "Stopping the run.\nWaiting for the cameras.\n\nElapsed 0:00"
+    window.close()
+    assert window.root is None
+    window.show("after close")  # harmless
