@@ -272,7 +272,7 @@ def test_abort_adds_manifest_rows_and_touches_nothing_else(tmp_path, capsys):
     assert (temp_manifests_dir(run.config.temp_path) / "subj001_cam1_manifest.csv").read_text().count("\n") == 2  # header + the row
     assert sorted(p.name for p in run.run_dir.iterdir()) == [Path(run.config_path).name]  # provisional copy untouched
     out = capsys.readouterr().out
-    assert "Run aborted: nothing is moved to the save drive; everything stays in <temp>" in out
+    assert "Run aborted: the cleanup moves nothing; <temp> is left as the cameras left it" in out
     assert "Manifest rows added at cleanup: 1" in out
     assert "WARNING" not in out and "Gathered" not in out
 
@@ -382,7 +382,7 @@ def test_save_drive_check_demands_room_for_temp_plus_the_margin(tmp_path, monkey
     monkeypatch.setattr(shutil, "disk_usage", lambda _p: Usage(10**12, 10**12 - needed, needed))
     assert save_drive_problem(config) is None
     monkeypatch.setattr(shutil, "disk_usage", lambda _p: Usage(10**12, 10**12 - needed + 1, needed - 1))
-    assert save_drive_problem(config) == "SSD drive full: 26 MB needed to finish this run, 26 MB free"
+    assert save_drive_problem(config) == "SSD drive full: 26 MB needed for the files in temp, 26 MB free"
 
 
 # ------------------------------------------------- clips left in temp at shutdown

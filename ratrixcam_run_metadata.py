@@ -62,7 +62,7 @@ def save_drive_problem(config: Config) -> str | None:
     in_temp, largest_clip = _temp_usage(config.temp_path)
     needed = in_temp + STOP_SPACE_FACTOR * largest_clip
     if free < needed:
-        return f"SSD drive full: {_size_text(needed)} needed to finish this run, {_size_text(free)} free"
+        return f"SSD drive full: {_size_text(needed)} needed for the files in temp, {_size_text(free)} free"
     return None
 
 
@@ -239,7 +239,7 @@ class RunMetadata:
         temp = Path(self.config.temp_path)
         moved = False
         if abort:
-            print(f"Run aborted: nothing is moved to the save drive; everything stays in {self.short(temp)}")
+            print(f"Run aborted: the cleanup moves nothing; {self.short(temp)} is left as the cameras left it")
             self._add_unwritten_manifest_rows()
         else:
             print(f"Collecting the run metadata as {RUN_METADATA_DIRNAME}/{self.run_id}")

@@ -236,6 +236,7 @@ def grid_cell(position: str) -> tuple[int, int]:
 
 
 REPLACE_SSD_CHOICES = {"SSD Ready": "ready", "Abort Run": "abort", "Continue Run": "continue"}
+STOP_BANNER = "=" * 72  # printed before the stop click's lines, so they can be found in the log
 
 
 def replace_ssd_dialog(window: tk.Tk, problem: str) -> str:
@@ -258,7 +259,7 @@ def replace_ssd_dialog(window: tk.Tk, problem: str) -> str:
         dialog,
         text=(
             f"{problem}\n\n"
-            "The recording cannot be finished onto this drive.\n"
+            "This drive cannot take the files waiting in the temp folder.\n"
             "Eject it and mount a drive with enough space at the same path, then press SSD Ready.\n"
             "Abort Run ends the run with every file left in the temp folder.\n"
             "Continue Run returns to recording."
@@ -463,6 +464,7 @@ def create_recording_window(state: State, bgcolor: str, config: Config) -> tk.Tk
             if confirmation == "no":
                 return
         else:
+            print(STOP_BANNER)
             problem = save_drive_problem(config)
             while problem is not None:
                 print(f"Stop requested, save drive check failed: {problem}")
@@ -471,10 +473,12 @@ def create_recording_window(state: State, bgcolor: str, config: Config) -> tk.Tk
                     print("Continue Run chosen: recording goes on")
                     return
                 if choice == "abort":
-                    print("Abort Run chosen: the run ends with everything left in temp")
+                    print("Abort Run chosen: the run ends; the cleanup will move nothing")
                     state.abort = True
                     break
                 problem = save_drive_problem(config)  # SSD Ready: the check again, never the cached result
+            if problem is None:
+                print("Stop requested, save drive check passed: shutting down")
         window.destroy()
 
     window.protocol("WM_DELETE_WINDOW", stop_recording)  # the close box takes the same path as the button
@@ -544,6 +548,7 @@ def main():
     stop_event = multiprocessing.Event()
 
     def int_handler(_sig: int, _frame: FrameType | None):
+        print(STOP_BANNER)
         print(
             "Received signal to terminate, shutting down gracefully.\nTo force exit, press Ctrl+C again."
         )
@@ -552,8 +557,10 @@ def main():
         # the run is aborted, so the cleanup leaves temp exactly as the cameras wrote it
         if state.config is not None and state.camera_process is not None and state.camera_process.is_alive():
             problem = save_drive_problem(state.config)
-            if problem is not None:
-                print(f"Save drive check failed ({problem}): aborting the run; everything stays in temp")
+            if problem is None:
+                print("Save drive check passed: shutting down")
+            else:
+                print(f"Save drive check failed ({problem}): aborting the run; the cleanup will move nothing")
                 state.abort = True
         graceful_shutdown(state, stop_event)
 
