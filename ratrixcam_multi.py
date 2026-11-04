@@ -18,7 +18,7 @@ from ratrixcam_utils import (
     Config,
     ensure_dir_exists,
     load_settings,
-    reset_stills,
+    place_offline_stills,
     stills_dir,
 )
 
@@ -71,8 +71,7 @@ def run(config: Config, stop_event: Event):
         print(f"ERROR: Save drive folder not found: {config.save_path}")
         return
 
-    print("Removing any old still images")
-    reset_stills(config)
+    place_offline_stills(config)
 
     print("Multicam: Starting cameras...")
 

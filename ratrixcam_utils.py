@@ -126,17 +126,11 @@ def stills_dir(temp_path: str) -> str:
     return os.path.join(temp_path, "status")
 
 
-def reset_stills(config: Config):
+def place_offline_stills(config: Config):
+    """Put the offline placeholder image in the stills folder under each camera's still name,
+    so that a camera shows as offline until its first real still replaces it. The folder is
+    empty at this point: launch refuses to start on a non-empty temp folder."""
     folder = stills_dir(config.temp_path)
-    for file in os.listdir(folder):
-        file_path = os.path.join(folder, file)
-        if os.path.isfile(file_path):
-            try:
-                os.remove(file_path)
-            except Exception as e:
-                print(f"Error deleting file {file_path}: {e}")
-
-    # copy stills blank image to stills folder
     for camera in config.cameras:
         name = camera_name(config.subject_prefix, camera.subjID, camera.view)
         _ = shutil.copy(BLANK_IMAGE, still_path(folder, name))

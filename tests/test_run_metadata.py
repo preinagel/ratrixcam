@@ -24,7 +24,7 @@ from ratrixcam_naming import NOTES_FILENAME, RUN_METADATA_DIRNAME, STILLS_DIRNAM
 import ratrixcam_run_metadata  # noqa: E402
 import ratrixcam_server  # noqa: E402
 from ratrixcam_run_metadata import STOP_SPACE_FACTOR, RunMetadata, save_drive_problem  # noqa: E402
-from ratrixcam_utils import Config, not_writable, stills_dir, temp_is_clear  # noqa: E402
+from ratrixcam_utils import BLANK_IMAGE, Config, not_writable, place_offline_stills, stills_dir, temp_is_clear  # noqa: E402
 
 
 def make_config(tmp_path: Path) -> tuple[Config, Path]:
@@ -102,6 +102,14 @@ def test_temp_is_clear(tmp_path):
     assert temp_is_clear(str(tmp_path))
     (tmp_path / "leftover.txt").write_text("x")
     assert not temp_is_clear(str(tmp_path))
+
+
+def test_place_offline_stills_puts_the_placeholder_under_each_camera_name(tmp_path):
+    config, _ = make_config(tmp_path)
+    place_offline_stills(config)
+    stills = Path(stills_dir(config.temp_path))
+    assert sorted(p.name for p in stills.iterdir()) == ["cam_subj001_cam1_status.png"]
+    assert (stills / "cam_subj001_cam1_status.png").read_bytes() == Path(BLANK_IMAGE).read_bytes()
 
 
 def test_not_writable_probes_with_a_file_it_removes_again(tmp_path, capsys):

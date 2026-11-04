@@ -27,7 +27,6 @@ from ratrixcam_utils import (
     ensure_dir_exists,
     load_settings,
     not_writable,
-    reset_stills,
     stills_dir,
     temp_is_clear,
 )
@@ -616,10 +615,6 @@ def main():
     if not ensure_dir_exists(config.temp_path):
         print("ERROR: Temp streaming folder does not exist and could not be created")
         return
-
-    # get rid of any old still images
-    print("Removing any old still images")
-    reset_stills(config)
 
     state.camera_process = Process(target=run_without_handlers, args=(config, stop_event))
     state.camera_process.start()
