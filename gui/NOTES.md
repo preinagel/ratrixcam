@@ -73,7 +73,9 @@ Updated 2026-11-02 (end of day). Working notes for the viewer session; not user 
   then http://127.0.0.1:8000/ ; `--scenario normal|fyi|nearly_full|save_full|no_space|crash|shutdown`.
   (The old `?status=` URL override still works with `serve.py` but the simulator is simpler.)
 - Session rules confirmed by the user: write and edit under gui/ without asking, commit as
-  you go (one subject line + the Co-Authored-By line); never request anything outside the
+  you go (one subject line + the Co-Authored-By line). COMMIT SUBJECTS: a short title like
+  an index entry, well under 72 characters, saying only what the commit is about; the diff
+  carries the detail (user, 2026-11-04); never request anything outside the
   sandbox, report sandbox failures instead; use the Edit tool for file changes, not shell
   substitutions; test servers only as a child of a python script that stops them (a server
   left running cannot be killed from the sandbox; the user has to).
