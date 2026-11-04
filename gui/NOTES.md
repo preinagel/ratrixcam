@@ -48,6 +48,12 @@ Updated 2026-11-02 (end of day). Working notes for the viewer session; not user 
   changes the menus (a config using the value shows "(not in list)" when loaded). "Reset to
   shipped values…" (confirmed) rewrites the lists and presets from the placeholders via
   `PUT /api/options?reset=1`, keeping the machine name.
+  Fourth round: bottom section is "Advanced Settings" on the form and in the panel.
+  Design pass 2026-11-04 (user asked for a more finished, technical look; may still choose
+  to keep it plain): shared `theme.css` with tokens (two surface levels, hairline borders,
+  one steel-blue accent, warning colours reserved for warnings, tracked uppercase captions,
+  tabular numerals, system fonts only since the machines are offline); `style.css` and
+  `editor.css` build on it. Both pages carry a small "ratrixcam <page>" mark top-left.
   TO TEST ON HARDWARE (user): an unsupported resolution and an unsupported exposure code,
   to learn the failure modes before deciding whether the form should constrain them.
   No tests for the editor yet (gui/tests/test_gui_editor.py would be the place).

@@ -1,0 +1,94 @@
+/* ratrixcam: design tokens and base rules shared by the viewer and the config editor.
+   Dark, quiet, technical: two surface levels, hairline borders, one accent, tabular numbers.
+   Warning colours are reserved for warnings. */
+
+:root {
+  --bg: #14171b;
+  --surface: #1c2026;
+  --surface-2: #232830;
+  --line: #2b313a;
+  --line-strong: #3a424d;
+  --text: #e4e8ec;
+  --text-2: #a3adb8;
+  --muted: #6c7682;
+  --accent: #5b9fd0;
+  --ok: #4caf82;
+  --warn: #d9a21b;
+  --alarm: #c0392b;
+  --info: #30506e;
+
+  --font: -apple-system, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --mono: "SF Mono", Menlo, Monaco, Consolas, monospace;
+  --radius: 4px;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+
+html, body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.35;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* small, tracked, uppercase captions that label a value or a section */
+.caption, .label, legend, .vtitle, .vlist .name, aside h2, #accounting .cell .label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.muted { color: var(--text-2); }
+.mono, .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+/* the product mark, left end of every top strip */
+.brand {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.brand span { color: var(--muted); font-weight: 400; letter-spacing: 0.06em; }
+
+/* controls */
+button, input, select {
+  font: inherit;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  padding: 5px 9px;
+  outline: none;
+}
+input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(91, 159, 208, 0.25); }
+button { cursor: pointer; }
+button:hover { border-color: var(--text-2); }
+button:active { background: var(--line); }
+button.primary { background: var(--accent); border-color: var(--accent); color: #0e1419; font-weight: 600; }
+button.primary:hover { filter: brightness(1.1); }
+button.quiet { background: transparent; border-color: transparent; color: var(--text-2); }
+button.quiet:hover { border-color: var(--line-strong); color: var(--text); }
+button.small { font-size: 11px; padding: 2px 7px; }
+
+select {
+  -webkit-appearance: none;
+  appearance: none;
+  padding-right: 26px;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' fill='none' stroke='%23a3adb8' stroke-width='1.5'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 9px center;
+  cursor: pointer;
+}
+select.invalid, input.invalid { border-color: var(--alarm); }
+
+/* status colours, used only for status */
+.ok { color: var(--ok); }
+.warn-text { color: var(--warn); }
+.alarm-text { color: var(--alarm); }

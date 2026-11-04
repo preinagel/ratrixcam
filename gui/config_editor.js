@@ -428,7 +428,7 @@ function listSections() {
     inUse: (v) => state.config.cameras.some((cam) => String(cam[f.key]) === String(v)),
   }));
   const defaults = ADVANCED_FIELDS.map((f) => ({ key: f.key, label: f.label, inUse: (v) => String(state.config[f.key]) === String(v) }));
-  return [{ title: "Run", lists: run }, { title: "Per-camera settings", lists: cameras }, { title: "Default settings", lists: defaults }];
+  return [{ title: "Run", lists: run }, { title: "Per-camera settings", lists: cameras }, { title: "Advanced Settings", lists: defaults }];
 }
 
 function allLists() {

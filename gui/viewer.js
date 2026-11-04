@@ -233,7 +233,7 @@ function fitTiles() {
   const wByWidth = availW / (nCols + TILE_GAP * (nCols - 1) + (hasGap ? BLOCK_GAP : 0));
   let w = wByWidth;
   for (let i = 0; i < 4; i++) {
-    const chrome = titleFont(w) * 1.25 * 1.2 + 2; // title line, its padding, borders
+    const chrome = titleFont(w) * 1.7 + 2; // title line (1.25) plus its padding (0.4 em), borders
     const height = nRows * (w * 0.75 + chrome) + (nRows - 1) * TILE_GAP * w;
     if (height <= availH) break;
     w = (availH - nRows * chrome) / (nRows * 0.75 + (nRows - 1) * TILE_GAP);

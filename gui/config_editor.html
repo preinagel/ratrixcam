@@ -4,15 +4,16 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ratrixcam config editor</title>
+<link rel="stylesheet" href="theme.css">
 <link rel="stylesheet" href="editor.css">
 </head>
 <body>
 <header>
-  <h1>Camera config editor</h1>
+  <span class="brand">ratrixcam <span>config editor</span></span>
   <div class="machine">
     <span class="label">This machine</span>
     <span id="machine-name" class="value"></span>
-    <button type="button" id="rename-machine" class="small">rename</button>
+    <button type="button" id="rename-machine" class="small quiet">rename</button>
     <button type="button" id="manage-values">Edit legal values</button>
   </div>
 </header>
@@ -52,7 +53,7 @@
     </fieldset>
 
     <fieldset class="advanced">
-      <legend>Advanced: default settings</legend>
+      <legend>Advanced Settings</legend>
       <div class="grid" id="default-fields"></div>
     </fieldset>
   </form>
