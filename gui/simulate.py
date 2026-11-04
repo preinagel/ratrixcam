@@ -9,10 +9,11 @@ are touched so they look fresh and a status file is written the way python will.
     normal        ample room on both drives, no banners (default)
     fyi           less than a day of recording left (orange)
     nearly_full   less than an hour left (red)
-    save_full     save drive full, temp drive caching (red)
-    no_space      save full, temp without room: the status file stops updating (red, after 60 s)
-    crash         stills and status stop after 15 s (red)
-    shutdown      graceful shutdown after 15 s, then the temp folder disappears (run ended)
+    save_full     save drive not accepting clips, clips piling up in temp (red)
+    no_space      recording stopped by the launcher: temp drive nearly full (red)
+    crash         stills and status stop after 15 s (red: no still, no shutdown reported)
+    shutdown      stop clicked after 15 s: "stopping", then "ended" with a message, then
+                  the temp folder disappears (run ended)
 
 --end-after SECONDS runs the shutdown scenario after that many seconds whatever the scenario.
 Nothing in the sample folder is modified. Python standard library only.
@@ -64,13 +65,21 @@ def drive(path: str, total: float, free: float) -> dict[str, object]:
     }
 
 
-def write_status(temp_dir: str, started: datetime, run_id: str, config: dict[str, object], save_total: float, save_free: float, temp_free: float):
+def write_status(temp_dir: str, started: datetime, run_id: str, config: dict[str, object], save_total: float, save_free: float, temp_free: float,
+                 run_state: str = "running", message: str = "", clips_waiting: int = 0, recording: bool = True):
+    """The status file as STATUS_FILE_WISHLIST.md asks python to write it."""
+    save = drive(str(config.get("save_path", "")), save_total, save_free)
+    save["accepting_clips"] = save_free > 0
+    temp = drive(str(config.get("temp_path", "")), 1 * TB, temp_free)
+    temp["clips_waiting"] = clips_waiting
     status = {
         "schema": 1,
         "written": stamp(datetime.now()),
-        "run": {"run_id": run_id, "started": stamp(started), "machine_name": "Simulated Mac"},
-        "save_drive": drive(str(config.get("save_path", "")), save_total, save_free),
-        "temp_drive": drive(str(config.get("temp_path", "")), 1 * TB, temp_free),
+        "recording": recording,
+        "run": {"run_id": run_id, "started": stamp(started), "state": run_state, "message": message,
+                "machine_name": str(config.get("machine_name") or "Simulated Mac")},
+        "save_drive": save,
+        "temp_drive": temp,
     }
     tmp = os.path.join(temp_dir, STATUS_FILENAME + ".tmp")
     with open(tmp, "w") as f:
@@ -134,25 +143,21 @@ def main() -> int:
                 if scenario == "crash":
                     print("  simulating a crash: stills and status stop")
                 else:
-                    print("  simulating a graceful shutdown; temp folder goes away in 20 s")
-                    with open(os.path.join(temp_dir, log_name), "a") as f:
-                        _ = f.write(
-                            "ratrixcam IO: attempting graceful shutdown...\n"
-                            + "Multicam attempting to shut down nicely\n"
-                            + f"Collecting the run metadata as ratrixcam_run_metadata/{run_id}\n"
-                            + "Manifest rows added at cleanup: 0\n"
-                            + f"Run metadata folder moved to <save>/ratrixcam_run_metadata/{run_id}\n"
-                            + "ratrixcam multi: shutdown complete\n"
-                        )
-                    time.sleep(20)
+                    print("  simulating a stop click: 'stopping' now, 'ended' in 15 s, temp folder gone 3 s later")
+                    write_status(temp_dir, started, run_id, config, save_total, save_free, temp_free, run_state="stopping")
+                    time.sleep(15)
+                    write_status(temp_dir, started, run_id, config, save_total, save_free, temp_free, run_state="ended",
+                                 message=f"Run metadata moved to <save>/ratrixcam_run_metadata/{run_id}")
+                    time.sleep(3)
                     shutil.rmtree(temp_dir)
                     print("  temp folder removed; the viewer should show 'run ended'")
             if not stopped:
                 now = time.time()
                 for still in stills:
                     os.utime(still, (now, now))
-                if not (scenario == "no_space" and elapsed > 5):
-                    write_status(temp_dir, started, run_id, config, save_total, save_free, temp_free)
+                write_status(temp_dir, started, run_id, config, save_total, save_free, temp_free,
+                             clips_waiting=int(elapsed) if scenario in ("save_full", "no_space") else 0,
+                             recording=not (scenario == "no_space" and elapsed > 5))
             tick += 1
             time.sleep(max(0, t0 + tick - time.time()))
     except KeyboardInterrupt:

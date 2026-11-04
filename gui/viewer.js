@@ -25,8 +25,9 @@ const ACC_MAX_SHARE = 0.22; // of the window height, at most, for the accounting
 const FYI_S = 24 * 3600; // orange: space for less than a day
 const NEARLY_FULL_S = 3600; // red
 
-const LOG_CHECK_S = 10; // how often the log tail is read while every camera is offline
-const LOG_CHECK_SHUTDOWN_S = 1; // ... and once a shutdown is under way, to catch its last lines
+// PLACEHOLDER until status file supplies run.state: how the log tail is read meanwhile
+const LOG_CHECK_S = 10; // while every camera is offline
+const LOG_CHECK_SHUTDOWN_S = 1; // once a shutdown is under way, to catch its last lines
 const LOG_TAIL_LINES = 60;
 const LAST = "/last/"; // serve.py keeps the last status file and log it served, for after cleanup
 
@@ -43,9 +44,9 @@ const state = {
   layout: "strict",
   tempSeen: false, // the temp folder has answered at least once
   tempGone: null, // Date the temp folder disappeared, or null
-  shutdown: null, // {kind: "graceful" | "aborted" | "crash", since: Date} while all cameras are offline
-  lastLogCheck: 0,
-  logTail: [], // last lines of the terminal log, from the most recent read
+  shutdown: null, // {kind: "stopping" | "aborted" | "ended" | "silent", since: Date}
+  lastLogCheck: 0, // PLACEHOLDER until status file supplies run.state
+  logTail: [], // PLACEHOLDER until status file supplies run.state
   lastChecked: false, // /last/ was consulted because the temp folder was never seen
 };
 
@@ -299,44 +300,68 @@ function updateStills(entries) {
   }
 }
 
-// ---------- temp folder, log and shutdown detection ----------
+// ---------- temp folder and shutdown detection ----------
+
+// The terminal log is a human record. The viewer's sources are the status file and the
+// stills; every use of the log below is a PLACEHOLDER until the status file supplies the
+// field named next to it.
 
 function noteLogEntry(entries) {
   for (const e of entries) {
     const m = e.name.match(/^terminal_(ratrixcam_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})_[0-9a-f]+)\.log$/);
     if (!m) continue;
     state.logName = e.name;
-    // until the status file provides them, run id and start time come from the log's name
+    // PLACEHOLDER until status file supplies run.run_id and run.started
     if (!state.runId) state.runId = m[1];
     if (!state.runStarted) state.runStarted = new Date(+m[2], +m[3] - 1, +m[4], +m[5], +m[6], +m[7]);
     return;
   }
 }
 
-// while every camera is offline: did the program shut down on purpose, or just stop?
+function runState() {
+  const run = state.status && state.status.run;
+  return run && typeof run.state === "string" ? run.state : null;
+}
+
+// what the shutdown banner should say: python's run.state when it exists; otherwise, while
+// every camera is offline, the viewer's own reading
 async function checkShutdown() {
+  const reported = runState();
+  if (reported && reported !== "running") {
+    state.shutdown = { kind: reported, since: state.statusWritten };
+    return;
+  }
   const all = state.cameras.length > 0 && state.cameras.every((c) => c.offline);
   if (!all) { state.shutdown = null; return; }
+  const since = state.cameras.reduce((d, c) => (c.lastSeen && (!d || c.lastSeen > d) ? c.lastSeen : d), null);
+  if (reported === "running") {
+    // python still said "running" the last time it wrote: nothing to infer beyond the silence
+    state.shutdown = { kind: "silent", since };
+    return;
+  }
+  // PLACEHOLDER until status file supplies run.state: read the log's last lines for a
+  // shutdown message
   const now = Date.now();
-  const every = state.shutdown && state.shutdown.kind !== "crash" ? LOG_CHECK_SHUTDOWN_S : LOG_CHECK_S;
+  const every = state.shutdown && state.shutdown.kind !== "silent" ? LOG_CHECK_SHUTDOWN_S : LOG_CHECK_S;
   if (now - state.lastLogCheck < every * 1000) return;
   state.lastLogCheck = now;
-  const since = state.cameras.reduce((d, c) => (c.lastSeen && (!d || c.lastSeen > d) ? c.lastSeen : d), null);
   if (state.logName) {
     try { noteLogText(await fetchText(TEMP + encodeURIComponent(state.logName))); } catch (e) { /* unreadable: keep the last tail */ }
   }
-  state.shutdown = { kind: shutdownKind(state.logTail), since };
+  state.shutdown = { kind: shutdownKindFromLog(state.logTail), since };
 }
 
+// PLACEHOLDER until status file supplies run.state
 function noteLogText(text) {
   state.logTail = text.split(/\r?\n/).filter((l) => l !== "").slice(-LOG_TAIL_LINES);
 }
 
-function shutdownKind(lines) {
+// PLACEHOLDER until status file supplies run.state
+function shutdownKindFromLog(lines) {
   const tail = lines.join("\n");
-  if (tail.includes("attempting graceful shutdown")) return "graceful";
+  if (tail.includes("attempting graceful shutdown")) return "stopping";
   if (tail.includes("Run aborted")) return "aborted";
-  return "crash";
+  return "silent";
 }
 
 // the temp folder is already gone when the page opens: what serve.py last saw of the run
@@ -354,6 +379,7 @@ async function loadLast() {
     }
     found = true;
   } catch (e) { /* nothing cached */ }
+  // PLACEHOLDER until status file supplies run.state: the remembered log's last lines
   try { noteLogText(await fetchText(LAST + "log.txt")); found = true; } catch (e) { /* nothing cached */ }
   if (found) state.tempGone = state.statusWritten || new Date();
 }
@@ -396,29 +422,36 @@ async function pollStatus() {
   }
 }
 
-// {cls, head, body} for the save-drive banner, or null
+// {cls, head, body} for the drive banner, or null. Every statement of fact (not recording,
+// save drive full, clips waiting in temp) comes from a field python writes; the viewer's own
+// decisions are only the time-based colours on python's seconds_until_full.
 function driveWarning() {
   const st = state.status;
   if (!st) return null;
   const save = st.save_drive || {}, temp = st.temp_drive || {};
   const tempLeft = temp.seconds_until_full;
+  const clip = state.config ? state.config.time_slice : 0;
+  const waiting = temp.clips_waiting != null ? `${temp.clips_waiting} clip${temp.clips_waiting === 1 ? "" : "s"} waiting in the temp folder` : "";
+
+  let recording = st.recording;
+  let saveFull = save.accepting_clips != null ? !save.accepting_clips : null;
+  // PLACEHOLDER until status file supplies save_drive.accepting_clips: no room for a clip
+  if (saveFull == null && save.seconds_until_full != null) saveFull = save.free_bytes === 0 || save.seconds_until_full < clip;
+  // PLACEHOLDER until status file supplies recording: both drives without room for a clip
+  if (recording == null && saveFull && tempLeft != null) recording = !(temp.free_bytes === 0 || tempLeft < clip);
+
+  if (recording === false) {
+    return { cls: "alarm", head: "CAMERAS ARE NOT BEING RECORDED", body: waiting };
+  }
   if (save.found === false) {
     return { cls: "alarm", head: "SAVE DRIVE NOT FOUND", body: save.path || (state.config && state.config.save_path) || "" };
   }
+  if (saveFull) {
+    const capacity = tempLeft != null ? `temp drive cache capacity ${fmtDHM(tempLeft)}` : "";
+    return { cls: "alarm", head: "SAVE DRIVE FULL", body: [waiting, capacity].filter(Boolean).join("; ") };
+  }
   const left = save.seconds_until_full;
   if (left == null) return null;
-  // "full" = no room for another clip. With the save drive full the cameras stream into the
-  // temp folder until that drive is full too; then frames are dropped (a still may still
-  // appear now and then; it is shown while fresh)
-  const clip = state.config ? state.config.time_slice : 0;
-  const saveFull = save.free_bytes === 0 || left < clip;
-  const tempFull = temp.free_bytes === 0 || (tempLeft != null && tempLeft < clip);
-  if (saveFull && tempFull) {
-    return { cls: "alarm", head: "NO SPACE ON ANY DRIVE", body: "Cameras are no longer being recorded" };
-  }
-  if (saveFull) {
-    return { cls: "alarm", head: "SAVE DRIVE FULL", body: `Temp drive cache capacity: ${tempLeft != null ? fmtDHM(tempLeft) : "unknown"}` };
-  }
   if (left < NEARLY_FULL_S) return { cls: "alarm", head: "SAVE DRIVE NEARLY FULL", body: `${fmtDHM(left)} of recording left` };
   if (left < FYI_S) return { cls: "warn", head: `Save drive has space for another ${fmtDHM(left)}`, body: "" };
   return null;
@@ -477,11 +510,13 @@ function renderAccounting() {
 function renderBanners() {
   const banners = [];
   if (state.shutdown) {
-    // the program is not running: its drive warnings no longer apply
+    // the program is stopping or has stopped: its drive warnings no longer apply
     const when = state.shutdown.since ? fmtHM(state.shutdown.since) : "start";
-    if (state.shutdown.kind === "graceful") banners.push({ cls: "info", head: `Recording stopped at ${when}`, body: "Shutting down" });
-    else if (state.shutdown.kind === "aborted") banners.push({ cls: "info", head: `Run aborted at ${when}`, body: "Everything left in the temp folder" });
-    else banners.push({ cls: "alarm", head: "CAMERA PROGRAM STOPPED WITHOUT SHUTTING DOWN", body: `No still from any camera since ${when}` });
+    const kind = state.shutdown.kind;
+    if (kind === "stopping") banners.push({ cls: "info", head: `Recording stopped at ${when}`, body: "Shutting down" });
+    else if (kind === "aborted") banners.push({ cls: "info", head: `Run aborted at ${when}`, body: "" });
+    else if (kind === "ended") banners.push({ cls: "info", head: "Recording run ended", body: "" });
+    else banners.push({ cls: "alarm", head: `NO STILL FROM ANY CAMERA SINCE ${when}`, body: "The camera program has not reported a shutdown" });
   } else {
     const drive = driveWarning();
     if (drive) banners.push(drive);
@@ -516,16 +551,24 @@ function renderBanners() {
   fitTiles();
 }
 
+// the run is over when python says so (run.state "ended") or when the temp folder is gone
+function runEnded() {
+  return runState() === "ended" || !!state.tempGone;
+}
+
 function renderEnded() {
-  const ended = !!state.tempGone;
+  const ended = runEnded();
   el("ended").hidden = !ended;
   el("grid-wrap").hidden = ended;
   el("accounting").hidden = ended;
   el("banners").hidden = ended;
   if (!ended) return;
-  el("ended-text").textContent = state.runStarted
-    ? `Last run started ${fmtDate(state.runStarted)} ${fmtHM(state.runStarted)} and ran for ${fmtDHM((state.tempGone - state.runStarted) / 1000)}`
-    : "";
+  const endedAt = runState() === "ended" && state.statusWritten ? state.statusWritten : state.tempGone;
+  const lines = [];
+  if (state.runStarted && endedAt) lines.push(`Last run started ${fmtDate(state.runStarted)} ${fmtHM(state.runStarted)} and ran for ${fmtDHM((endedAt - state.runStarted) / 1000)}`);
+  const message = state.status && state.status.run && state.status.run.message;
+  if (message) lines.push(String(message));
+  el("ended-text").textContent = lines.join("\n");
 }
 
 // ---------- main ----------
@@ -534,7 +577,7 @@ async function tick() {
   await pollStatus();
   await pollTemp();
   renderEnded();
-  if (!state.tempGone) { renderAccounting(); renderBanners(); }
+  if (!runEnded()) { renderAccounting(); renderBanners(); }
 }
 
 async function main() {

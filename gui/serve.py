@@ -7,9 +7,11 @@ The viewer's own files (this folder) are served at /, the temp folder at /temp/.
 for a folder under /temp/ returns a JSON listing of its entries, which is how the page finds
 the run's config file without knowing its name. Nothing is ever written.
 
-The status file and the terminal log are remembered as last served, and offered again at
-/last/status.json and /last/log.txt: the camera program deletes the temp folder at the end
-of a run, and the page uses these to describe the run that just ended.
+The status file is remembered as last served and offered again at /last/status.json: the
+camera program deletes the temp folder at the end of a run, and the page uses it to
+describe the run that just ended. The terminal log is remembered the same way at
+/last/log.txt as a PLACEHOLDER until the status file supplies run.state; the log is a human
+record and the viewer is to read only the status file and the stills.
 Python standard library only.
 """
 
@@ -32,7 +34,8 @@ STATUS_FILENAME = "ratrixcam_status.json"
 LOG_FILENAME = re.compile(r"terminal_ratrixcam_\d{8}_\d{6}_[0-9a-f]+\.log$")
 
 # what was last read from the temp folder, by key: "status.json" (bytes, valid JSON only)
-# and "log.txt" (bytes); shared by all request threads, whole values swapped atomically
+# and "log.txt" (bytes; PLACEHOLDER until status file supplies run.state); shared by all
+# request threads, whole values swapped atomically
 last_served: dict[str, bytes] = {}
 LAST_TYPES = {"status.json": "application/json", "log.txt": "text/plain; charset=utf-8"}
 
