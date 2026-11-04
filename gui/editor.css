@@ -17,6 +17,8 @@ h1 { font-size: 16px; font-weight: 600; margin: 0; letter-spacing: 0.01em; }
 
 .notice { padding: 8px 20px; font-size: 13px; }
 .notice.warn { background: var(--warn); color: #15171b; }
+.notice.alarm { background: var(--alarm); color: #fff; font-weight: 600; }
+body.offline main, body.offline .file { opacity: 0.45; pointer-events: none; }
 
 /* ---------- file row ---------- */
 

@@ -523,9 +523,21 @@ async function renameMachine() {
   await saveOptions();
 }
 
+// ---------- is the server still there? ----------
+
+const HEARTBEAT_S = 3;
+
+async function heartbeat() {
+  let alive = false;
+  try { alive = (await fetch("/api/options", { cache: "no-store" })).ok; } catch (e) { alive = false; }
+  el("server-warning").hidden = alive;
+  document.body.classList.toggle("offline", !alive);
+}
+
 // ---------- main ----------
 
 async function main() {
+  setInterval(heartbeat, HEARTBEAT_S * 1000);
   await loadOptions();
   state.config = emptyConfig();
   el("file-path").value = "~/Desktop/camera_config.json";
