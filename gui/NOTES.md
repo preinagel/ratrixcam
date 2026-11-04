@@ -1,229 +1,97 @@
-# GUI developer notes (state and plan)
+# GUI developer notes
 
-Updated 2026-11-02 (end of day). Working notes for the viewer session; not user documentation.
-
-## RESUME HERE
-
-- 2026-11-03: FIRST DRAFT of the config editor committed, not yet seen by the user:
-  `config_editor.py` (server, port 8001, writes files) + `config_editor.html/.js`, `editor.css`.
-  Start: `cd /Users/rat_hub_01/Desktop/ratrixcam-gui/gui && python3 config_editor.py`,
-  open http://127.0.0.1:8001/. Decisions taken (open to iteration):
-  - separate server from the viewer, since the editor writes files and serve.py must stay
-    read-only; how to link the two pages is undecided (menu, tabs, or nothing).
-  - legal values in `gui/local_options.json` (gitignored via gui/.gitignore), created with
-    placeholders on first start, holding machine_id (MAC of the first interface, or
-    "host:<name>" when there is none) and machine_name (default: the host name). The page
-    warns when machine_id differs from this machine's; any save rebinds the file.
-  - every field is a <select> of legal values + "Add new…" which opens a dialog that checks
-    the value (name fields: [A-Za-z0-9-]{1,24}, no _ because it separates name parts;
-    ints within ranges; paths absolute or ~/, ending in /; machine name allows spaces) and
-    rejects duplicates, then saves the list through the server.
-  - per-camera crf/fps/width/height/exposure are optional overrides drawn from the same lists
-    as the defaults, "(default)" when blank; omitted from the file when blank.
-  - form-level checks: required fields, values in the legal lists (a loaded file's unknown
-    values show as "(not in list)" and block saving until added), unique (subjID, view),
-    unique position, temp != save, at least one camera. Position map A B | E F over C D | G H
-    shows which positions are taken.
-  - saving: the server validates with the camera code's Config class (pydantic) when
-    importable, then its own duplicate checks, refuses a name not ending in .json and a
-    location inside the temp or save folder, writes via tmp + rename. Overwrite asks first.
-  - file layout written (by the server, the page preview matches): run-level keys, then
-    cameras one per line, then the advanced defaults at the bottom. The user will ask the
-    camera developer to restore this order in the repo's example config.
-  Second round (user feedback 2026-11-03):
-  - resolution is ONE field ("640x480"), split into width/height when written; per-camera
-    likewise. The form does not know what the hardware supports.
-  - advanced defaults (crf, fps, resolution, exposure, preview_interval) in a dashed
-    "Advanced" fieldset at the bottom, preset from `presets` in the options file.
-  - per-camera overrides draw on their own lists (camera_crf, camera_fps, camera_resolution,
-    camera_exposure), empty until the user adds values; "(default)" preselected.
-  - time_slice stays run-level: legal 10..3600 s, shipped values 60 and 600 only.
-  - name lengths: study_label and subject_prefix max 12, subjID and view max 24; case matters.
-  - paths must be absolute (the camera code does not expand ~); the server expands ~ anyway
-    before writing; the temp placeholder is the real home path.
-  - load_options() migrates an older options file: adds missing lists/presets, drops lists
-    this version does not know, expands ~ in path lists.
-  Third round: "Edit legal values" button in the header opens a panel with every list;
-  each value has a remove button unless the current form uses it ("in use"); removal only
-  changes the menus (a config using the value shows "(not in list)" when loaded). "Reset to
-  shipped values…" (confirmed) rewrites the lists and presets from the placeholders via
-  `PUT /api/options?reset=1`, keeping the machine name.
-  Fourth round: bottom section is "Advanced Settings" on the form and in the panel.
-  Design pass 2026-11-04 (user asked for a more finished, technical look; may still choose
-  to keep it plain): shared `theme.css` with tokens (two surface levels, hairline borders,
-  one steel-blue accent, warning colours reserved for warnings, tracked uppercase captions,
-  tabular numerals, system fonts only since the machines are offline); `style.css` and
-  `editor.css` build on it. Both pages carry a small "ratrixcam <page>" mark top-left.
-  TO TEST ON HARDWARE (user): an unsupported resolution and an unsupported exposure code,
-  to learn the failure modes before deciding whether the form should constrain them.
-  No tests for the editor yet (gui/tests/test_gui_editor.py would be the place).
-
-- 2026-11-03, pre-push checks done: `basedpyright gui/` 0 errors (warnings left on
-  purpose); `python3 -m pytest -q` from the repository root: 139 passed (123 existing + 16
-  in `gui/tests/test_gui_serve.py`: traversal refused, 404s quiet, status file, stills,
-  listings, /last/).
-- RULE: GUI tests live in `gui/tests/` and are named `test_gui_*.py`. A test file's basename
-  must never duplicate one in `tests/`: pytest imports test files by bare module name, so
-  two folders each holding a `test_x.py` collide. The `test_gui_` prefix keeps them apart.
-- Iteration 3 committed 2026-11-03 (see below); the user's Safari feedback rounds on it are
-  done (font scaling, two-column accounting, no-space wording). A test with a LIVE camera
-  run on this machine is still to come.
-- Simulator for testing without cameras:
-  `cd /Users/rat_hub_01/Desktop/ratrixcam-gui/gui && python3 simulate.py "sample_data/temp from 7cam run"`
-  then http://127.0.0.1:8000/ ; `--scenario normal|fyi|nearly_full|save_full|no_space|crash|shutdown`.
-  (The old `?status=` URL override still works with `serve.py` but the simulator is simpler.)
-- Session rules confirmed by the user: write and edit under gui/ without asking, commit as
-  you go (one subject line + the Co-Authored-By line). COMMIT SUBJECTS: a short title like
-  an index entry, well under 72 characters, saying only what the commit is about; the diff
-  carries the detail (user, 2026-11-04); never request anything outside the
-  sandbox, report sandbox failures instead; use the Edit tool for file changes, not shell
-  substitutions; test servers only as a child of a python script that stops them (a server
-  left running cannot be killed from the sandbox; the user has to).
-- Open for the user: wishlist item C (persistent final status file after cleanup) is TBD;
-  the wishlist itself still has to be sent to the camera developer by the user.
-
-## Iteration 3 (2026-11-03, after the user's second Safari feedback)
-
-- Machine name centred in the top strip (grid 1fr auto 1fr), date and time at the right.
-- Banners half the height: head line 17 px bold (caps for real warnings), body 13 px.
-- Crash/stop banner replaces the drive warnings instead of stacking with them.
-- Orange banner is an FYI: "Save drive has space for another d h min"; the time-left cell
-  in the accounting table is orange under 24 h too.
-- No dead space: the grid sits right under the strip/banners; the accounting table takes
-  the remaining height in its own frame and its font grows to use it (11..26 px).
-- Tile gaps and the title font scale with the tile width (2.5 %, 9 %, 5 % of it).
-- Run-ended screen is just "Recording run ended" + "Last run started ... and ran for ...".
-- Second sample folder `sample_data/temp from 7cam run` (7 cameras, positions A-F,H), with
-  `sample_data/.gitignore` keeping the stills and dropping the clips (the repository-wide
-  rules ignore folders named temp/status). `simulate.py` copies a sample to a scratch
-  folder, touches the stills every second, writes a status file, and runs serve.py on it.
+Current state of the viewer and the config editor; read first on every start.
+Updated 2026-11-04 after the external code review.
 
 ## What exists
 
-- `gui/serve.py`: stdlib-only read-only server. `python3 gui/serve.py <temp folder> [--port N]`
-  serves the viewer folder at `/` and the temp folder at `/temp/`. A folder under `/temp/`
-  returns a JSON listing (name, is_dir, size, mtime). `..` is stripped, so neither root can
-  be escaped. `Cache-Control: no-store` on everything. Tested on the sample folder: listings,
-  PNG, manifest CSV, and traversal attempts (404) all behave. Not yet committed (see below).
-- `gui/offline_status.png`: copy of `blanks/offline_status.png` (640x480), shown for a camera
-  whose still has stopped updating.
-- `gui/sample_data/temp/`: the sample temp folder, committed earlier by the user.
+Two independent pages, each with its own stdlib-only server, both under `gui/`:
 
-## Iteration 2 (2026-11-02, after the user's first Safari feedback)
+- **Viewer** (`index.html`, `viewer.js`, `style.css`; server `serve.py`): shows the camera
+  stills and the run accounting from a temp folder. Read-only. `serve.py <temp folder>`
+  serves the page at `/`, the temp folder at `/temp/` (JSON folder listings), and remembers
+  the last status file at `/last/status.json` for the run-ended screen after cleanup.
+- **Config editor** (`config_editor.html`, `config_editor.js`, `editor.css`; server
+  `config_editor.py`): a form of drop-down menus that writes a camera config file. Legal
+  values live in `local_options.json` next to the script (gitignored, per machine, bound to
+  the machine's hardware address; `--options FILE` overrides it, the tests use that).
+- Shared look: `theme.css` (tokens and base rules); `offline_status.png` (copy of
+  `blanks/offline_status.png`).
+- `STATUS_FILE_WISHLIST.md`: what python must write to `<temp>/ratrixcam_status.json`,
+  including the shutdown milestones, plus the one new config field (`machine_name`).
+- `simulate.py`: pretends a run from a sample folder (stills touched every second, status
+  file written as the wishlist asks) and serves the viewer on it; `--scenario` picks the
+  drive situation or a shutdown.
+- `sample_data/temp` (4 cameras) and `sample_data/temp from 7cam run` (7 cameras): real
+  temp folders, clips ignored via `sample_data/.gitignore`.
+- Tests: `tests/test_gui_serve.py` (16) and `tests/test_gui_editor.py` (14), collected by
+  `python3 -m pytest -q` from the repository root with the rest of the suite.
 
-Feedback applied:
-- Header gone. Thin top strip: layout toggle at the left, gray date and time (no seconds) at
-  the right. Study label and run id no longer shown.
-- Accounting moved below the cameras into a 3-column table of single strings ("Started
-  Mon, Nov 2, 2026 09:41"), font scales with the window (`clamp(11px, 1.2vw, 18px)`), cells
-  clip with an ellipsis so nothing overlaps. Rows: started / running for / clip length;
-  save drive free / recording time left / used bar; temp folder / save drive / temp drive free.
-- Missing data is blank, never a dash. A real zero (free bytes, time left) is red.
-- Bytes shown with at most three digits (455 GB, 2.00 TB).
-- Paths shortened: home prefix dropped ("Desktop/.../temp"), more than three parts cut to
-  "…/last/two".
-- Removed: "N cameras offline" banner, status-file-missing note, stale-status-file banner,
-  footer, per-camera clip counts, "(from log name)" tag, red title on offline tiles.
-- Tile title: subject and view in white, "still HH:MM:SS" in gray, position letter at the right.
-  Offline tile shows offline_status.png (the same image python copies into the stills folder).
-- Drive warnings now decided in the viewer from `seconds_until_full`: orange under 24 h,
-  red under 1 h, red "SAVE DRIVE FULL. Temp drive cache capacity: ..." when the save drive
-  cannot take another clip, red "NO SPACE ON ANY DRIVE: cameras are not being recorded" when
-  the temp drive is full too. Wishlist updated: python supplies numbers for both drives, no
-  warning text. (Reverses decision 4 below.)
-- Crash vs clean stop: while every camera is offline, the log tail is read every 10 s.
-  "attempting graceful shutdown" -> blue "Recording stopped at HH:MM: shutting down";
-  "Run aborted" -> blue "Run aborted ..."; neither -> red "CAMERA PROGRAM STOPPED WITHOUT
-  SHUTTING DOWN: no still from any camera since HH:MM". With the static sample folder this
-  red banner appears after 10 s (expected: the folder was copied mid-run).
-- Run ended: when the temp folder listing stops answering after having answered, the page
-  shows "Recording run ended" with the run's start, duration and where the metadata moved
-  (`<save>/ratrixcam_run_metadata/<run id>`). It reloads itself when the folder reappears.
-  Reading the moved metadata on the save drive is NOT done (the server only exposes temp).
+## How to run
 
-Test URLs (server on sample_data/temp):
-- `/` placeholders; `/?status=/sample_data/ratrixcam_status_almost_full.json` orange;
-  `.../ratrixcam_status_nearly_full.json` red under an hour; `.../ratrixcam_status_save_full.json`
-  save full with temp cache capacity.
+```
+cd /Users/rat_hub_01/Desktop/ratrixcam-gui/gui
+python3 serve.py ~/Desktop/temp                              # viewer on a live run, port 8000
+python3 simulate.py "sample_data/temp from 7cam run"         # viewer on a simulated run
+python3 simulate.py sample_data/temp --scenario save_full    # normal|fyi|nearly_full|save_full|no_space|crash|shutdown
+python3 config_editor.py                                     # editor, port 8001
+```
 
-Answered 2026-11-02:
-1. Stills may keep updating, perhaps intermittently, when the disks are full (camera-side
-   issue, not fixed yet). Viewer: the NO SPACE banner is driven by the status file alone;
-   fresh stills are shown while fresh, the offline image when stale. Added: a status file
-   older than 60 s whose last contents showed save full and the temp drive under an hour
-   also triggers the red NO SPACE banner.
-2. Station name requested (`run.station`); shown in the top strip before the date when present.
-3. The viewer's server cannot see the save drive. Proposal pending (see below).
+Pre-push checks: `basedpyright gui/` must report 0 errors (warnings about `Any` from JSON
+and argparse remain on purpose); `python3 -m pytest -q` from the repository root must pass.
 
-Decided 2026-11-02 (second round):
-- NO SPACE banner only when the cameras are really dropping frames: status file older than
-  60 s AND its last contents showed the save drive full AND temp free under 1 MB (my choice
-  for "no room for the status file itself"). No live-status NO SPACE rule any more; while
-  the file is fresh the SAVE DRIVE FULL banner shows the temp cache capacity counting down.
-- Wishlist: all fields mandatory with defaults (my call); `run.machine_name` (default
-  hostname) replaces station; note on writing the file late in the loop so it keeps
-  updating while the temp drive has room.
-- After cleanup, A + B built, C left TBD in the wishlist:
-  A. once a shutdown is seen, the log tail is read every second; the ended screen lists the
-     outcome lines (metadata moved to ..., WARNING ..., Temp folder removed ...).
-  B. serve.py remembers the last valid status file and last log it served, at /last/status.json
-     and /last/log.txt; a page opened after the temp folder is gone loads them and shows the
-     ended screen. Lost on server restart.
-- With no temp folder and nothing remembered, the page shows a blue "Temp folder not found:
-  no run in progress?" banner.
+## Design, as it stands
 
-## Decisions taken in iteration 1 (open to iteration)
+Viewer:
+- Sources: the stills (freshness by mtime from the folder listing; offline after
+  max(10 s, 10 x preview_interval)) and the status file. The terminal log is a human record;
+  every remaining read of it is marked `PLACEHOLDER until status file supplies <field>`.
+- Facts come from status fields: `recording`, `save_drive.accepting_clips`,
+  `temp_drive.clips_waiting`, `run.state`, `run.message`. The viewer's own decisions are
+  the soft thresholds only: orange under 24 h and red under 1 h on `seconds_until_full`,
+  and "no still from any camera" when every still is stale and python still says running.
+- Layout: strict (all eight positions A B | E F over C D | G H) or compact (empty rows and
+  columns dropped), remembered in localStorage. Tiles fill the width or the height; gaps
+  and title font scale with the tile. Accounting table below at natural height, two
+  columns, font from the column width. Banners under the top strip, head plus one line.
+- Run ended: `run.state` "ended" or the temp folder gone; the page reloads itself when a
+  new run appears in the same folder.
 
-1. Launch: the start command takes the temp folder path as a mandatory argument, mirroring
-   how the camera program takes its config path. The viewer never sees `temp_path` from the
-   config before it has the folder, so the argument is the only way in.
-2. Config discovery: list `ratrixcam_run_metadata/`, fetch every `*.json`, keep those that
-   look like a camera config (cameras list with subjID/view/position, study_label,
-   subject_prefix, time_slice). One match: use it. None: banner "no config found". Several:
-   use the most recently modified and show a banner naming all of them.
-3. Camera-offline rule: a camera is offline when its still's mtime (from the folder listing)
-   is older than max(10 s, 10 x preview_interval), or the still is missing. The offline image
-   plus "no still since HH:MM:SS" replaces the tile. Stills are reloaded only when the mtime
-   advances, swapped in only after the browser has decoded them; a decode failure (half-written
-   file) is retried on the next poll.
-4. Drive warnings: python computes level and text (same thresholds as the tkinter window:
-   FULL when expected to fill within one clip, ALMOST FULL within an hour, NOT FOUND when the
-   save path cannot be read) and writes them to the status file; the viewer only renders them.
-   The viewer does not duplicate the thresholds or the assumed write rate.
-5. Status file: one JSON per run, `<temp>/ratrixcam_status.json`, rewritten every preview
-   interval; schema in `gui/STATUS_FILE_WISHLIST.md` (to be written). Until it exists the
-   accounting fields show placeholders and a muted note "status file not found".
-   Fallback while no status file: run start derived from the terminal log's filename
-   (`terminal_ratrixcam_YYYYMMDD_HHMMSS_*.log`) and duration from that; marked as derived.
-6. Layout: strict mode keeps all eight positions (A B | E F over C D | G H, gap between the
-   blocks); compact mode drops rows and columns with no camera while preserving relative
-   order. Toggle button in the header; choice remembered in the browser's localStorage.
-7. Per-camera line under each still from its manifest: number of closed clips and the time
-   the last row was written. Polled every 15 s. Manifests parsed tolerating CRLF and LF.
-8. Not displayed: terminal log, notes.txt (per the user).
+Config editor:
+- Every field is a menu of legal values plus "Add new…" (checked: name fields
+  `[A-Za-z0-9-]`, 12 chars for study label and subject prefix, 24 for subject and view, no
+  `_`; numbers within ranges; absolute paths ending in `/`; resolution `WxH`). The
+  "Edit legal values" panel removes values not in use, or resets to the shipped lists.
+- Sections: Run (machine name, study label, subject prefix, clip length 10..3600 s, save
+  and temp folders), Cameras (subject, view, position, optional crf/fps/resolution/LUT
+  overrides from their own lists, "(default)" preselected), Advanced Settings (defaults and
+  the still interval, preset from the options file).
+- The file is written by the server: keys run-level first, cameras one per line, advanced
+  defaults last; `~` expanded; validated with the camera code's Config class
+  (`machine_name` stripped before that check as a PLACEHOLDER until the class accepts it);
+  refused when the name does not end in .json, the folder does not exist, or the location
+  is inside the temp or save folder. Save and temp paths are not checked for existence: a
+  config may be written for another machine.
 
-- `gui/index.html`, `gui/style.css`, `gui/viewer.js`: the page. Header with accounting,
-  banner strip for warnings, camera grid, footer with paths. Written, served, NOT yet seen in
-  a browser (no node or browser inside the sandbox; the user tests in Safari).
-- `gui/STATUS_FILE_WISHLIST.md`: schema of `<temp>/ratrixcam_status.json`.
-- `gui/README.md`: how to start.
-- `gui/sample_data/ratrixcam_status_almost_full.json`: fake status file; open the page with
-  `?status=/sample_data/ratrixcam_status_almost_full.json` to see the accounting and the
-  orange warning. (The sample temp folder has no status file, so without it placeholders show.)
+## Open items
 
-Testing note: the sample stills are static, so every camera shows OFFLINE within 10 s of
-opening. `touch sample_data/temp/status/*.png` in another terminal brings them back online
-(mtimes are not tracked by git).
+- Camera developer: implement the status file and the config field per the wishlist.
+- Hardware tests (user): an unsupported resolution and an unsupported LUT code, to learn
+  the failure modes before deciding whether the editor should constrain those lists.
+- Linking the two pages (menu, tabs, or nothing) is undecided.
+- A live camera run on this machine with the viewer attached has not been done yet.
+- `local_options.json` on this machine carries test values ("tail" view, old time_slice
+  3600); delete it for a clean start.
 
-## Next
+## Rules for this worktree
 
-1. Safari test of iteration 2 by the user; fix what it shows.
-2. Answers to the open questions above.
-
-## Working notes
-
-- No node or browser inside the sandbox: JavaScript is self-reviewed only; the user tests
-  in Safari. Test servers are started as a child of a short python script that stops them
-  (a background server cannot be killed from the sandbox).
-- Memory directory is write-denied in this session, so no memories are saved from here.
-- Writes under gui/ are auto-allowed by the user's settings; commit as you go.
+- Everything under `gui/`; nothing outside it is touched (the root CLAUDE.md and
+  .claude/settings.json are sandbox files, dropped at merge).
+- Write and edit under `gui/` without asking; commit as you go with a short subject line
+  (an index entry, well under 72 characters) plus the Co-Authored-By line. Never push.
+- Never request anything outside the sandbox; report a sandbox failure instead. Test
+  servers only as a child of a python script that stops them.
+- Use the Edit tool for file changes, not shell substitutions.
+- Test files are `gui/tests/test_gui_*.py`; a basename must never duplicate one in
+  `tests/` (pytest imports test modules by bare name).
+- No explanations of settings on the editor's interface; the documentation has them.
