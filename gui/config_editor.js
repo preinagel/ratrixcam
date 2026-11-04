@@ -454,58 +454,56 @@ function renderManage() {
 }
 
 function renderList(list, box) {
-  {
-    const wrap = document.createElement("div");
-    wrap.className = "vlist";
-    const name = document.createElement("div");
-    name.className = "name";
-    name.textContent = list.label;
-    wrap.appendChild(name);
-    const values = legalValues(list.key);
-    if (list.hasDefault) { // always on the menu, never removable
-      const item = document.createElement("div");
-      item.className = "item";
-      const text = document.createElement("span");
-      text.className = "v";
-      text.textContent = "(default)";
-      item.appendChild(text);
-      wrap.appendChild(item);
-    } else if (values.length === 0) {
-      const empty = document.createElement("div");
-      empty.className = "empty";
-      empty.textContent = "none";
-      wrap.appendChild(empty);
-    }
-    for (const v of values) {
-      const item = document.createElement("div");
-      item.className = "item";
-      const text = document.createElement("span");
-      text.className = "v";
-      text.textContent = String(v);
-      item.appendChild(text);
-      if (list.inUse(v)) {
-        const tag = document.createElement("span");
-        tag.className = "inuse";
-        tag.textContent = "in use";
-        item.appendChild(tag);
-      } else {
-        const remove = document.createElement("button");
-        remove.type = "button";
-        remove.className = "small";
-        remove.textContent = "remove";
-        remove.addEventListener("click", async () => {
-          state.options.options[list.key] = legalValues(list.key).filter((x) => String(x) !== String(v));
-          await saveOptions();
-          refreshSelects(list.key);
-          render();
-          renderManage();
-        });
-        item.appendChild(remove);
-      }
-      wrap.appendChild(item);
-    }
-    box.appendChild(wrap);
+  const wrap = document.createElement("div");
+  wrap.className = "vlist";
+  const name = document.createElement("div");
+  name.className = "name";
+  name.textContent = list.label;
+  wrap.appendChild(name);
+  const values = legalValues(list.key);
+  if (list.hasDefault) { // always on the menu, never removable
+    const item = document.createElement("div");
+    item.className = "item";
+    const text = document.createElement("span");
+    text.className = "v";
+    text.textContent = "(default)";
+    item.appendChild(text);
+    wrap.appendChild(item);
+  } else if (values.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "empty";
+    empty.textContent = "none";
+    wrap.appendChild(empty);
   }
+  for (const v of values) {
+    const item = document.createElement("div");
+    item.className = "item";
+    const text = document.createElement("span");
+    text.className = "v";
+    text.textContent = String(v);
+    item.appendChild(text);
+    if (list.inUse(v)) {
+      const tag = document.createElement("span");
+      tag.className = "inuse";
+      tag.textContent = "in use";
+      item.appendChild(tag);
+    } else {
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "small";
+      remove.textContent = "remove";
+      remove.addEventListener("click", async () => {
+        state.options.options[list.key] = legalValues(list.key).filter((x) => String(x) !== String(v));
+        await saveOptions();
+        refreshSelects(list.key);
+        render();
+        renderManage();
+      });
+      item.appendChild(remove);
+    }
+    wrap.appendChild(item);
+  }
+  box.appendChild(wrap);
 }
 
 async function resetValues() {
