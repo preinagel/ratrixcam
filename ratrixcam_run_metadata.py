@@ -62,7 +62,10 @@ def save_drive_problem(config: Config) -> str | None:
     in_temp, largest_clip = _temp_usage(config.temp_path)
     needed = in_temp + STOP_SPACE_FACTOR * largest_clip
     if free < needed:
-        return f"SSD drive full: {_size_text(needed)} needed for the files in temp, {_size_text(free)} free"
+        return (
+            f"SSD drive full: {_size_text(needed)} needed for the backlog now in temp, {_size_text(free)} free; "
+            "recording continues meanwhile"
+        )
     return None
 
 

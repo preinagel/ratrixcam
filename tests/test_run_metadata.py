@@ -382,7 +382,9 @@ def test_save_drive_check_demands_room_for_temp_plus_the_margin(tmp_path, monkey
     monkeypatch.setattr(shutil, "disk_usage", lambda _p: Usage(10**12, 10**12 - needed, needed))
     assert save_drive_problem(config) is None
     monkeypatch.setattr(shutil, "disk_usage", lambda _p: Usage(10**12, 10**12 - needed + 1, needed - 1))
-    assert save_drive_problem(config) == "SSD drive full: 26 MB needed for the files in temp, 26 MB free"
+    assert save_drive_problem(config) == (
+        "SSD drive full: 26 MB needed for the backlog now in temp, 26 MB free; recording continues meanwhile"
+    )
 
 
 # ------------------------------------------------- clips left in temp at shutdown

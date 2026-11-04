@@ -53,30 +53,80 @@ def hidden_root():
     return tk, root
 
 
+def the_dialog(tk, root):
+    return [w for w in root.winfo_children() if isinstance(w, tk.Toplevel)][-1]
+
+
 def press_in_dialog(tk, root, label: str):
-    dialog = [w for w in root.winfo_children() if isinstance(w, tk.Toplevel)][-1]
-    buttons = [b for frame in dialog.winfo_children() for b in frame.winfo_children() if isinstance(b, tk.Button)]
+    buttons = [b for frame in the_dialog(tk, root).winfo_children() for b in frame.winfo_children() if isinstance(b, tk.Button)]
     next(b for b in buttons if b.cget("text") == label).invoke()
 
 
-def test_replace_ssd_dialog_returns_the_choice_pressed():
+def labels_in_dialog(tk, root) -> list[str]:
+    return [w.cget("text") for w in the_dialog(tk, root).winfo_children() if isinstance(w, tk.Label)]
+
+
+PROBLEM = "SSD drive full: 1.0 GB needed for the files in temp, 0.1 GB free"
+
+
+@pytest.fixture
+def no_check_pause(monkeypatch):
+    monkeypatch.setattr(io, "CHECK_PAUSE", 0)
+
+
+def test_replace_ssd_dialog_returns_the_choice_pressed(tmp_path, no_check_pause):
     tk, root = hidden_root()
     results = []
     for label in io.REPLACE_SSD_CHOICES:
         root.after(50, press_in_dialog, tk, root, label)
-        results.append(io.replace_ssd_dialog(root, "SSD drive full: 1.0 GB needed, 0.1 GB free"))
+        results.append(io.replace_ssd_dialog(root, PROBLEM, lambda: None, str(tmp_path)))  # the check passes
     root.destroy()
     assert results == ["ready", "abort", "continue"]
 
 
-def test_replace_ssd_dialog_closed_by_its_close_box_means_continue():
+def test_ssd_ready_checks_again_in_place_until_the_check_passes(tmp_path, no_check_pause):
+    """Two failing checks, then a pass: the same window stays up, restating each result with
+    a count of the checks, and closes with 'ready' on the third press."""
+    tk, root = hidden_root()
+    outcomes = iter(["SSD drive full: 1.0 GB needed for the files in temp, 0.2 GB free", "SSD drive not reachable", None])
+    seen: list[list[str]] = []
+    dialogs: list[object] = []
+
+    def press_and_look():
+        dialogs.append(the_dialog(tk, root))
+        press_in_dialog(tk, root, "SSD Ready")
+        if the_dialog(tk, root).winfo_exists():
+            seen.append(labels_in_dialog(tk, root))
+            root.after(50, press_and_look)
+
+    root.after(50, press_and_look)
+    result = io.replace_ssd_dialog(root, PROBLEM, lambda: next(outcomes), str(tmp_path))
+    root.destroy()
+    assert result == "ready"
+    assert len(set(map(id, dialogs))) == 1  # one window throughout, never recreated
+    assert len(seen) == 2
+    assert seen[0][0].startswith("SSD drive full: 1.0 GB needed for the files in temp, 0.2 GB free")
+    assert seen[0][1].startswith("Checked 1 time(s), last at ") and seen[0][1].endswith(": still SSD drive full: 1.0 GB needed for the files in temp, 0.2 GB free")
+    assert seen[1][0].startswith("SSD drive not reachable")
+    assert seen[1][1].startswith("Checked 2 time(s), last at ") and seen[1][1].endswith(": still SSD drive not reachable")
+
+
+def test_replace_ssd_text_says_how_long_temp_can_go_on(tmp_path, monkeypatch):
+    import shutil
+    from collections import namedtuple
+
+    Usage = namedtuple("Usage", "total used free")
+    monkeypatch.setattr(shutil, "disk_usage", lambda _p: Usage(10**12, 10**12 - int(RATE * 1800), int(RATE * 1800)))
+    text = io.replace_ssd_text(PROBLEM, str(tmp_path))
+    assert text.startswith(PROBLEM)
+    assert "finish" not in text
+    assert text.endswith("Continue Run returns to recording; the temp drive has room for ~30 min more.")
+
+
+def test_replace_ssd_dialog_closed_by_its_close_box_means_continue(tmp_path):
     tk, root = hidden_root()
 
-    def close_box():
-        dialog = [w for w in root.winfo_children() if isinstance(w, tk.Toplevel)][-1]
-        dialog.destroy()  # what the window manager does when the close box is used, after the protocol handler
-
-    root.after(50, close_box)
-    result = io.replace_ssd_dialog(root, "SSD drive not reachable")
+    root.after(50, lambda: the_dialog(tk, root).destroy())  # what the window manager does when the close box is used
+    result = io.replace_ssd_dialog(root, "SSD drive not reachable", lambda: None, str(tmp_path))
     root.destroy()
     assert result == "continue"

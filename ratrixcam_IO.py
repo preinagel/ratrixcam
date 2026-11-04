@@ -8,6 +8,7 @@ import sys
 import time
 import tkinter as tk
 import tkinter.font as font
+from collections.abc import Callable
 from multiprocessing import Process
 from multiprocessing.synchronize import Event
 from tkinter import messagebox, ttk
@@ -239,40 +240,80 @@ REPLACE_SSD_CHOICES = {"SSD Ready": "ready", "Abort Run": "abort", "Continue Run
 STOP_BANNER = "=" * 72  # printed before the stop click's lines, so they can be found in the log
 
 
-def replace_ssd_dialog(window: tk.Tk, problem: str) -> str:
+CHECK_PAUSE = 0.7  # seconds the dialog shows "Checking the drive..." so that a press is seen to do something
+
+
+def temp_time_left_text(temp_path: str) -> str:
+    """How long the cameras can go on before the temp drive is full, at the assumed write
+    rate, or 'unknown' if the drive cannot be queried."""
+    try:
+        return time_left_text(seconds_until_full(shutil.disk_usage(temp_path).free))
+    except OSError:
+        return "unknown"
+
+
+def replace_ssd_text(problem: str, temp_path: str) -> str:
+    """The body of the Replace SSD dialog for this problem."""
+    return (
+        f"{problem}\n\n"
+        "This drive cannot take the files waiting in the temp folder.\n"
+        "Eject it and mount a drive with enough space at the same path, then press SSD Ready.\n"
+        "Abort Run ends the run with every file left in the temp folder.\n"
+        f"Continue Run returns to recording; the temp drive has room for {temp_time_left_text(temp_path)} more."
+    )
+
+
+def replace_ssd_dialog(window: tk.Tk, problem: str, check: Callable[[], str | None], temp_path: str) -> str:
     """Block on a small window telling the operator what is wrong with the save drive, with
-    three buttons; returns 'ready', 'abort' or 'continue'. No timeout: the window stays until
-    a button is pressed. Its close box counts as Continue Run, the choice that changes nothing.
-    A message box cannot carry three custom buttons, hence a Toplevel."""
+    three buttons; returns 'ready' once a check has passed, else 'abort' or 'continue'. SSD
+    Ready runs the check again from inside the window: the buttons go dead, "Checking the
+    drive..." shows for a moment, and on failure the window stays where it is with the new
+    result and a count of the checks made, so a press is never mistaken for nothing. No
+    timeout: the window stays until a button is pressed. Its close box counts as Continue
+    Run, the choice that changes nothing. A message box cannot carry three custom buttons,
+    hence a Toplevel."""
     dialog = tk.Toplevel(window)
     dialog.title("Replace SSD")
     dialog.transient(window)
     dialog.resizable(False, False)
     choice = {"value": "continue"}
+    checks = {"count": 0}
 
     def choose(value: str):
         choice["value"] = value
         dialog.destroy()
 
     dialog.protocol("WM_DELETE_WINDOW", lambda: choose("continue"))
-    tk.Label(
-        dialog,
-        text=(
-            f"{problem}\n\n"
-            "This drive cannot take the files waiting in the temp folder.\n"
-            "Eject it and mount a drive with enough space at the same path, then press SSD Ready.\n"
-            "Abort Run ends the run with every file left in the temp folder.\n"
-            "Continue Run returns to recording."
-        ),
-        justify="left",
-        wraplength=520,
-        padx=16,
-        pady=12,
-    ).pack()
+    message = tk.Label(dialog, text=replace_ssd_text(problem, temp_path), justify="left", wraplength=520, padx=16, pady=12)
+    message.pack()
+    status = tk.Label(dialog, text="", justify="left", wraplength=520, padx=16, fg="#a00000")
+    status.pack()
     row = tk.Frame(dialog)
     row.pack(pady=(0, 12))
+    buttons: list[tk.Button] = []
+
+    def ready():
+        checks["count"] += 1
+        for button in buttons:
+            _ = button.config(state="disabled")
+        _ = status.config(text="Checking the drive...")
+        dialog.update()
+        time.sleep(CHECK_PAUSE)
+        found = check()
+        if found is None:
+            choose("ready")
+            return
+        print(f"SSD Ready pressed, save drive check failed again: {found}")
+        _ = message.config(text=replace_ssd_text(found, temp_path))
+        _ = status.config(text=f"Checked {checks['count']} time(s), last at {dt.datetime.now():%H:%M:%S}: still {found}")
+        for button in buttons:
+            _ = button.config(state="normal")
+
+    actions = {"ready": ready, "abort": lambda: choose("abort"), "continue": lambda: choose("continue")}
     for text, value in REPLACE_SSD_CHOICES.items():
-        tk.Button(row, text=text, width=14, command=lambda v=value: choose(v)).pack(side="left", padx=8)
+        button = tk.Button(row, text=text, width=14, command=actions[value])
+        button.pack(side="left", padx=8)
+        buttons.append(button)
     dialog.grab_set()
     window.wait_window(dialog)
     return choice["value"]
@@ -466,18 +507,18 @@ def create_recording_window(state: State, bgcolor: str, config: Config) -> tk.Tk
         else:
             print(STOP_BANNER)
             problem = save_drive_problem(config)
-            while problem is not None:
+            if problem is not None:
                 print(f"Stop requested, save drive check failed: {problem}")
-                choice = replace_ssd_dialog(window, problem)
+                # SSD Ready re-runs the check inside the dialog, never the cached result;
+                # the dialog returns 'ready' only once a check has passed
+                choice = replace_ssd_dialog(window, problem, lambda: save_drive_problem(config), config.temp_path)
                 if choice == "continue":
                     print("Continue Run chosen: recording goes on")
                     return
                 if choice == "abort":
                     print("Abort Run chosen: the run ends; the cleanup will move nothing")
                     state.abort = True
-                    break
-                problem = save_drive_problem(config)  # SSD Ready: the check again, never the cached result
-            if problem is None:
+            if not state.abort:
                 print("Stop requested, save drive check passed: shutting down")
         window.destroy()
 
