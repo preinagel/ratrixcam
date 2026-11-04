@@ -20,6 +20,7 @@ const RULES = {
 // labels are the words users see; the json keys are the camera code's. No explanations
 // here: the documentation has them.
 const RUN_FIELDS = [
+  { key: "machine_name", label: "Machine name", kind: "machine", optional: true },
   { key: "study_label", label: "Study label", kind: "name", maxLen: 12 },
   { key: "subject_prefix", label: "Subject prefix", kind: "name", maxLen: 12 },
   { key: "time_slice", label: "Clip length (s)", kind: "int", min: 10, max: 3600 },
@@ -46,7 +47,7 @@ const CAMERA_FIELDS = [
   { key: "exposure", label: "LUT", kind: "float", min: -20, max: 20, options: "camera_exposure", optional: true },
 ];
 // the file's key order (the server writes the same): run-level, cameras, then the defaults
-const FILE_KEY_ORDER = ["save_path", "temp_path", "study_label", "subject_prefix", "time_slice", "cameras",
+const FILE_KEY_ORDER = ["machine_name", "save_path", "temp_path", "study_label", "subject_prefix", "time_slice", "cameras",
   "default_crf", "default_fps", "default_width", "default_height", "default_cam_exposure", "preview_interval"];
 const CAMERA_KEY_ORDER = ["subjID", "view", "position", "crf", "fps", "width", "height", "exposure"];
 
@@ -92,11 +93,10 @@ async function api(method, path, body) {
 async function loadOptions() {
   const { data } = await api("GET", "/api/options");
   state.options = data;
-  el("machine-name").textContent = data.machine_name || "(unnamed)";
   const warn = el("machine-warning");
   warn.hidden = !data.machine_mismatch;
   if (data.machine_mismatch) {
-    warn.textContent = `The legal-values file was made on another machine ("${data.machine_name}", id ${data.machine_id}); this machine is ${data.machine_id_now}. Saving any value rebinds the file to this machine.`;
+    warn.textContent = `The legal-values file was made on another machine (id ${data.machine_id}); this machine is ${data.machine_id_now}. Saving any value rebinds the file to this machine.`;
   }
 }
 
@@ -162,7 +162,7 @@ function fillSelect(sel, field, optionsKey, current) {
   sel.textContent = "";
   const blank = document.createElement("option");
   blank.value = "";
-  blank.textContent = field.optional ? "(default)" : "— choose —";
+  blank.textContent = field.optional ? (field.options ? "(default)" : "(none)") : "— choose —";
   sel.appendChild(blank);
   const values = field.kind === "position" ? POSITIONS : legalValues(optionsKey);
   let found = current == null;
@@ -289,7 +289,7 @@ function buildCameraRows() {
 function problems() {
   const c = state.config, out = [];
   for (const f of [...RUN_FIELDS, ...ADVANCED_FIELDS]) {
-    if (c[f.key] == null) out.push(`${f.label} is not set`);
+    if (c[f.key] == null) { if (!f.optional) out.push(`${f.label} is not set`); }
     else if (!isLegal(f.key, c[f.key])) out.push(`${f.label}: "${c[f.key]}" is not in the list of legal values`);
   }
   if (c.temp_path && c.save_path && c.temp_path === c.save_path) out.push("The temp folder and the save drive folder must differ");
@@ -333,7 +333,7 @@ function fileObject() {
         for (const key of CAMERA_KEY_ORDER) if (src[key] != null) o[key] = src[key];
         return o;
       });
-    } else out[k] = flat[k];
+    } else if (flat[k] != null || !RUN_FIELDS.some((f) => f.key === k && f.optional)) out[k] = flat[k];
   }
   return out;
 }
@@ -422,9 +422,14 @@ async function saveFile() {
 
 // every list the menus draw on, in the form's three sections, with which field(s) use it
 function listSections() {
-  const run = RUN_FIELDS.map((f) => ({ key: f.key, label: f.label, inUse: (v) => String(state.config[f.key]) === String(v) }));
+  // an optional field's first entry ("(none)" for the machine name, "(default)" for a camera
+  // override) is always on the menu and never removable
+  const run = RUN_FIELDS.map((f) => ({
+    key: f.key, label: f.label, blank: f.optional ? "(none)" : null,
+    inUse: (v) => String(state.config[f.key]) === String(v),
+  }));
   const cameras = CAMERA_FIELDS.filter((f) => f.options).map((f) => ({
-    key: f.options, label: f.label, hasDefault: !!f.optional,
+    key: f.options, label: f.label, blank: f.optional ? "(default)" : null,
     inUse: (v) => state.config.cameras.some((cam) => String(cam[f.key]) === String(v)),
   }));
   const defaults = ADVANCED_FIELDS.map((f) => ({ key: f.key, label: f.label, inUse: (v) => String(state.config[f.key]) === String(v) }));
@@ -461,12 +466,12 @@ function renderList(list, box) {
   name.textContent = list.label;
   wrap.appendChild(name);
   const values = legalValues(list.key);
-  if (list.hasDefault) { // always on the menu, never removable
+  if (list.blank) { // always on the menu, never removable
     const item = document.createElement("div");
     item.className = "item";
     const text = document.createElement("span");
     text.className = "v";
-    text.textContent = "(default)";
+    text.textContent = list.blank;
     item.appendChild(text);
     wrap.appendChild(item);
   } else if (values.length === 0) {
@@ -507,20 +512,13 @@ function renderList(list, box) {
 }
 
 async function resetValues() {
-  if (!confirm("Replace every list with the values shipped with the program? Values added on this machine are lost (the machine name is kept).")) return;
+  if (!confirm("Replace every list with the values shipped with the program? Values added on this machine are lost.")) return;
   const { ok, data } = await api("PUT", "/api/options?reset=1", {});
   if (!ok) { alert(`Could not reset: ${data.error || "unknown error"}`); return; }
   await loadOptions();
   for (const list of allLists()) refreshSelects(list.key);
   render();
   renderManage();
-}
-
-async function renameMachine() {
-  const name = await promptNewValue({ key: "machine_name", label: "machine name", kind: "machine" }, null, "Name of this machine");
-  if (name === undefined) return;
-  state.options.machine_name = name;
-  await saveOptions();
 }
 
 // ---------- is the server still there? ----------
@@ -546,7 +544,6 @@ async function main() {
   el("load").addEventListener("click", loadFile);
   el("save").addEventListener("click", saveFile);
   el("add-camera").addEventListener("click", () => { state.config.cameras.push(emptyCamera()); buildCameraRows(); render(); });
-  el("rename-machine").addEventListener("click", renameMachine);
   el("manage-values").addEventListener("click", () => { renderManage(); el("manage").hidden = false; });
   el("manage-close").addEventListener("click", () => { el("manage").hidden = true; });
   el("manage-reset").addEventListener("click", resetValues);

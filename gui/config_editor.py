@@ -17,6 +17,7 @@ import socket
 import sys
 import uuid
 from datetime import datetime
+from functools import partial
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, cast, final, override
@@ -24,8 +25,11 @@ from urllib.parse import parse_qs, unquote, urlsplit
 
 GUI_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_DIR = os.path.dirname(GUI_DIR)
-OPTIONS_FILE = os.path.join(GUI_DIR, "local_options.json")
+OPTIONS_FILE = os.path.join(GUI_DIR, "local_options.json")  # replaced by --options
 POSITIONS = ["A", "B", "C", "D", "E", "F", "G", "H"]
+# PLACEHOLDER until the camera code's Config class accepts machine_name: the field is kept
+# out of the pydantic check so a config carrying it does not fail on "extra forbidden"
+CONFIG_FIELDS_PENDING_IN_CAMERA_CODE = ("machine_name",)
 
 # the camera code's own validation, when available (it needs pydantic); the fallback below
 # checks the same things more loosely
@@ -40,6 +44,7 @@ except Exception:  # noqa: BLE001  (any import problem: pydantic missing, repo m
 # unless the user deliberately adds a value to choose from. Resolutions are one value
 # ("640x480"), written to the file as width and height.
 PLACEHOLDER_OPTIONS: dict[str, list[Any]] = {
+    "machine_name": [socket.gethostname().split(".")[0]],
     "study_label": ["Test"],
     "subject_prefix": ["rat"],
     "subjID": ["000", "999"],
@@ -66,7 +71,7 @@ PRESETS: dict[str, Any] = {
     "preview_interval": 1,
 }
 # the file's key order: run-level fields, the cameras, then the advanced defaults at the end
-FILE_KEY_ORDER = ["save_path", "temp_path", "study_label", "subject_prefix", "time_slice", "cameras",
+FILE_KEY_ORDER = ["machine_name", "save_path", "temp_path", "study_label", "subject_prefix", "time_slice", "cameras",
                   "default_crf", "default_fps", "default_width", "default_height", "default_cam_exposure", "preview_interval"]
 CAMERA_KEY_ORDER = ["subjID", "view", "position", "crf", "fps", "width", "height", "exposure"]
 
@@ -80,22 +85,24 @@ def machine_id() -> str:
     return ":".join(f"{(node >> shift) & 0xFF:02x}" for shift in range(40, -1, -8))
 
 
-def load_options() -> dict[str, Any]:
+def load_options(options_file: str) -> dict[str, Any]:
     """The options file, created with placeholders on first use; a list or preset this
     version knows and the file lacks is added, so an older file keeps working."""
     data: dict[str, Any]
     try:
-        with open(OPTIONS_FILE) as f:
+        with open(options_file) as f:
             data = json.load(f)
     except (OSError, ValueError):
         data = {
             "machine_id": machine_id(),
-            "machine_name": socket.gethostname().split(".")[0],
             "created": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         }
     options = data.setdefault("options", {})
     for key, values in PLACEHOLDER_OPTIONS.items():
         options.setdefault(key, list(values))
+    old_name = data.pop("machine_name", None)  # an earlier version kept the name here
+    if isinstance(old_name, str) and old_name and old_name not in options["machine_name"]:
+        options["machine_name"].append(old_name)
     for key in [k for k in options if k not in PLACEHOLDER_OPTIONS]:
         del options[key]  # a list an earlier version of the editor kept
     for key in ("save_path", "temp_path"):
@@ -103,7 +110,7 @@ def load_options() -> dict[str, Any]:
     presets = data.setdefault("presets", {})
     for key, value in PRESETS.items():
         presets.setdefault(key, value)
-    write_json(OPTIONS_FILE, data)
+    write_json(options_file, data)
     return data
 
 
@@ -147,8 +154,12 @@ def check_config(data: object) -> list[str]:
     """Problems that would stop the camera program from loading this config, as messages;
     empty when it is fine."""
     if CameraConfigClass is not None:
+        checked = data
+        if isinstance(data, dict):
+            # PLACEHOLDER until the camera code's Config class accepts these fields
+            checked = {k: v for k, v in cast(dict[str, object], data).items() if k not in CONFIG_FIELDS_PENDING_IN_CAMERA_CODE}
         try:
-            _ = CameraConfigClass.model_validate(data)
+            _ = CameraConfigClass.model_validate(checked)
         except Exception as e:  # noqa: BLE001  (pydantic's ValidationError, or a TypeError)
             return [line.strip() for line in str(e).splitlines() if line.strip()]
     problems: list[str] = []
@@ -191,7 +202,8 @@ def check_config(data: object) -> list[str]:
 
 @final
 class EditorHandler(SimpleHTTPRequestHandler):
-    def __init__(self, *args: Any, **kwargs: Any):
+    def __init__(self, *args: Any, options_file: str, **kwargs: Any):
+        self.options_file: str = options_file
         super().__init__(*args, directory=GUI_DIR, **kwargs)
 
     # ----- helpers -----
@@ -229,10 +241,10 @@ class EditorHandler(SimpleHTTPRequestHandler):
         if path == "/":
             self.path = "/config_editor.html"
         if path == "/api/options":
-            data = load_options()
+            data = load_options(self.options_file)
             data["machine_id_now"] = machine_id()
             data["machine_mismatch"] = data.get("machine_id") != data["machine_id_now"]
-            data["options_file"] = OPTIONS_FILE
+            data["options_file"] = self.options_file
             self.send_json(data)
             return
         if path == "/api/config":
@@ -255,15 +267,13 @@ class EditorHandler(SimpleHTTPRequestHandler):
         path = unquote(urlsplit(self.path).path)
         if path == "/api/options":
             if self.query().get("reset") == "1":
-                current = load_options()
                 fresh = {
                     "machine_id": machine_id(),
-                    "machine_name": current.get("machine_name", ""),
                     "created": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     "options": {k: list(v) for k, v in PLACEHOLDER_OPTIONS.items()},
                     "presets": dict(PRESETS),
                 }
-                write_json(OPTIONS_FILE, fresh)
+                write_json(self.options_file, fresh)
                 self.send_json({"ok": True})
                 return
             body = self.read_body()
@@ -275,9 +285,9 @@ class EditorHandler(SimpleHTTPRequestHandler):
                 self.send_json({"error": "options must be an object"}, HTTPStatus.BAD_REQUEST)
                 return
             data["machine_id"] = machine_id()  # saving from this machine binds the file to it
-            for key in ("machine_id_now", "machine_mismatch", "options_file"):
+            for key in ("machine_id_now", "machine_mismatch", "options_file", "machine_name"):
                 _ = data.pop(key, None)
-            write_json(OPTIONS_FILE, data)
+            write_json(self.options_file, data)
             self.send_json({"ok": True})
             return
         if path == "/api/config":
@@ -297,11 +307,13 @@ class EditorHandler(SimpleHTTPRequestHandler):
                 folders = {expand(str(config[k])) for k in ("temp_path", "save_path") if config.get(k)}
                 if os.path.dirname(target) in folders:
                     problems.append("the config must not be saved inside the temp or save folder")
+            if not os.path.isdir(os.path.dirname(target)):
+                # a missing folder is more likely a typo in the path box than a wish
+                problems.append(f"the folder {os.path.dirname(target)} does not exist")
             if problems or config is None:
                 self.send_json({"ok": False, "problems": problems}, HTTPStatus.BAD_REQUEST)
                 return
             try:
-                os.makedirs(os.path.dirname(target), exist_ok=True)
                 tmp = target + ".tmp"
                 with open(tmp, "w") as f:
                     _ = f.write(config_text(config))
@@ -317,11 +329,13 @@ class EditorHandler(SimpleHTTPRequestHandler):
 def main() -> int:
     parser = argparse.ArgumentParser(description="Serve the ratrixcam camera config editor.")
     _ = parser.add_argument("--port", type=int, default=8001)
+    _ = parser.add_argument("--options", default=OPTIONS_FILE, help="the legal-values file (default: local_options.json next to this script)")
     args = parser.parse_args()
     port = int(cast(int, args.port))
-    _ = load_options()
-    server = ThreadingHTTPServer(("127.0.0.1", port), EditorHandler)
-    print(f"ratrixcam config editor: http://127.0.0.1:{port}/   (options in {OPTIONS_FILE}; Ctrl-C to stop)")
+    options_file = os.path.abspath(os.path.expanduser(cast(str, args.options)))
+    _ = load_options(options_file)
+    server = ThreadingHTTPServer(("127.0.0.1", port), partial(EditorHandler, options_file=options_file))
+    print(f"ratrixcam config editor: http://127.0.0.1:{port}/   (options in {options_file}; Ctrl-C to stop)")
     if CameraConfigClass is None:
         print("note: the camera code's Config class could not be imported; configs are checked loosely")
     try:
