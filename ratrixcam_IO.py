@@ -65,10 +65,10 @@ def cameras_are_distinct(config: Config) -> bool:
     return ok
 
 
-def run_without_handlers(config: Config, stop_event: Event):
+def run_without_handlers(config: Config, stop_event: Event, abort_event: Event):
     _ = signal.signal(signal.SIGINT, signal.SIG_IGN)
     _ = signal.signal(signal.SIGTERM, signal.SIG_IGN)
-    ratrixcam_multi.run(config, stop_event)
+    ratrixcam_multi.run(config, stop_event, abort_event)
 
 
 # Assumed write rate of the whole rig (8 cameras), used to estimate how long the save drive
@@ -651,7 +651,7 @@ def close_window(window: tk.Tk) -> None:
     window.destroy()
 
 
-def graceful_shutdown(state: State, stop_event: Event):
+def graceful_shutdown(state: State, stop_event: Event, abort_event: Event):
     _ = signal.signal(signal.SIGINT, signal.SIG_DFL)
     _ = signal.signal(signal.SIGTERM, signal.SIG_DFL)
 
@@ -670,6 +670,8 @@ def graceful_shutdown(state: State, stop_event: Event):
     verb = "Aborting the run" if state.abort else "Stopping the run"
     stopping = StoppingWindow(f"ratrixcam: {verb.lower()}")
     print("ratrixcam IO: attempting graceful shutdown...")
+    if state.abort:
+        abort_event.set()  # before the stop, so a server reaching its shutdown sees the abort at once
     stop_event.set()
 
     timeout = 600 #transcoding takes ~50% video duration, so wait 10min before killing unfinished processes
@@ -718,6 +720,7 @@ def graceful_shutdown(state: State, stop_event: Event):
 # ------------------------------------------------------------------------
 def main():
     stop_event = multiprocessing.Event()
+    abort_event = multiprocessing.Event()  # set before stop_event on an abort; the camera servers read it at their shutdown
     state = State()  # exists before any handler that uses it is installed
 
     def stop_from_signal():
@@ -726,7 +729,7 @@ def main():
         running there is nothing to check."""
         cameras_running = state.camera_process is not None and state.camera_process.is_alive()
         if not cameras_running or stop_requested(state, None):
-            graceful_shutdown(state, stop_event)
+            graceful_shutdown(state, stop_event, abort_event)
 
     def int_handler(_sig: int, _frame: FrameType | None):
         print(STOP_BANNER)
@@ -797,7 +800,7 @@ def main():
         print("ERROR: Temp streaming folder does not exist and could not be created")
         return
 
-    state.camera_process = Process(target=run_without_handlers, args=(config, stop_event))
+    state.camera_process = Process(target=run_without_handlers, args=(config, stop_event, abort_event))
     state.camera_process.start()
     state.run_metadata.record_start()
 
@@ -808,7 +811,7 @@ def main():
 
     state.current_window.mainloop()
     state.current_window = None
-    graceful_shutdown(state, stop_event)
+    graceful_shutdown(state, stop_event, abort_event)
 
 
 if __name__ == "__main__":

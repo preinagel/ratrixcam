@@ -48,14 +48,17 @@ def count_video_devices():
         return 0
 
 
-def run_without_handlers(config: Config, camera_idx: int, stop_event: Event):
+def run_without_handlers(config: Config, camera_idx: int, stop_event: Event, abort_event: Event | None = None):
     _ = signal.signal(signal.SIGINT, signal.SIG_IGN)
     _ = signal.signal(signal.SIGTERM, signal.SIG_IGN)
-    ratrixcam_server.run(config, camera_idx, stop_event)
+    ratrixcam_server.run(config, camera_idx, stop_event, abort_event)
 
 
 # Main loop: check every second and restart any cameras or processes that are not running
-def run(config: Config, stop_event: Event):
+def run(config: Config, stop_event: Event, abort_event: Event | None = None):
+    """abort_event, when given and set by the launcher, tells each camera server at its own
+    shutdown to leave its last clip and its pending transfers in temp instead of waiting
+    for the drive; it is passed straight through to the servers."""
     print(f"Settings for '{config.study_label}' successfully loaded")
 
     stills_folder = stills_dir(config.temp_path)
@@ -117,7 +120,7 @@ def run(config: Config, stop_event: Event):
                     time.sleep(5)  # wait a bit before trying to launch another one (640x480 0.5 is suffic)
                 cam_proc = Process(
                     target=run_without_handlers,
-                    args=(config, idx, stop_event),
+                    args=(config, idx, stop_event, abort_event),
                 )
                 cam_proc.start()
                 camera_processes[idx] = cam_proc

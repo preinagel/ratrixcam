@@ -226,9 +226,17 @@ class WriterState(NamedTuple):
     started: datetime  # time of the first frame written to this clip
 
 
-def close_writer(writer_state: WriterState, file_transfer_processes: list[Process], manifest: ManifestMetadata, save_root: str):
+def close_writer(
+    writer_state: WriterState, file_transfer_processes: list[Process], manifest: ManifestMetadata, save_root: str, transfer: bool = True
+):
+    """Release the clip, write its manifest row, then hand it to a transfer process. With
+    transfer=False (the run is being aborted) the release and the row still happen, in that
+    order, so the clip left in temp is a valid, listed clip; only the transfer is skipped."""
     writer_state.writer.release()
     _ = manifest.append(os.path.basename(writer_state.save_dir), writer_state.file_name, writer_state.started)
+    if not transfer:
+        print(f"Cam_server: {writer_state.file_name} closed and left in temp (run aborted)")
+        return
 
     temp_video_path = os.path.join(writer_state.temp_dir, writer_state.file_name)
     out_path = os.path.join(writer_state.save_dir, writer_state.file_name)
@@ -241,7 +249,32 @@ def close_writer(writer_state: WriterState, file_transfer_processes: list[Proces
     file_transfer_processes.append(p)
 
 
-def run(config: Config, device_id: int, stop_event: Event):
+TRANSFER_POLL = 0.1  # seconds between looks at the transfer processes while a server waits for them
+
+
+def wait_for_transfers(processes: list[Process], abort_event: Event | None) -> tuple[int, int]:
+    """Wait for the transfer processes to end, looking every TRANSFER_POLL seconds. If the
+    abort event is set, now or while waiting, every transfer still alive is killed instead:
+    its temp copy is intact (the temp file is removed only after a verified copy), and the
+    partial copy it may leave on the drive is replaced by a later cleanup. kill(), not
+    terminate(): these processes inherit the servers' ignore of SIGTERM. Returns
+    (finished, killed)."""
+    killed = 0
+    alive = [p for p in processes if p.is_alive()]
+    while alive:
+        if abort_event is not None and abort_event.is_set():
+            for p in alive:
+                p.kill()
+                p.join()
+            killed = len(alive)
+            print(f"Cam_server: run aborted; {killed} transfer(s) stopped, their clips stay in temp")
+            break
+        time.sleep(TRANSFER_POLL)
+        alive = [p for p in alive if p.is_alive()]
+    return len(processes) - killed, killed
+
+
+def run(config: Config, device_id: int, stop_event: Event, abort_event: Event | None = None):
     camera = config.cameras[device_id]
     params = CameraParams(
         name=camera_name(config.subject_prefix, camera.subjID, camera.view),
@@ -376,14 +409,15 @@ def run(config: Config, device_id: int, stop_event: Event):
             is not None
         ):
             pass
-        close_writer(writer_state, file_transfer_processes, manifest, config.save_path)
+        # on an abort the clip is still released and listed, but not transferred
+        aborted = abort_event is not None and abort_event.is_set()
+        close_writer(writer_state, file_transfer_processes, manifest, config.save_path, transfer=not aborted)
 
     file_transfer_processes = [p for p in file_transfer_processes if p.is_alive()]
     print(
         f"Cam_server Waiting for {len(file_transfer_processes)} file transfer processes to finish"
     )
-    for process in file_transfer_processes:
-        process.join()  # this blocks until process is complete
+    _ = wait_for_transfers(file_transfer_processes, abort_event)  # an abort arriving meanwhile is honoured too
 
     # print(
     #     f"==== STOPPING CAMERA {str(device_id + 1).zfill(2)} at: {datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}",

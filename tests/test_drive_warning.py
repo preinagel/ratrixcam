@@ -245,3 +245,25 @@ def test_close_window_cancels_the_pending_timers_before_destroying():
     with pytest.raises(tk.TclError):
         root.winfo_exists()  # destroyed
     assert fired == []
+
+
+def test_an_abort_sets_the_abort_event_before_the_stop_event():
+    order = []
+
+    class Event:
+        def __init__(self, name):
+            self.name = name
+
+        def set(self):
+            order.append(self.name)
+
+    class Gone:  # the camera process has already exited
+        def is_alive(self):
+            return False
+
+    state = io.State()
+    state.camera_process = Gone()
+    state.abort = True
+    with pytest.raises(SystemExit):
+        io.graceful_shutdown(state, Event("stop"), Event("abort"))
+    assert order == ["abort", "stop"]

@@ -273,6 +273,7 @@ def test_abort_adds_manifest_rows_and_touches_nothing_else(tmp_path, capsys):
     assert sorted(p.name for p in run.run_dir.iterdir()) == [Path(run.config_path).name]  # provisional copy untouched
     out = capsys.readouterr().out
     assert "Run aborted: the cleanup moves nothing; <temp> is left as the cameras left it" in out
+    assert "Partial copies (.part) of clips may remain on the save drive; a later cleanup replaces them" in out
     assert "Manifest rows added at cleanup: 1" in out
     assert "WARNING" not in out and "Gathered" not in out
 

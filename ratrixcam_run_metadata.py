@@ -244,6 +244,7 @@ class RunMetadata:
         moved = False
         if abort:
             print(f"Run aborted: the cleanup moves nothing; {self.short(temp)} is left as the cameras left it")
+            print("Partial copies (.part) of clips may remain on the save drive; a later cleanup replaces them")
             self._add_unwritten_manifest_rows()
         else:
             print(f"Collecting the run metadata as {RUN_METADATA_DIRNAME}/{self.run_id}")
