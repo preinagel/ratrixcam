@@ -29,6 +29,7 @@ STILLS_DIRNAME = "stills"
 NOTES_TEMPLATE = "Notes for this recording run (free text; edit by hand).\n"
 MANIFESTS_DIRNAME = "manifests"
 MANIFEST_SUFFIX = "_manifest.csv"
+STATUS_FILENAME = "ratrixcam_status.json"  # written in the temp folder for the viewer; see ratrixcam_status
 
 
 def code_version(anchor: Path | None = None) -> str:

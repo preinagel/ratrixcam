@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import IO, cast
 
 from ratrixcam_manifest import write_row
+from ratrixcam_status import StatusWriter
 from ratrixcam_naming import (
     MANIFEST_SUFFIX,
     NOTES_FILENAME,
@@ -38,6 +39,7 @@ from ratrixcam_utils import Config, ensure_dir_exists, flush_to_device, not_writ
 
 LOG_START_ATTEMPTS = 3
 LOG_START_RETRY_DELAY = 0.5  # seconds
+END_PAUSE_INTERVALS = 2.5  # preview intervals the shutdown waits after the final status file, so the viewer can load it
 RE_REQUEST_RETRY_WINDOW = 15  # seconds a re-requested transfer keeps retrying at cleanup: long enough for a
                               # glitch, not for a drive swap; save_drive_problem has just passed when the
                               # cleanup starts, so what fails here is a glitch or permanent
@@ -164,6 +166,7 @@ class RunMetadata:
         self.temp_run_dir: Path = temp_run_metadata_dir(config.temp_path)  # during the run
         self.run_dir: Path = run_metadata_dir(config.save_path, self.run_id)  # after shutdown
         self.terminal_log: TerminalLog | None = None
+        self.status: StatusWriter = StatusWriter(config, self.run_id, self.started)  # the viewer's status file in temp
         self._collected: bool = False
 
     def start_terminal_log(self) -> bool:
@@ -242,6 +245,7 @@ class RunMetadata:
         self._collected = True
         temp = Path(self.config.temp_path)
         moved = False
+        left = 0
         if abort:
             print(f"Run aborted: the cleanup moves nothing; {self.short(temp)} is left as the cameras left it")
             print("Partial copies (.part) of clips may remain on the save drive; a later cleanup replaces them")
@@ -249,7 +253,7 @@ class RunMetadata:
         else:
             print(f"Collecting the run metadata as {RUN_METADATA_DIRNAME}/{self.run_id}")
             self._add_unwritten_manifest_rows()
-            self._settle_stranded_clips()
+            _, left = self._settle_stranded_clips()
             if self._gather_into_run_folder():
                 moved = self._move_run_folder_to_save()
             else:
@@ -265,15 +269,39 @@ class RunMetadata:
                 _ = shutil.move(str(self.log_path), str(self.run_dir / self.log_path.name))
             except OSError as e:
                 print(f"WARNING: could not move the terminal log into {self.short(self.run_dir)}: {e.strerror or e}")
+        # the final status file, for the viewer's run-ended screen: written after everything has
+        # moved, left for a few poll intervals so the viewer can load it, then its final state
+        # goes into the run folder and it is removed with temp. On an abort (or a failed move)
+        # it stays in temp with the terminal log
+        self.status.write(cameras_alive=False, state="ended", message=self._end_message(abort, moved, left), force=True)
+        time.sleep(END_PAUSE_INTERVALS * self.config.preview_interval)
+        self.status.close()
+        if moved:
+            try:
+                _ = shutil.copy2(self.status.path, self.run_dir / self.status.path.name)
+            except OSError as e:
+                print(f"WARNING: could not copy the status file into {self.short(self.run_dir)}: {e.strerror or e}")
+            self.status.remove()
         if moved and temp.is_dir() and _remove_if_empty(temp):
             print("Temp folder removed")
 
-    def _settle_stranded_clips(self) -> None:
+    def _end_message(self, abort: bool, moved: bool, left: int) -> str:
+        """The one line the viewer shows when the run has ended: the same facts as the report."""
+        if abort:
+            return f"Run aborted; everything left in {self.short(self.config.temp_path)}"
+        if not moved:
+            return f"Run metadata left in {self.short(self.temp_run_dir)}; see the terminal log"
+        text = f"Run metadata saved to {self.short(self.run_dir)}; temp folder removed"
+        if left:
+            text += f"; {left} clip(s) not transferred travel inside it"
+        return text
+
+    def _settle_stranded_clips(self) -> tuple[int, int]:
         """Every .mp4 one level below temp, in the per-camera folders, is a clip the cameras did
         not transfer. Three passes, each described on its own method: the clips with a
         manifest row are re-requested, those without one are deleted or kept, and complete
         partial copies on the drive are renamed. A failure to list temp is reported and the
-        shutdown goes on to the terminal log.
+        shutdown goes on to the terminal log. Returns (transferred, not transferred).
 
         KNOWN, PENDING (design document item 6): on the 600-second kill path a camera's own
         transfer process may still be alive and copying the same clip while this runs. On a
@@ -293,8 +321,10 @@ class RunMetadata:
                 + f"(they travel with their folder into the run metadata folder); without a manifest row: {deleted} deleted, {kept} kept"
             )
             self._rename_complete_partial_copies(rows, {clip.name for clip in clips})
+            return transferred, len(listed) - transferred
         except OSError as e:
             print(f"WARNING: could not go through the clips left in temp: {_error_text(e)}")
+            return 0, 0
 
     def _re_request(self, listed: list[Path], rows: dict[str, str]) -> int:
         """Re-request the transfer of each listed clip, one at a time, through the same function
@@ -418,8 +448,8 @@ class RunMetadata:
                         gathered += 1
                 _ = _remove_if_empty(stills_src)
             for entry in sorted(Path(self.config.temp_path).iterdir()):
-                if entry == self.log_path or entry == self.temp_run_dir:
-                    continue  # the log is closed and moved last; the run folder is the destination
+                if entry == self.log_path or entry == self.temp_run_dir or entry.name.startswith(self.status.path.name):
+                    continue  # the log is closed and moved last; the run folder is the destination; the status file is written until the end
                 if entry.is_file():
                     if entry.name != ".DS_Store":
                         _ = shutil.move(str(entry), str(self.temp_run_dir / entry.name))

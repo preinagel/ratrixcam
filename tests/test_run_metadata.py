@@ -22,6 +22,7 @@ sys.path.insert(0, str(REPO))
 from ratrixcam_manifest import write_row  # noqa: E402
 from ratrixcam_naming import NOTES_FILENAME, RUN_METADATA_DIRNAME, STILLS_DIRNAME, manifest_warning, manifests_dir, temp_manifests_dir  # noqa: E402
 import ratrixcam_run_metadata  # noqa: E402
+from ratrixcam_naming import STATUS_FILENAME  # noqa: E402
 import ratrixcam_server  # noqa: E402
 from ratrixcam_run_metadata import STOP_SPACE_FACTOR, RunMetadata, save_drive_problem  # noqa: E402
 from ratrixcam_utils import BLANK_IMAGE, Config, not_writable, place_offline_stills, stills_dir, temp_is_clear  # noqa: E402
@@ -42,6 +43,12 @@ def make_config(tmp_path: Path) -> tuple[Config, Path]:
 
 
 # ----------------------------------------------------------------- ratrixcam side
+
+@pytest.fixture(autouse=True)
+def no_end_pause(monkeypatch):
+    """The shutdown's pause for the viewer, zero in the tests."""
+    monkeypatch.setattr(ratrixcam_run_metadata, "END_PAUSE_INTERVALS", 0)
+
 
 def test_terminal_log_captures_parent_and_spawned_child_output(tmp_path):
     """Run a tiny program in a subprocess so the fd juggling cannot disturb pytest itself."""
@@ -525,7 +532,7 @@ def test_the_metadata_folder_move_flushes_every_file_and_folder(tmp_path, monkey
 
     run.collect_at_shutdown()
 
-    files = {str(p) for p in run.run_dir.rglob("*") if p.is_file() and p.name != run.log_path.name}  # the log is moved after
+    files = {str(p) for p in run.run_dir.rglob("*") if p.is_file() and p.name not in (run.log_path.name, STATUS_FILENAME)}  # the log and the status file arrive after
     folders = {str(p) for p in run.run_dir.rglob("*") if p.is_dir()} | {str(run.run_dir)}
     assert set(flushed) == files | folders
     assert not run.temp_run_dir.exists()
@@ -613,3 +620,41 @@ def test_abort_neither_transfers_nor_deletes_stranded_clips(tmp_path, capsys):
     assert not (Path(run.config.save_path) / DAY).exists()
     out = capsys.readouterr().out
     assert "Re-requesting" not in out and "deleted" not in out and "moved into" not in out
+
+
+# ------------------------------------------------- the status file at the end of the run
+
+def test_a_normal_end_writes_the_final_status_file_into_the_run_folder_and_clears_temp(tmp_path, capsys):
+    run, temp = start_run_with_a_still(tmp_path)
+    run.status.write(cameras_alive=True, force=True)  # as the poll does during the run
+
+    run.collect_at_shutdown()
+
+    final = json.loads((run.run_dir / STATUS_FILENAME).read_text())
+    assert final["run"]["state"] == "ended"
+    assert final["run"]["message"] == f"Run metadata saved to <save>/ratrixcam_run_metadata/{run.run_id}; temp folder removed"
+    assert final["temp_drive"]["clips_waiting"] == 0
+    assert not temp.exists()
+    assert "Gathered into the run metadata folder: 2 file(s)" in capsys.readouterr().out  # the still and the screenshot, not the status file
+
+
+def test_an_abort_leaves_the_final_status_file_in_temp(tmp_path):
+    run, temp = start_run_with_a_still(tmp_path)
+
+    run.collect_at_shutdown(abort=True)
+
+    final = json.loads((temp / STATUS_FILENAME).read_text())
+    assert final["run"]["state"] == "ended"
+    assert final["run"]["message"] == "Run aborted; everything left in <temp>"
+    assert not (run.run_dir / STATUS_FILENAME).exists()
+
+
+def test_the_end_message_counts_the_clips_that_did_not_transfer(tmp_path, no_transfer_waiting):
+    run, temp, clip = start_run_with_a_stranded_clip(tmp_path)
+    (Path(run.config.save_path) / DAY).write_bytes(b"")  # a file where the day folder should be: the re-request fails
+
+    run.collect_at_shutdown()
+
+    final = json.loads((run.run_dir / STATUS_FILENAME).read_text())
+    assert final["run"]["message"].endswith("; temp folder removed; 1 clip(s) not transferred travel inside it")
+    assert not temp.exists()

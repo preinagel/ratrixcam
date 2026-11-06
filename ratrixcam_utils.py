@@ -27,6 +27,7 @@ class Config(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     cameras: list[CameraConfig]
+    machine_name: str | None = None  # a name for this camera computer, shown by the viewer; the hostname when absent
     study_label: str
     subject_prefix: str = "subj"  # prefixed to every subjID to form the subject name, e.g. "rat"
     default_crf: int = 25  # ffmpeg quality for cameras that do not set their own crf
@@ -119,6 +120,21 @@ def flush_to_device(path: str) -> None:
         os.fsync(fd)
     finally:
         os.close(fd)
+
+
+# Assumed write rate of a full rig of 8 cameras, used to estimate how long a drive will last.
+# A ballpark constant for now; it could be replaced by a rate measured during the run.
+ASSUMED_WRITE_RATE = 1e9 / 60  # bytes per second (1 GB per minute)
+
+
+def write_rate(n_cameras: int) -> float:
+    """The assumed write rate of this rig: the 8-camera rate scaled by its camera count."""
+    return ASSUMED_WRITE_RATE * n_cameras / 8
+
+
+def seconds_until_full(free_bytes: int, rate: float = ASSUMED_WRITE_RATE) -> float:
+    """Expected time until a drive with this much free space is full, at this write rate."""
+    return free_bytes / rate
 
 
 def stills_dir(temp_path: str) -> str:

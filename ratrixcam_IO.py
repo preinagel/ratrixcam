@@ -23,6 +23,7 @@ from PIL import Image, ImageTk
 import ratrixcam_multi
 from ratrixcam_run_metadata import RunMetadata, save_drive_problem
 from ratrixcam_server import TRANSFER_PAUSE, TRANSFER_RETRY_WINDOW
+from ratrixcam_status import StatusWriter
 from ratrixcam_naming import camera_name, still_path
 from ratrixcam_utils import (
     BLANK_IMAGE,
@@ -31,6 +32,7 @@ from ratrixcam_utils import (
     ensure_dir_exists,
     load_settings,
     not_writable,
+    seconds_until_full,
     stills_dir,
     temp_is_clear,
 )
@@ -71,17 +73,9 @@ def run_without_handlers(config: Config, stop_event: Event, abort_event: Event):
     ratrixcam_multi.run(config, stop_event, abort_event)
 
 
-# Assumed write rate of the whole rig (8 cameras), used to estimate how long the save drive
-# will last. A ballpark constant for now; it could be replaced by a rate measured during the run.
-ASSUMED_WRITE_RATE = 1e9 / 60  # bytes per second (1 GB per minute)
 ALMOST_FULL_SECONDS = 3600  # warn when the drive is expected to fill within an hour
 
 FULL_INSTRUCTIONS = "Stop the recording now."  # placeholder; the operator instructions are TBD
-
-
-def seconds_until_full(free_bytes: int) -> float:
-    """Expected time until the save drive is full, at the assumed write rate."""
-    return free_bytes / ASSUMED_WRITE_RATE
 
 
 def time_left_text(seconds: float) -> str:
@@ -143,6 +137,13 @@ def hdd_status_update_loop(
         out_path,
         time_slice,
     )
+
+
+def status_update_loop(window: tk.Tk, state: State, status: StatusWriter, interval_ms: int) -> None:
+    """Every preview_interval: write the status file the viewer reads, with the drive checks
+    and the one-line terminal notices of the save drive's transitions that come with it."""
+    status.write(cameras_alive=state.camera_process is not None and state.camera_process.is_alive())
+    _ = window.after(interval_ms, status_update_loop, window, state, status, interval_ms)
 
 
 def time_recorded_update_loop(
@@ -462,6 +463,8 @@ def create_recording_window(state: State, bgcolor: str, config: Config) -> tk.Tk
         config.save_path,
         config.time_slice,
     )
+    if state.run_metadata is not None:
+        status_update_loop(window, state, state.run_metadata.status, int(config.preview_interval * 1000))
 
     # Showing recording duration
     time_recorded = start_recording_date - dt.datetime.now()
@@ -673,6 +676,14 @@ def graceful_shutdown(state: State, stop_event: Event, abort_event: Event):
     if state.abort:
         abort_event.set()  # before the stop, so a server reaching its shutdown sees the abort at once
     stop_event.set()
+    status = state.run_metadata.status if state.run_metadata is not None else None
+    if status is not None:
+        status.write(cameras_alive=True, state="aborted" if state.abort else "stopping", force=True)
+
+    def tick(text: str, cameras_alive: bool) -> None:
+        stopping.show(text)
+        if status is not None:
+            status.write(cameras_alive=cameras_alive)  # at most once per preview interval
 
     timeout = 600 #transcoding takes ~50% video duration, so wait 10min before killing unfinished processes
                   #would be better to set this based on the slice duration but this is not available info
@@ -683,7 +694,7 @@ def graceful_shutdown(state: State, stop_event: Event, abort_event: Event):
         f"{verb}.\nStopping the cameras and waiting for the clips in transfer to finish or give up\n"
         f"(up to {time_left_text(TRANSFER_RETRY_WINDOW + TRANSFER_PAUSE)})."
     )
-    if not wait_until(lambda: not camera_process.is_alive(), timeout, lambda: stopping.show(phase)):
+    if not wait_until(lambda: not camera_process.is_alive(), timeout, lambda: tick(phase, camera_process.is_alive())):
         print("ratrixcam IO: timed out waiting for child processes to terminate, killing")
         camera_process.kill()
     print("ratrixcam IO: shutdown complete")
@@ -708,7 +719,7 @@ def graceful_shutdown(state: State, stop_event: Event, abort_event: Event):
 
         worker = threading.Thread(target=collect)
         worker.start()
-        _ = wait_until(lambda: not worker.is_alive(), float("inf"), lambda: stopping.show(phase))
+        _ = wait_until(lambda: not worker.is_alive(), float("inf"), lambda: tick(phase, False))
         if failure:
             print(f"WARNING: run metadata collection failed: {failure[0]}")
 

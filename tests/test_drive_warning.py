@@ -6,7 +6,7 @@ import pytest
 io = pytest.importorskip("ratrixcam_IO")
 
 TIME_SLICE = 600  # seconds per clip
-RATE = io.ASSUMED_WRITE_RATE
+RATE = pytest.importorskip("ratrixcam_utils").ASSUMED_WRITE_RATE  # the assumed 8-camera write rate
 
 
 def test_plenty_of_space_gives_no_warning():
