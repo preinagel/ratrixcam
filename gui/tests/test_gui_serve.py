@@ -145,9 +145,8 @@ def test_half_written_status_file_is_served_but_not_remembered(server: Server, t
 
 def test_terminal_log_is_served_as_a_plain_file_and_not_remembered(server: Server, temp_folder: Path):
     base, _ = server
-    code, headers, body = get(base, "/temp/" + LOG_NAME)
+    code, _, body = get(base, "/temp/" + LOG_NAME)  # its content type is the platform's guess for .log
     assert code == 200
-    assert headers["content-type"].startswith("text/plain")
     assert body == b"ratrixcam run started\n"
     assert get(base, "/last/log.txt")[0] == 404  # the viewer never reads the log
 
