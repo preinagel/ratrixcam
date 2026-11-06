@@ -68,11 +68,11 @@ def good_config(tmp_path: Path) -> dict[str, object]:
         "save_path": str(tmp_path / "save") + "/",
         "temp_path": str(tmp_path / "temp") + "/",
         "study_label": "Test",
-        "subject_prefix": "rat",
+        "subject_prefix": "subj",
         "time_slice": 60,
         "cameras": [
-            {"subjID": "000", "view": "face", "position": "A"},
-            {"subjID": "999", "view": "face", "position": "B", "width": 640, "height": 480},
+            {"subjID": "000", "view": "view1", "position": "A"},
+            {"subjID": "999", "view": "view1", "position": "B", "width": 640, "height": 480},
         ],
         "default_crf": 25,
         "default_fps": 30,
@@ -158,7 +158,7 @@ def test_duplicate_camera_is_refused_with_both_reasons(server: Server, tmp_path:
     code, reply = call(base, "PUT", f"/api/config?path={target}", config)
     assert code == 400
     text = problems(reply)
-    assert "repeats subjID '000' and view 'face'" in text
+    assert "repeats subjID '000' and view 'view1'" in text
     assert "repeats position A" in text
     assert not target.exists()
 
