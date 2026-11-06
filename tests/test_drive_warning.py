@@ -267,3 +267,65 @@ def test_an_abort_sets_the_abort_event_before_the_stop_event():
     with pytest.raises(SystemExit):
         io.graceful_shutdown(state, Event("stop"), Event("abort"))
     assert order == ["abort", "stop"]
+
+
+# ------------------------------------------------- the viewer's server at launch
+
+FAKE_SERVER = """
+import socket, sys, time
+port = int(sys.argv[sys.argv.index("--port") + 1])
+s = socket.socket(); s.bind(("127.0.0.1", port)); s.listen()
+time.sleep(60)
+"""
+
+
+@pytest.fixture
+def fake_viewer(tmp_path, monkeypatch):
+    """A stand-in for gui/serve.py that holds its port, on high test ports, with no start wait."""
+    script = tmp_path / "serve.py"
+    script.write_text(FAKE_SERVER)
+    monkeypatch.setattr(io, "VIEWER_SCRIPT", str(script))
+    monkeypatch.setattr(io, "VIEWER_PORTS", range(18760, 18763))
+    monkeypatch.setattr(io, "VIEWER_START_WAIT", 0.3)
+    return script
+
+
+def test_the_viewer_starts_on_the_first_free_port(tmp_path, fake_viewer):
+    import socket
+
+    taken = socket.socket()
+    taken.bind(("127.0.0.1", 18760))
+    try:
+        started = io.start_viewer(str(tmp_path))
+        assert started is not None
+        server, address = started
+        assert address == "http://127.0.0.1:18761/"
+        assert server.poll() is None
+        state = io.State()
+        state.viewer = server
+        io.stop_viewer(state)
+        assert state.viewer is None and server.poll() is not None
+    finally:
+        taken.close()
+
+
+def test_a_missing_viewer_script_is_a_warning_not_a_stop(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(io, "VIEWER_SCRIPT", str(tmp_path / "absent.py"))
+    assert io.start_viewer(str(tmp_path)) is None
+    assert "WARNING: viewer not started" in capsys.readouterr().out
+
+
+def test_no_free_port_is_a_warning_not_a_stop(tmp_path, fake_viewer, monkeypatch, capsys):
+    import socket
+
+    held = []
+    try:
+        for port in (18760, 18761, 18762):
+            s = socket.socket()
+            s.bind(("127.0.0.1", port))
+            held.append(s)
+        assert io.start_viewer(str(tmp_path)) is None
+        assert "WARNING: viewer not started: no free port in 18760-18762" in capsys.readouterr().out
+    finally:
+        for s in held:
+            s.close()

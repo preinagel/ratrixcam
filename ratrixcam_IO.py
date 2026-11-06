@@ -4,9 +4,12 @@ import multiprocessing
 import os
 import shutil
 import signal
+import socket
+import subprocess
 import sys
 import threading
 import time
+import webbrowser
 import tkinter as tk
 import tkinter.font as font
 from collections.abc import Callable
@@ -46,6 +49,7 @@ class State:
         self.config: Config | None = None
         self.abort: bool = False  # the run ends without a usable save drive: the cleanup leaves temp untouched
         self.stopping: bool = False  # a stop request is being handled (the Replace SSD dialog may be up)
+        self.viewer: subprocess.Popen[bytes] | None = None  # the viewer's server, gui/serve.py, for the run
 
 
 def cameras_are_distinct(config: Config) -> bool:
@@ -239,6 +243,49 @@ GRID_CELLS = {
 def grid_cell(position: str) -> tuple[int, int]:
     """(row, column) on the display for a camera's position letter."""
     return GRID_CELLS[position]
+
+
+VIEWER_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "gui", "serve.py")
+VIEWER_PORTS = range(8000, 8010)  # the first free one is used
+VIEWER_START_WAIT = 0.5  # seconds to let the server fail before its port is trusted
+
+
+def start_viewer(temp_path: str) -> tuple[subprocess.Popen[bytes], str] | None:
+    """Start the viewer's read-only server on the first free port of VIEWER_PORTS and return
+    (process, address). None, with a WARNING, when it cannot start: the run goes on without
+    the viewer. The server runs in its own session, so a Ctrl-C in the terminal does not
+    reach it; the shutdown ends it after the temp folder is gone."""
+    if not os.path.isfile(VIEWER_SCRIPT):
+        print(f"WARNING: viewer not started: {VIEWER_SCRIPT} not found")
+        return None
+    for port in VIEWER_PORTS:
+        try:
+            with socket.socket() as probe:
+                probe.bind(("127.0.0.1", port))
+        except OSError:
+            continue  # in use
+        try:
+            server = subprocess.Popen([sys.executable, VIEWER_SCRIPT, temp_path, "--port", str(port)], start_new_session=True)
+        except OSError as e:
+            print(f"WARNING: viewer not started: {e.strerror or e}")
+            return None
+        time.sleep(VIEWER_START_WAIT)
+        if server.poll() is None:
+            return server, f"http://127.0.0.1:{port}/"
+    print(f"WARNING: viewer not started: no free port in {VIEWER_PORTS.start}-{VIEWER_PORTS.stop - 1}")
+    return None
+
+
+def stop_viewer(state: State) -> None:
+    """End the viewer's server, at the very end of the shutdown."""
+    if state.viewer is None:
+        return
+    state.viewer.terminate()
+    try:
+        _ = state.viewer.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        state.viewer.kill()
+    state.viewer = None
 
 
 REPLACE_SSD_CHOICES = {"SSD Ready": "ready", "Abort Run": "abort", "Continue Run": "continue"}
@@ -668,6 +715,7 @@ def graceful_shutdown(state: State, stop_event: Event, abort_event: Event):
         print("No camera process to stop")
         if state.run_metadata is not None and state.run_metadata.terminal_log is not None:
             state.run_metadata.terminal_log.stop()
+        stop_viewer(state)
         return
 
     verb = "Aborting the run" if state.abort else "Stopping the run"
@@ -724,6 +772,7 @@ def graceful_shutdown(state: State, stop_event: Event, abort_event: Event):
             print(f"WARNING: run metadata collection failed: {failure[0]}")
 
     stopping.close()
+    stop_viewer(state)  # after the temp folder is gone: the viewer has shown the run-ended screen by now
     sys.exit(0)
 
 
@@ -814,6 +863,12 @@ def main():
     state.camera_process = Process(target=run_without_handlers, args=(config, stop_event, abort_event))
     state.camera_process.start()
     state.run_metadata.record_start()
+
+    viewer = start_viewer(config.temp_path)
+    if viewer is not None:
+        state.viewer, address = viewer
+        print(f"Viewer: {address}")
+        _ = webbrowser.open(address)
 
     state.current_window = create_recording_window(state, bgcolor, config)
 
