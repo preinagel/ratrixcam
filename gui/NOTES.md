@@ -44,8 +44,8 @@ and argparse remain on purpose); `python3 -m pytest -q` from the repository root
 
 Viewer:
 - Sources: the stills (freshness by mtime from the folder listing; offline after
-  max(10 s, 10 x preview_interval)) and the status file. The terminal log is a human record;
-  every remaining read of it is marked `PLACEHOLDER until status file supplies <field>`.
+  max(10 s, 10 x preview_interval)) and the status file. The terminal log is a human record
+  and is never read.
 - Facts come from status fields: `recording`, `save_drive.accepting_clips`,
   `temp_drive.clips_waiting`, `run.state`, `run.message`. The viewer's own decisions are
   the soft thresholds only: orange under 24 h and red under 1 h on `seconds_until_full`,

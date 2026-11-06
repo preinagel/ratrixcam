@@ -9,9 +9,8 @@ the run's config file without knowing its name. Nothing is ever written.
 
 The status file is remembered as last served and offered again at /last/status.json: the
 camera program deletes the temp folder at the end of a run, and the page uses it to
-describe the run that just ended. The terminal log is remembered the same way at
-/last/log.txt as a PLACEHOLDER until the status file supplies run.state; the log is a human
-record and the viewer is to read only the status file and the stills.
+describe the run that just ended. The terminal log is a human record; the viewer reads
+only the status file and the stills.
 Python standard library only.
 """
 
@@ -19,7 +18,6 @@ import argparse
 import json
 import os
 import posixpath
-import re
 import sys
 import threading
 import time
@@ -38,13 +36,11 @@ except ImportError:  # the viewer folder copied on its own
 STATUS_FILENAME = shared_status_filename
 TEMP_PREFIX = "/temp/"
 LAST_PREFIX = "/last/"
-LOG_FILENAME = re.compile(r"terminal_ratrixcam_\d{8}_\d{6}_[0-9a-f]+\.log$")
 
-# what was last read from the temp folder, by key: "status.json" (bytes, valid JSON only)
-# and "log.txt" (bytes; PLACEHOLDER until status file supplies run.state); shared by all
-# request threads, whole values swapped atomically
+# what was last read from the temp folder, by key: "status.json" (bytes, valid JSON only);
+# shared by all request threads, whole values swapped atomically
 last_served: dict[str, bytes] = {}
-LAST_TYPES = {"status.json": "application/json", "log.txt": "text/plain; charset=utf-8"}
+LAST_TYPES = {"status.json": "application/json"}
 
 
 @final
@@ -84,24 +80,20 @@ class ViewerHandler(SimpleHTTPRequestHandler):
             self.send_bytes(body, LAST_TYPES[key])
             return
         if path.startswith(TEMP_PREFIX):
-            name = path[len(TEMP_PREFIX):]
-            key = "status.json" if name == STATUS_FILENAME else "log.txt" if LOG_FILENAME.fullmatch(name) else None
-            if key is not None:
+            if path[len(TEMP_PREFIX):] == STATUS_FILENAME:
+                key = "status.json"
                 try:
                     with open(self.translate_path(self.path), "rb") as f:
                         body = f.read()
                 except OSError:
                     self.send_error(HTTPStatus.NOT_FOUND, "File not found")
                     return
-                if key == "log.txt":
-                    last_served[key] = body
+                try:
+                    json.loads(body)
+                except ValueError:
+                    pass  # half-written: served as is (the page keeps its previous copy), not remembered
                 else:
-                    try:
-                        json.loads(body)
-                    except ValueError:
-                        pass  # half-written: served as is (the page keeps its previous copy), not remembered
-                    else:
-                        last_served[key] = body
+                    last_served[key] = body
                 self.send_bytes(body, LAST_TYPES[key])
                 return
         super().do_GET()

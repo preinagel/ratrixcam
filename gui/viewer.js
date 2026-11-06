@@ -25,11 +25,7 @@ const ACC_MAX_SHARE = 0.22; // of the window height, at most, for the accounting
 const FYI_S = 24 * 3600; // orange: space for less than a day
 const NEARLY_FULL_S = 3600; // red
 
-// PLACEHOLDER until status file supplies run.state: how the log tail is read meanwhile
-const LOG_CHECK_S = 10; // while every camera is offline
-const LOG_CHECK_SHUTDOWN_S = 1; // once a shutdown is under way, to catch its last lines
-const LOG_TAIL_LINES = 60;
-const LAST = "/last/"; // serve.py keeps the last status file and log it served, for after cleanup
+const LAST = "/last/"; // serve.py keeps the last status file it served, for after cleanup
 
 const state = {
   config: null,
@@ -40,13 +36,10 @@ const state = {
   statusWritten: null, // Date from its "written" field
   runStarted: null, // Date
   runId: null,
-  logName: null,
   layout: "strict",
   tempSeen: false, // the temp folder has answered at least once
   tempGone: null, // Date the temp folder disappeared, or null
   shutdown: null, // {kind: "stopping" | "aborted" | "ended" | "silent", since: Date}
-  lastLogCheck: 0, // PLACEHOLDER until status file supplies run.state
-  logTail: [], // PLACEHOLDER until status file supplies run.state
   lastChecked: false, // /last/ was consulted because the temp folder was never seen
 };
 
@@ -56,12 +49,6 @@ async function fetchJSON(url) {
   const r = await fetch(url, { cache: "no-store" });
   if (!r.ok) throw new Error(`${r.status} ${url}`);
   return r.json();
-}
-
-async function fetchText(url) {
-  const r = await fetch(url, { cache: "no-store" });
-  if (!r.ok) throw new Error(`${r.status} ${url}`);
-  return r.text();
 }
 
 async function listDir(rel) {
@@ -303,20 +290,7 @@ function updateStills(entries) {
 // ---------- temp folder and shutdown detection ----------
 
 // The terminal log is a human record. The viewer's sources are the status file and the
-// stills; every use of the log below is a PLACEHOLDER until the status file supplies the
-// field named next to it.
-
-function noteLogEntry(entries) {
-  for (const e of entries) {
-    const m = e.name.match(/^terminal_(ratrixcam_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})_[0-9a-f]+)\.log$/);
-    if (!m) continue;
-    state.logName = e.name;
-    // PLACEHOLDER until status file supplies run.run_id and run.started
-    if (!state.runId) state.runId = m[1];
-    if (!state.runStarted) state.runStarted = new Date(+m[2], +m[3] - 1, +m[4], +m[5], +m[6], +m[7]);
-    return;
-  }
-}
+// stills; it never reads the log.
 
 function runState() {
   const run = state.status && state.status.run;
@@ -334,34 +308,9 @@ async function checkShutdown() {
   const all = state.cameras.length > 0 && state.cameras.every((c) => c.offline);
   if (!all) { state.shutdown = null; return; }
   const since = state.cameras.reduce((d, c) => (c.lastSeen && (!d || c.lastSeen > d) ? c.lastSeen : d), null);
-  if (reported === "running") {
-    // python still said "running" the last time it wrote: nothing to infer beyond the silence
-    state.shutdown = { kind: "silent", since };
-    return;
-  }
-  // PLACEHOLDER until status file supplies run.state: read the log's last lines for a
-  // shutdown message
-  const now = Date.now();
-  const every = state.shutdown && state.shutdown.kind !== "silent" ? LOG_CHECK_SHUTDOWN_S : LOG_CHECK_S;
-  if (now - state.lastLogCheck < every * 1000) return;
-  state.lastLogCheck = now;
-  if (state.logName) {
-    try { noteLogText(await fetchText(TEMP + encodeURIComponent(state.logName))); } catch (e) { /* unreadable: keep the last tail */ }
-  }
-  state.shutdown = { kind: shutdownKindFromLog(state.logTail), since };
-}
-
-// PLACEHOLDER until status file supplies run.state
-function noteLogText(text) {
-  state.logTail = text.split(/\r?\n/).filter((l) => l !== "").slice(-LOG_TAIL_LINES);
-}
-
-// PLACEHOLDER until status file supplies run.state
-function shutdownKindFromLog(lines) {
-  const tail = lines.join("\n");
-  if (tail.includes("attempting graceful shutdown")) return "stopping";
-  if (tail.includes("Run aborted")) return "aborted";
-  return "silent";
+  // python said "running" the last time it wrote, or has not written at all: nothing to
+  // infer beyond the silence
+  state.shutdown = { kind: "silent", since };
 }
 
 // the temp folder is already gone when the page opens: what serve.py last saw of the run
@@ -379,8 +328,6 @@ async function loadLast() {
     }
     found = true;
   } catch (e) { /* nothing cached */ }
-  // PLACEHOLDER until status file supplies run.state: the remembered log's last lines
-  try { noteLogText(await fetchText(LAST + "log.txt")); found = true; } catch (e) { /* nothing cached */ }
   if (found) state.tempGone = state.statusWritten || new Date();
 }
 
@@ -394,7 +341,6 @@ async function pollTemp() {
   }
   if (state.tempGone) { location.reload(); return; } // a new run in the same temp folder
   state.tempSeen = true;
-  noteLogEntry(root);
   let stills = [];
   try { stills = await listDir(STILLS_DIR); } catch (e) { /* no stills folder yet */ }
   updateStills(stills);
@@ -430,17 +376,11 @@ function driveWarning() {
   if (!st) return null;
   const save = st.save_drive || {}, temp = st.temp_drive || {};
   const tempLeft = temp.seconds_until_full;
-  const clip = state.config ? state.config.time_slice : 0;
   const waiting = temp.clips_waiting != null ? `${temp.clips_waiting} clip${temp.clips_waiting === 1 ? "" : "s"} waiting in the temp folder` : "";
 
-  let recording = st.recording;
-  let saveFull = save.accepting_clips != null ? !save.accepting_clips : null;
-  // PLACEHOLDER until status file supplies save_drive.accepting_clips: no room for a clip
-  if (saveFull == null && save.seconds_until_full != null) saveFull = save.free_bytes === 0 || save.seconds_until_full < clip;
-  // PLACEHOLDER until status file supplies recording: both drives without room for a clip
-  if (recording == null && saveFull && tempLeft != null) recording = !(temp.free_bytes === 0 || tempLeft < clip);
+  const saveFull = save.accepting_clips === false;
 
-  if (recording === false) {
+  if (st.recording === false) {
     return { cls: "alarm", head: "CAMERAS ARE NOT BEING RECORDED", body: waiting };
   }
   if (save.found === false) {

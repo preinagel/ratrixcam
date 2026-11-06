@@ -95,11 +95,3 @@ it when the user sets one.
 
 These replace the thresholds in `drive_warning()` in ratrixcam_IO.py, which the viewer does
 not read.
-
-## Placeholders in the viewer until these fields exist
-
-Marked in the code with "PLACEHOLDER until status file supplies <field>":
-- `run.run_id`, `run.started`: taken from the terminal log's file name.
-- `run.state`: the log's last lines are searched for the shutdown messages.
-- `save_drive.accepting_clips`: "full" taken as free space under one clip.
-- `recording`: taken as both drives without room for a clip.

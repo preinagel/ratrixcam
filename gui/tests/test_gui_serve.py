@@ -1,7 +1,7 @@
 """gui/serve.py: the viewer's read-only server. The viewer folder is served at /, the temp
 folder at /temp/ with JSON folder listings, neither root can be escaped, missing files are
-answered with 404 without a log line, and the last status file and terminal log served are
-offered again at /last/."""
+answered with 404 without a log line, and the last status file served is offered again at
+/last/."""
 
 import json
 import socket
@@ -143,18 +143,13 @@ def test_half_written_status_file_is_served_but_not_remembered(server: Server, t
     assert json.loads(get(base, "/last/status.json")[2]) == good
 
 
-def test_terminal_log_served_and_remembered_after_removal(server: Server, temp_folder: Path):
+def test_terminal_log_is_served_as_a_plain_file_and_not_remembered(server: Server, temp_folder: Path):
     base, _ = server
     code, headers, body = get(base, "/temp/" + LOG_NAME)
     assert code == 200
     assert headers["content-type"].startswith("text/plain")
     assert body == b"ratrixcam run started\n"
-    (temp_folder / LOG_NAME).unlink()
-    try:
-        assert get(base, "/temp/" + LOG_NAME)[0] == 404
-        assert get(base, "/last/log.txt")[2] == b"ratrixcam run started\n"
-    finally:
-        _ = (temp_folder / LOG_NAME).write_text("ratrixcam run started\n")
+    assert get(base, "/last/log.txt")[0] == 404  # the viewer never reads the log
 
 
 # ---------- what is refused ----------
@@ -174,7 +169,7 @@ def test_parent_folders_cannot_be_reached(server: Server, path: str):
     assert b"typeCheckingMode" not in body
 
 
-def test_last_only_knows_status_and_log(server: Server):
+def test_last_only_knows_the_status_file(server: Server):
     base, _ = server
     assert get(base, "/last/other")[0] == 404
     assert get(base, "/last/")[0] == 404
