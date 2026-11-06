@@ -3,7 +3,7 @@
    Warning colours are reserved for warnings. */
 
 :root {
-  --bg: #14171b;
+  --bg: #3b0a0a; /* --bg: #14171b; original gui palette */
   --surface: #1c2026;
   --surface-2: #232830;
   --line: #2b313a;

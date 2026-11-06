@@ -306,7 +306,7 @@ def create_recording_window(state: State, bgcolor: str, config: Config, viewer_a
         window,
         text="Stop Recording",
         bg="red",
-        fg="red",
+        fg="black",
         bd=0,
         height=3,
         width=19,
