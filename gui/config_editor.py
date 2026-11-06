@@ -27,10 +27,6 @@ GUI_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_DIR = os.path.dirname(GUI_DIR)
 OPTIONS_FILE = os.path.join(GUI_DIR, "local_options.json")  # replaced by --options
 POSITIONS = ["A", "B", "C", "D", "E", "F", "G", "H"]
-# PLACEHOLDER until the camera code's Config class accepts machine_name: the field is kept
-# out of the pydantic check so a config carrying it does not fail on "extra forbidden"
-CONFIG_FIELDS_PENDING_IN_CAMERA_CODE = ("machine_name",)
-
 # the camera code's own validation, when available (it needs pydantic); the fallback below
 # checks the same things more loosely
 sys.path.insert(0, REPO_DIR)
@@ -97,6 +93,7 @@ def load_options(options_file: str) -> dict[str, Any]:
             "machine_id": machine_id(),
             "created": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         }
+    loaded = json.loads(json.dumps(data))  # what the file held, to tell a migration from a plain read
     options = data.setdefault("options", {})
     for key, values in PLACEHOLDER_OPTIONS.items():
         options.setdefault(key, list(values))
@@ -110,7 +107,10 @@ def load_options(options_file: str) -> dict[str, Any]:
     presets = data.setdefault("presets", {})
     for key, value in PRESETS.items():
         presets.setdefault(key, value)
-    write_json(options_file, data)
+    # written back only when something was filled in or migrated: this runs on every read of
+    # the options, and a needless rewrite could overwrite a value being saved at the same time
+    if data != loaded:
+        write_json(options_file, data)
     return data
 
 
@@ -154,12 +154,8 @@ def check_config(data: object) -> list[str]:
     """Problems that would stop the camera program from loading this config, as messages;
     empty when it is fine."""
     if CameraConfigClass is not None:
-        checked = data
-        if isinstance(data, dict):
-            # PLACEHOLDER until the camera code's Config class accepts these fields
-            checked = {k: v for k, v in cast(dict[str, object], data).items() if k not in CONFIG_FIELDS_PENDING_IN_CAMERA_CODE}
         try:
-            _ = CameraConfigClass.model_validate(checked)
+            _ = CameraConfigClass.model_validate(data)
         except Exception as e:  # noqa: BLE001  (pydantic's ValidationError, or a TypeError)
             return [line.strip() for line in str(e).splitlines() if line.strip()]
     problems: list[str] = []
@@ -304,8 +300,8 @@ class EditorHandler(SimpleHTTPRequestHandler):
             if not target.lower().endswith(".json"):
                 problems.append("the file name must end in .json")
             if config is not None:
-                folders = {expand(str(config[k])) for k in ("temp_path", "save_path") if config.get(k)}
-                if os.path.dirname(target) in folders:
+                folders = {os.path.abspath(expand(str(config[k]))) for k in ("temp_path", "save_path") if config.get(k)}
+                if any(os.path.commonpath([os.path.abspath(target), f]) == f for f in folders):  # at any depth
                     problems.append("the config must not be saved inside the temp or save folder")
             if not os.path.isdir(os.path.dirname(target)):
                 # a missing folder is more likely a typo in the path box than a wish

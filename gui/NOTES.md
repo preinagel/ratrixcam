@@ -67,8 +67,7 @@ Config editor:
   overrides from their own lists, "(default)" preselected), Advanced Settings (defaults and
   the still interval, preset from the options file).
 - The file is written by the server: keys run-level first, cameras one per line, advanced
-  defaults last; `~` expanded; validated with the camera code's Config class
-  (`machine_name` stripped before that check as a PLACEHOLDER until the class accepts it);
+  defaults last; `~` expanded; validated with the camera code's Config class;
   refused when the name does not end in .json, the folder does not exist, or the location
   is inside the temp or save folder. Save and temp paths are not checked for existence: a
   config may be written for another machine.

@@ -92,6 +92,7 @@ def test_a_missing_save_drive_is_reported_once_and_its_return_once(tmp_path: Pat
 
 def test_not_accepting_when_the_write_probe_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]):
     w = writer(tmp_path)
+    monkeypatch.setattr(ratrixcam_status, "PROBE_INTERVAL", 0)  # a probe on every write here
     monkeypatch.setattr(ratrixcam_status, "not_writable", lambda _f: "Read-only file system")
     w.write(cameras_alive=True, force=True)
     assert read(w)["save_drive"]["found"] is True and read(w)["save_drive"]["accepting_clips"] is False
@@ -178,3 +179,17 @@ def test_an_unwritable_temp_folder_is_reported_once(tmp_path: Path, monkeypatch:
     w.write(cameras_alive=True, force=True)
     w.write(cameras_alive=True, force=True)
     assert capsys.readouterr().out.count("WARNING: could not write the status file") == 1
+
+
+def test_the_write_probe_runs_once_per_interval_and_at_once_after_the_drive_was_missing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    w = writer(tmp_path)
+    probes: list[int] = []
+    monkeypatch.setattr(ratrixcam_status, "not_writable", lambda _f: (probes.append(1), None)[1])
+    _ = snap(w, True)
+    _ = snap(w, True)
+    assert len(probes) == 1  # within the interval: the first result is reused
+    shutil.rmtree(w.config.save_path)
+    _ = snap(w, True)  # missing: no probe
+    os.mkdir(w.config.save_path)
+    _ = snap(w, True)  # back: probed at once
+    assert len(probes) == 2

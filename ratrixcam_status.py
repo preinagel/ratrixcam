@@ -19,6 +19,7 @@ from ratrixcam_naming import STATUS_FILENAME, VIDEO_EXT, temp_run_metadata_dir
 from ratrixcam_utils import Config, not_writable, seconds_until_full, stills_dir, write_rate
 
 SCHEMA = 1
+PROBE_INTERVAL = 60  # seconds between write probes of the save drive: a probe creates and removes a file there
 
 
 class StatusWriter:
@@ -43,6 +44,8 @@ class StatusWriter:
         self._save_found: bool = True  # launch checked the drive, so a run starts healthy
         self._save_accepting: bool = True
         self._write_failed: bool = False
+        self._probe_time: float = float("-inf")
+        self._probe_reason: str | None = None
 
     def write(self, cameras_alive: bool, state: str | None = None, message: str | None = None, force: bool = False) -> None:
         """Write the file if preview_interval has passed since the last write, or at once
@@ -79,7 +82,7 @@ class StatusWriter:
         temp = self._drive(self.config.temp_path)
         clips, largest = self._clips_in_temp()
         if save["found"]:
-            reason = not_writable(self.config.save_path)
+            reason = self._probe()
             free = save["free_bytes"]
             clip = largest if largest > 0 else self.rate * self.config.time_slice
             accepting = reason is None and isinstance(free, int) and free >= clip * self._space_factor()
@@ -103,6 +106,16 @@ class StatusWriter:
             "save_drive": save,
             "temp_drive": temp,
         }
+
+    def _probe(self) -> str | None:
+        """The write probe's last result, refreshed at most every PROBE_INTERVAL seconds, or at
+        once after the drive was found missing: a probe is a file created and removed on the
+        save drive, not something to do every second for a week."""
+        now = time.monotonic()
+        if now - self._probe_time >= PROBE_INTERVAL or not self._save_found:
+            self._probe_reason = not_writable(self.config.save_path)
+            self._probe_time = now
+        return self._probe_reason
 
     def _drive(self, path: str) -> dict[str, object]:
         try:
@@ -161,10 +174,11 @@ class StatusWriter:
             self._closed = True
 
     def remove(self) -> None:
-        """Delete the file, after close()."""
-        try:
-            self.path.unlink()
-        except FileNotFoundError:
-            pass
-        except OSError as e:
-            print(f"WARNING: could not remove the status file {self.path}: {e.strerror or e}")
+        """Delete the file, after close(), and a temporary name a failed write may have left."""
+        for path in (self.path, self.path.with_name(self.path.name + ".tmp")):
+            try:
+                path.unlink()
+            except FileNotFoundError:
+                pass
+            except OSError as e:
+                print(f"WARNING: could not remove the status file {path}: {e.strerror or e}")

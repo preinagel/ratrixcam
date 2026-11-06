@@ -21,6 +21,8 @@ import os
 import posixpath
 import re
 import sys
+import threading
+import time
 from functools import partial
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -28,9 +30,14 @@ from typing import Any, cast, final, override
 from urllib.parse import unquote, urlsplit
 
 GUI_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.dirname(GUI_DIR))
+try:
+    from ratrixcam_naming import STATUS_FILENAME as shared_status_filename
+except ImportError:  # the viewer folder copied on its own
+    shared_status_filename = "ratrixcam_status.json"
+STATUS_FILENAME = shared_status_filename
 TEMP_PREFIX = "/temp/"
 LAST_PREFIX = "/last/"
-STATUS_FILENAME = "ratrixcam_status.json"
 LOG_FILENAME = re.compile(r"terminal_ratrixcam_\d{8}_\d{6}_[0-9a-f]+\.log$")
 
 # what was last read from the temp folder, by key: "status.json" (bytes, valid JSON only)
@@ -155,6 +162,16 @@ class ViewerHandler(SimpleHTTPRequestHandler):
         _ = sys.stderr.write("%s - %s\n" % (self.address_string(), format % args))
 
 
+def exit_with_parent(server: ThreadingHTTPServer) -> None:
+    """Stop serving once the process that started this one is gone: the camera program
+    runs the server in its own session, so a forced exit of the program would otherwise
+    leave it holding its port and showing a run that has ended."""
+    parent = os.getppid()
+    while os.getppid() == parent:
+        time.sleep(2)
+    server.shutdown()
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Serve the ratrixcam viewer for one camera temp folder.")
     _ = parser.add_argument("temp_folder", help="the running cameras' temp folder (temp_path in the config)")
@@ -167,6 +184,7 @@ def main() -> int:
         return 1
     server = ThreadingHTTPServer(("127.0.0.1", port), partial(ViewerHandler, temp_dir=temp_dir))
     print(f"ratrixcam viewer: http://127.0.0.1:{port}/   (temp folder {temp_dir}; Ctrl-C to stop)")
+    threading.Thread(target=exit_with_parent, args=(server,), daemon=True).start()
     try:
         server.serve_forever()
     except KeyboardInterrupt:

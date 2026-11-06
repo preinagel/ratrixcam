@@ -32,10 +32,17 @@ from datetime import datetime
 from typing import cast
 
 GUI_DIR = os.path.dirname(os.path.abspath(__file__))
-STATUS_FILENAME = "ratrixcam_status.json"
+sys.path.insert(0, os.path.dirname(GUI_DIR))
+try:
+    from ratrixcam_naming import STATUS_FILENAME as shared_status_filename
+    from ratrixcam_utils import ASSUMED_WRITE_RATE as shared_write_rate
+except ImportError:  # the viewer folder copied on its own
+    shared_status_filename = "ratrixcam_status.json"
+    shared_write_rate = 1e9 / 60  # bytes per second, the camera code's assumed rig write rate
+STATUS_FILENAME = shared_status_filename
+WRITE_RATE = shared_write_rate
 TB = 10**12
 GB = 10**9
-WRITE_RATE = 1e9 / 60  # bytes per second, the camera code's assumed rig write rate
 
 
 def scenario_drives(name: str):

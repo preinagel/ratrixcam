@@ -87,7 +87,7 @@ def status_update_loop(window: tk.Tk, state: State, status: StatusWriter, interv
 
 VIEWER_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "gui", "serve.py")
 VIEWER_PORTS = range(8000, 8010)  # the first free one is used
-VIEWER_START_WAIT = 0.5  # seconds to let the server fail before its port is trusted
+VIEWER_START_WAIT = 3.0  # seconds to wait for the server to answer on its port
 
 
 def start_viewer(temp_path: str) -> tuple[subprocess.Popen[bytes], str] | None:
@@ -105,15 +105,42 @@ def start_viewer(temp_path: str) -> tuple[subprocess.Popen[bytes], str] | None:
         except OSError:
             continue  # in use
         try:
-            server = subprocess.Popen([sys.executable, VIEWER_SCRIPT, temp_path, "--port", str(port)], start_new_session=True)
+            # its output is discarded: it inherits the terminal log's pipe otherwise, and the log
+            # could not close until the server ended; the address is printed by the caller
+            server = subprocess.Popen(
+                [sys.executable, VIEWER_SCRIPT, temp_path, "--port", str(port)],
+                start_new_session=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
         except OSError as e:
             print(f"WARNING: viewer not started: {e.strerror or e}")
             return None
-        time.sleep(VIEWER_START_WAIT)
+        deadline = time.monotonic() + VIEWER_START_WAIT
+        while server.poll() is None and time.monotonic() < deadline:
+            try:
+                socket.create_connection(("127.0.0.1", port), timeout=0.2).close()
+                return server, f"http://127.0.0.1:{port}/"  # it answers: it is serving
+            except OSError:
+                time.sleep(0.1)
         if server.poll() is None:
-            return server, f"http://127.0.0.1:{port}/"
+            server.terminate()
+            print(f"WARNING: viewer not started: the server did not answer on port {port}")
+            return None
     print(f"WARNING: viewer not started: no free port in {VIEWER_PORTS.start}-{VIEWER_PORTS.stop - 1}")
     return None
+
+
+def forced_exit(state: State) -> Callable[[int, FrameType | None], None]:
+    """The handler for a second Ctrl-C: end the process at once, as the default action would,
+    but take the viewer's server with it, since it runs in its own session and would outlive
+    the launcher otherwise."""
+
+    def handler(_sig: int, _frame: FrameType | None) -> None:
+        stop_viewer(state)
+        os._exit(130)
+
+    return handler
 
 
 def stop_viewer(state: State) -> None:
@@ -385,7 +412,7 @@ def close_window(window: tk.Tk) -> None:
 
 
 def graceful_shutdown(state: State, stop_event: Event, abort_event: Event):
-    _ = signal.signal(signal.SIGINT, signal.SIG_DFL)
+    _ = signal.signal(signal.SIGINT, forced_exit(state))
     _ = signal.signal(signal.SIGTERM, signal.SIG_DFL)
 
     if state.current_window is not None:
@@ -419,11 +446,11 @@ def graceful_shutdown(state: State, stop_event: Event, abort_event: Event):
     timeout = 600 #transcoding takes ~50% video duration, so wait 10min before killing unfinished processes
                   #would be better to set this based on the slice duration but this is not available info
     print("Waiting for child processes to terminate...")
-    # PENDING (next commit): on an abort the cameras' final transfers still retry for the whole
-    # window against a drive just declared unusable; an abort event to the cameras will end that
     phase = (
-        f"{verb}.\nStopping the cameras and waiting for the clips in transfer to finish or give up\n"
-        f"(up to {time_left_text(TRANSFER_RETRY_WINDOW + TRANSFER_PAUSE)})."
+        f"{verb}.\nStopping the cameras; their pending transfers are being stopped."
+        if state.abort
+        else f"{verb}.\nStopping the cameras and waiting for the clips in transfer to finish or give up\n"
+        + f"(up to {time_left_text(TRANSFER_RETRY_WINDOW + TRANSFER_PAUSE)})."
     )
     if not wait_until(lambda: not camera_process.is_alive(), timeout, lambda: tick(phase, camera_process.is_alive())):
         print("ratrixcam IO: timed out waiting for child processes to terminate, killing")
@@ -480,7 +507,7 @@ def main():
             "Received signal to terminate, shutting down gracefully.\nTo force exit, press Ctrl+C again; "
             + "once the cameras have stopped, the collection finishes before the program exits."
         )
-        _ = signal.signal(signal.SIGINT, signal.SIG_DFL)
+        _ = signal.signal(signal.SIGINT, forced_exit(state))
         stop_from_signal()
 
     def term_handler(_sig: int, _frame: FrameType | None):
