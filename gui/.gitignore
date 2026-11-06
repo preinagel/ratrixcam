@@ -1,0 +1,3 @@
+# legal values for the config editor's drop-down menus: local to each machine
+local_options.json
+local_options.json.tmp

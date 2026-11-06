@@ -1,0 +1,6 @@
+# sample temp folders are committed except the clips; the repository-wide rules ignore
+# any folder named temp or status, which these samples need
+!temp/
+!*/status/
+*.mp4
+.DS_Store

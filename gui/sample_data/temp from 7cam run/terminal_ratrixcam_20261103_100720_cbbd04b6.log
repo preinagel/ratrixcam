@@ -1,0 +1,84 @@
+ratrixcam run ratrixcam_20261103_100720_cbbd04b6 -- code version 4b4a190 -- computer reinagel-158-155.ucsd.edu 18:4a:53:18:e3:28
+Launched as: /Library/Frameworks/Python.framework/Versions/3.13/bin/python3 /Users/rat_hub_01/Desktop/ratrixcam/ratrixcam_IO.py -c /Users/rat_hub_01/Desktop/cameraconfig261103.json  (working folder /Users/rat_hub_01)
+Temp folder: /Users/rat_hub_01/Desktop/temp/
+Save drive: /Volumes/data/
+Terminal output is being copied to <temp>/terminal_ratrixcam_20261103_100720_cbbd04b6.log
+Stills folder: <temp>/status
+Run metadata folder: <temp>/ratrixcam_run_metadata
+	(moves to <save>/ratrixcam_run_metadata/ratrixcam_20261103_100720_cbbd04b6 at shutdown)
+Removing any old still images
+Provisional copy of the config file: <save>/ratrixcam_run_metadata/ratrixcam_20261103_100720_cbbd04b6
+Settings for 'Test' successfully loaded
+Removing any old still images
+Multicam: Starting cameras...
+Expecting  7 cameras based on config file...
+Multicam: Started camera rat999_face
+Cam_server: Camera rat999_face will now stream to rat999_face_20261103_10-07-22.mp4
+Multicam: Started camera rat999_buddy
+Cam_server: Camera rat999_buddy will now stream to rat999_buddy_20261103_10-07-27.mp4
+Multicam: Started camera rat999_home
+Cam_server: Camera rat999_home will now stream to rat999_home_20261103_10-07-32.mp4
+Multicam: Started camera rat999_foobar
+Cam_server: Camera rat999_foobar will now stream to rat999_foobar_20261103_10-07-37.mp4
+Multicam: Started camera rat000_buddy
+Cam_server: Camera rat000_buddy will now stream to rat000_buddy_20261103_10-07-42.mp4
+Multicam: Started camera rat000_home
+Cam_server: Camera rat000_home will now stream to rat000_home_20261103_10-07-47.mp4
+Multicam: Started camera rat000_random
+Cam_server: Camera rat000_random will now stream to rat000_random_20261103_10-07-52.mp4
+Cam_server: Starting transfer of file:rat999_face_20261103_10-07-22.mp4
+Cam_server: Camera rat999_face will now stream to rat999_face_20261103_10-08-22.mp4
+Cam_server: Starting transfer of file:rat999_buddy_20261103_10-07-27.mp4
+Cam_server: Camera rat999_buddy will now stream to rat999_buddy_20261103_10-08-27.mp4
+Cam_server: Starting transfer of file:rat999_home_20261103_10-07-32.mp4
+Cam_server: Camera rat999_home will now stream to rat999_home_20261103_10-08-32.mp4
+Cam_server: Starting transfer of file:rat999_foobar_20261103_10-07-37.mp4
+Cam_server: Camera rat999_foobar will now stream to rat999_foobar_20261103_10-08-37.mp4
+Cam_server: Starting transfer of file:rat000_buddy_20261103_10-07-42.mp4
+Cam_server: Camera rat000_buddy will now stream to rat000_buddy_20261103_10-08-42.mp4
+Cam_server: Starting transfer of file:rat000_home_20261103_10-07-47.mp4
+Cam_server: Camera rat000_home will now stream to rat000_home_20261103_10-08-47.mp4
+Cam_server: Starting transfer of file:rat000_random_20261103_10-07-52.mp4
+Cam_server: Camera rat000_random will now stream to rat000_random_20261103_10-08-52.mp4
+Cam_server: Starting transfer of file:rat999_face_20261103_10-08-22.mp4
+Cam_server: Camera rat999_face will now stream to rat999_face_20261103_10-09-22.mp4
+Cam_server: Starting transfer of file:rat999_buddy_20261103_10-08-27.mp4
+Cam_server: Camera rat999_buddy will now stream to rat999_buddy_20261103_10-09-27.mp4
+Cam_server: Starting transfer of file:rat999_home_20261103_10-08-32.mp4
+Cam_server: Camera rat999_home will now stream to rat999_home_20261103_10-09-32.mp4
+Cam_server: Starting transfer of file:rat999_foobar_20261103_10-08-37.mp4
+Cam_server: Camera rat999_foobar will now stream to rat999_foobar_20261103_10-09-37.mp4
+Cam_server: Starting transfer of file:rat000_buddy_20261103_10-08-42.mp4
+Cam_server: Camera rat000_buddy will now stream to rat000_buddy_20261103_10-09-42.mp4
+Cam_server: Starting transfer of file:rat000_home_20261103_10-08-47.mp4
+Cam_server: Camera rat000_home will now stream to rat000_home_20261103_10-09-47.mp4
+Cam_server: Starting transfer of file:rat000_random_20261103_10-08-52.mp4
+Cam_server: Camera rat000_random will now stream to rat000_random_20261103_10-09-52.mp4
+Cam_server: Starting transfer of file:rat999_face_20261103_10-09-22.mp4
+Cam_server: Camera rat999_face will now stream to rat999_face_20261103_10-10-22.mp4
+Cam_server: Starting transfer of file:rat999_buddy_20261103_10-09-27.mp4
+Cam_server: Camera rat999_buddy will now stream to rat999_buddy_20261103_10-10-27.mp4
+Cam_server: Starting transfer of file:rat999_home_20261103_10-09-32.mp4
+Cam_server: Camera rat999_home will now stream to rat999_home_20261103_10-10-32.mp4
+Cam_server: Starting transfer of file:rat999_foobar_20261103_10-09-37.mp4
+Cam_server: Camera rat999_foobar will now stream to rat999_foobar_20261103_10-10-37.mp4
+Cam_server: Starting transfer of file:rat000_buddy_20261103_10-09-42.mp4
+Cam_server: Camera rat000_buddy will now stream to rat000_buddy_20261103_10-10-42.mp4
+Cam_server: Starting transfer of file:rat000_home_20261103_10-09-47.mp4
+Cam_server: Camera rat000_home will now stream to rat000_home_20261103_10-10-47.mp4
+Cam_server: Starting transfer of file:rat000_random_20261103_10-09-52.mp4
+Cam_server: Camera rat000_random will now stream to rat000_random_20261103_10-10-52.mp4
+Cam_server: Starting transfer of file:rat999_face_20261103_10-10-22.mp4
+Cam_server: Camera rat999_face will now stream to rat999_face_20261103_10-11-22.mp4
+Cam_server: Starting transfer of file:rat999_buddy_20261103_10-10-27.mp4
+Cam_server: Camera rat999_buddy will now stream to rat999_buddy_20261103_10-11-27.mp4
+Cam_server: Starting transfer of file:rat999_home_20261103_10-10-32.mp4
+Cam_server: Camera rat999_home will now stream to rat999_home_20261103_10-11-32.mp4
+Cam_server: Starting transfer of file:rat999_foobar_20261103_10-10-37.mp4
+Cam_server: Camera rat999_foobar will now stream to rat999_foobar_20261103_10-11-37.mp4
+Cam_server: Starting transfer of file:rat000_buddy_20261103_10-10-42.mp4
+Cam_server: Camera rat000_buddy will now stream to rat000_buddy_20261103_10-11-42.mp4
+Cam_server: Starting transfer of file:rat000_home_20261103_10-10-47.mp4
+Cam_server: Camera rat000_home will now stream to rat000_home_20261103_10-11-47.mp4
+Cam_server: Starting transfer of file:rat000_random_20261103_10-10-52.mp4
+Cam_server: Camera rat000_random will now stream to rat000_random_20261103_10-11-52.mp4

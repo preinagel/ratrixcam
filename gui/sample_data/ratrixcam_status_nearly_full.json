@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "written": "2026-11-02 09:44:12.345",
+  "run": {
+    "run_id": "ratrixcam_20261102_094137_7e5a797f",
+    "started": "2026-11-02 09:41:37.000",
+    "machine_name": "Mac 4"
+  },
+  "save_drive": {
+    "path": "/Volumes/data/",
+    "found": true,
+    "total_bytes": 2000000000000,
+    "used_bytes": 1955000000000,
+    "free_bytes": 45000000000,
+    "seconds_until_full": 2700
+  },
+  "temp_drive": {
+    "path": "/Users/rat_hub_01/Desktop/ratrixcam_test_20261009/temp/",
+    "found": true,
+    "total_bytes": 1000000000000,
+    "used_bytes": 400000000000,
+    "free_bytes": 600000000000,
+    "seconds_until_full": 36000
+  }
+}

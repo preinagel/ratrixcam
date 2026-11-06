@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ratrixcam viewer</title>
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="topbar">
+  <div class="left">
+    <span class="brand">ratrixcam <span>viewer</span></span>
+    <button id="layout-btn" type="button" title="strict: all eight positions keep their place; compact: empty rows and columns are dropped">Layout: strict</button>
+  </div>
+  <span id="machine"></span>
+  <span id="clock"></span>
+</div>
+<div id="banners"></div>
+<main id="grid-wrap"><div id="grid"></div></main>
+<section id="accounting"></section>
+<section id="ended" hidden>
+  <div class="ended-title">Recording run ended</div>
+  <div class="ended-text" id="ended-text"></div>
+</section>
+<script src="viewer.js"></script>
+</body>
+</html>

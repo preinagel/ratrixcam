@@ -1,0 +1,24 @@
+{
+  "save_path": "/Volumes/data/",
+  "temp_path": "/Users/rat_hub_01/Desktop/temp/",
+  "study_label": "Test",
+  "subject_prefix": "rat",
+  "default_crf": 25,
+  "time_slice": 60,
+
+  "default_fps": 30,
+  "default_width": 640,
+  "default_height": 480,
+  "default_cam_exposure": -8.0,
+  "preview_interval": 1,
+
+  "cameras": [
+    {"subjID": "999", "view": "face", "position": "A"},
+    {"subjID": "999", "view": "buddy", "position": "B"},
+    {"subjID": "999", "view": "home", "position": "C"},
+    {"subjID": "999", "view": "foobar", "position": "D"},
+    {"subjID": "000", "view": "buddy", "position": "E"},
+    {"subjID": "000", "view": "home", "position": "F"},
+    {"subjID": "000", "view": "random", "position": "H"}
+  ]
+}
