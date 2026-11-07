@@ -59,7 +59,7 @@ def run(config: Config, stop_event: Event, abort_event: Event | None = None):
     """abort_event, when given and set by the launcher, tells each camera server at its own
     shutdown to leave its last clip and its pending transfers in temp instead of waiting
     for the drive; it is passed straight through to the servers."""
-    print(f"Settings for '{config.study_label}' successfully loaded")
+    print("Settings successfully loaded")
 
     stills_folder = stills_dir(config.temp_path)
     if not ensure_dir_exists(stills_folder):

@@ -4,15 +4,18 @@ import multiprocessing
 import os
 import shutil
 import signal
+import statistics
 import time
 import math
 from datetime import datetime
 from multiprocessing import Process
 from multiprocessing.synchronize import Event
 from types import FrameType
-from typing import NamedTuple
+from collections.abc import Callable
+from typing import NamedTuple, cast
 
 import cv2
+import numpy as np
 from cv2.typing import MatLike
 from pydantic import BaseModel
 
@@ -152,6 +155,77 @@ class CameraParams(BaseModel):
     fps: int
     cam_exposure: float
     crf: int  # ffmpeg quality for this camera's clips, recorded for videoproc
+
+
+WARM_UP_SECONDS = 3.0  # frames read and discarded at launch while the camera's true frame rate and size are
+                       # measured, counted from the first frame: 60 to 90 intervals, enough for the median
+FIRST_FRAME_WAIT = 5.0  # seconds a camera is given to deliver its first frame before it is declared dead
+FPS_TOLERANCE = 1  # a measured rate this close to the requested one is the requested one: cameras drift less
+                   # than this from nominal, and the standard value is what players expect in the label
+
+
+class Measured(NamedTuple):
+    fps: int  # frames per second the camera really delivers, rounded
+    width: int  # of the frames themselves
+    height: int
+    reported_fps: float  # what the capture reports for the same properties after the settings
+    reported_width: int  # were applied: for comparison only, never fed to the writer
+    reported_height: int
+    frames: int  # distinct frames counted during the warm-up
+
+
+def measure_camera(
+    capture: cv2.VideoCapture,
+    seconds: float = WARM_UP_SECONDS,
+    on_frame: Callable[[MatLike], None] | None = None,
+    still_every: float = 1.0,
+    first_frame_wait: float = FIRST_FRAME_WAIT,
+) -> Measured | None:
+    """Read and discard frames for about `seconds` and return what the camera really delivers:
+    the rate as the median interval between consecutive distinct frames, inverted and
+    rounded, and the frames' own size. The median, not the count over the time: a frame the
+    loop missed while busy (writing a still, a loaded machine at launch) doubles one interval
+    and a burst of buffered frames shortens a few, and neither moves the median, where
+    either would pull a count-based rate away from what the camera is doing. A set() the hardware rounded or refused is reported as accepted
+    by some drivers and a writer fed the requested values labels every clip wrongly, or
+    writes nothing when the size is wrong; so the writer gets these. A frame identical to
+    the one before is a backend handing back its latest frame again and is not counted. The
+    first frame is awaited for first_frame_wait; the warm-up is counted from it. None when
+    no frame arrived, and a rate of 0 when only one did: neither is a camera to record from. on_frame, when given, receives a frame every still_every seconds,
+    so the camera's still can be kept fresh while this takes its time."""
+    reported_fps = capture.get(cv2.CAP_PROP_FPS)
+    reported_width = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH))
+    reported_height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    frames = 0
+    previous: MatLike | None = None
+    last = 0.0
+    intervals: list[float] = []
+    next_still = 0.0
+    deadline = time.monotonic() + first_frame_wait
+    while time.monotonic() < deadline:
+        ok, frame = capture.read()
+        if not ok:
+            time.sleep(0.01)  # a camera returning nothing would otherwise spin this loop until the deadline
+            continue
+        if previous is not None and np.array_equal(frame, previous):
+            continue
+        now = time.monotonic()
+        if previous is None:
+            deadline = now + seconds  # the warm-up is counted from the first frame
+        else:
+            intervals.append(now - last)
+        last = now
+        previous = frame
+        frames += 1
+        if on_frame is not None and now >= next_still:
+            on_frame(frame)
+            next_still = now + still_every
+    if previous is None:
+        return None
+    typical = statistics.median(intervals) if intervals else 0.0
+    fps = round(1 / typical) if typical > 0 else 0
+    height, width = cast(tuple[int, ...], previous.shape)[:2]
+    return Measured(fps, width, height, reported_fps, reported_width, reported_height, frames)
 
 
 def save_frame_to_writer(
@@ -313,6 +387,35 @@ def run(config: Config, device_id: int, stop_event: Event, abort_event: Event | 
     if not capture.isOpened():
         print(f"Cam_server: Camera {params.name} Failed to open recording device {device_id}")
         return
+
+    # what the camera really delivers, measured; the writer is opened with these, so every
+    # clip is labelled with its true rate and size (a requested value the hardware rounded
+    # or refused would label it wrongly, and a wrong size would write nothing at all)
+    def write_still(frame: MatLike) -> None:
+        _ = cv2.imwrite(camera_still_path, frame)  # the viewer sees the camera live through the warm-up
+
+    measured = measure_camera(capture, on_frame=write_still, still_every=config.preview_interval)
+    if measured is None or measured.fps == 0:
+        frames = measured.frames if measured is not None else 0
+        print(f"Cam_server: Camera {params.name} delivered {frames} frame(s) in its warm-up, no rate to record at; closing it")
+        capture.release()
+        return
+    # the driver's own report is kept on record only when it disagrees with the measurement:
+    # a long record of silence is the case for trusting it one day
+    if (round(measured.reported_fps), measured.reported_width, measured.reported_height) != (measured.fps, measured.width, measured.height):
+        print(
+            f"Cam_server: the driver reports {measured.reported_fps:g} fps at {measured.reported_width}x{measured.reported_height} "
+            + f"for camera {params.name}, not what it delivers"
+        )
+    fps = params.fps if abs(measured.fps - params.fps) <= FPS_TOLERANCE else measured.fps
+    if (fps, measured.width, measured.height) != (params.fps, params.width, params.height):
+        # nothing is said when the camera delivers what was asked
+        print(
+            f"WARNING: camera {params.name} delivers {fps} fps at {measured.width}x{measured.height}, not the "
+            + f"{params.fps} fps at {params.width}x{params.height} requested"
+        )
+        print(f"WARNING: camera {params.name}'s clips are labelled with the true values, {fps} fps at {measured.width}x{measured.height}")
+    params = params.model_copy(update={"fps": fps, "width": measured.width, "height": measured.height})
 
     count:int = 0  # tracks frames since last still image update
     filecount: int = 0

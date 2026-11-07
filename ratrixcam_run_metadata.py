@@ -218,7 +218,6 @@ class RunMetadata:
         try:
             self.run_dir.mkdir(parents=True, exist_ok=True)
             _ = shutil.copy2(self.config_path, self.run_dir / os.path.basename(self.config_path))
-            print(f"Provisional copy of the config file: {self.short(self.run_dir)}")
         except OSError as e:
             print(f"WARNING: could not write the provisional config copy to {self.short(self.run_dir)}: {e.strerror or e}")
 

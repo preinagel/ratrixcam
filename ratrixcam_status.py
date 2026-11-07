@@ -164,7 +164,9 @@ class StatusWriter:
         clips, and when it is back; nothing while a state persists."""
         if found != self._save_found:
             print(f"WARNING: save drive not found: {self.config.save_path}" if not found else f"Save drive back: {self.config.save_path}")
-        if accepting != self._save_accepting and (found or self._save_found):  # a missing drive's "not accepting" goes without saying
+            if found:
+                self._save_accepting = True  # a drive that is back starts as accepting: a read-only one then reports itself
+        if found and accepting != self._save_accepting:  # a missing drive's "not accepting" goes without saying
             print("WARNING: save drive no longer accepting clips (not writable or short of space)" if not accepting else "Save drive accepting clips again")
         self._save_found, self._save_accepting = found, accepting
 
