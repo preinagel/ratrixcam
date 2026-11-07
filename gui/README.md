@@ -18,7 +18,7 @@ The camera config editor is a separate page with its own server:
 python3 config_editor.py
 ```
 
-Then open http://127.0.0.1:8001/. Its drop-down menus draw on `local_options.json` next to
+It opens http://127.0.0.1:8080/ in the browser (`--no-browser` to only serve). Its drop-down menus draw on `local_options.json` next to
 the script, which is created with placeholder values on first start and belongs to this
 machine.
 

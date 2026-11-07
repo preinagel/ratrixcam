@@ -16,6 +16,7 @@ import os
 import socket
 import sys
 import uuid
+import webbrowser
 from datetime import datetime
 from functools import partial
 from http import HTTPStatus
@@ -322,16 +323,20 @@ class EditorHandler(SimpleHTTPRequestHandler):
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Serve the ratrixcam camera config editor.")
-    _ = parser.add_argument("--port", type=int, default=8001)
+    _ = parser.add_argument("--port", type=int, default=8080, help="away from 8000-8009, where the camera program's viewer lives")
     _ = parser.add_argument("--options", default=OPTIONS_FILE, help="the legal-values file (default: local_options.json next to this script)")
+    _ = parser.add_argument("--no-browser", action="store_true", help="only serve; do not open the page in the browser")
     args = parser.parse_args()
     port = int(cast(int, args.port))
     options_file = os.path.abspath(os.path.expanduser(cast(str, args.options)))
     _ = load_options(options_file)
     server = ThreadingHTTPServer(("127.0.0.1", port), partial(EditorHandler, options_file=options_file))
-    print(f"ratrixcam config editor: http://127.0.0.1:{port}/   (options in {options_file}; Ctrl-C to stop)")
+    address = f"http://127.0.0.1:{port}/"
+    print(f"ratrixcam config editor: {address}   (options in {options_file}; Ctrl-C to stop)")
     if CameraConfigClass is None:
         print("note: the camera code's Config class could not be imported; configs are checked loosely")
+    if not cast(bool, args.no_browser):
+        _ = webbrowser.open(address)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

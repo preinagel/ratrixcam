@@ -33,7 +33,7 @@ def server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Server]:
     options_file = tmp_path_factory.mktemp("options") / "local_options.json"
     port = free_port()
     proc = subprocess.Popen(
-        [sys.executable, str(EDITOR), "--port", str(port), "--options", str(options_file)],
+        [sys.executable, str(EDITOR), "--port", str(port), "--options", str(options_file), "--no-browser"],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     )
     base = f"http://127.0.0.1:{port}"

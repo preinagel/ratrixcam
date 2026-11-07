@@ -34,7 +34,7 @@ cd /Users/rat_hub_01/Desktop/ratrixcam-gui/gui
 python3 serve.py ~/Desktop/temp                              # viewer on a live run, port 8000
 python3 simulate.py "sample_data/temp from 7cam run"         # viewer on a simulated run
 python3 simulate.py sample_data/temp --scenario save_full    # normal|fyi|nearly_full|save_full|no_space|crash|shutdown
-python3 config_editor.py                                     # editor, port 8001
+python3 config_editor.py                                     # editor, port 8080, opens the browser
 ```
 
 Pre-push checks: `basedpyright gui/` must report 0 errors (warnings about `Any` from JSON
