@@ -6,6 +6,11 @@ status
 temp
 LocalConfig.json
 
+# this machine's camera config and compiled launcher scripts; the editor writes the config,
+# cam_start.applescript is the launcher's source
+/config.json
+*.scpt
+
 # site-specific filename rules; local only (see custom_filename_parser_example.py)
 custom_filename_parser.py
 
