@@ -336,6 +336,26 @@ def test_a_failed_copy_is_reported_without_the_raw_error_list(tmp_path, monkeypa
     assert run.log_path.exists()  # the log stays with the folder
 
 
+def test_a_loose_file_named_like_one_in_the_run_folder_is_renamed_not_written_over(tmp_path, capsys):
+    run, temp = start_run_with_a_still(tmp_path)
+    (run.temp_run_dir / NOTES_FILENAME).write_text("the run's notes\n")
+    (temp / NOTES_FILENAME).write_text("a stray notes file at the top of temp\n")
+
+    run.collect_at_shutdown()
+
+    assert (run.run_dir / NOTES_FILENAME).read_text() == "the run's notes\n"
+    assert (run.run_dir / "notes_from_temp.txt").read_text() == "a stray notes file at the top of temp\n"
+    assert "notes.txt moved into the run metadata folder as notes_from_temp.txt: a file of that name was already there" in capsys.readouterr().out
+
+
+def test_free_name_numbers_the_fallback_when_it_is_taken_too(tmp_path):
+    (tmp_path / "notes.txt").write_text("")
+    assert ratrixcam_run_metadata._free_name(tmp_path, "notes.txt").name == "notes_from_temp.txt"
+    (tmp_path / "notes_from_temp.txt").write_text("")
+    assert ratrixcam_run_metadata._free_name(tmp_path, "notes.txt").name == "notes_from_temp3.txt"
+    assert ratrixcam_run_metadata._free_name(tmp_path, "cam").name == "cam"  # nothing there: the name itself
+
+
 def test_a_failed_gathering_skips_the_move(tmp_path, monkeypatch, capsys):
     run, temp = start_run_with_a_still(tmp_path)
 

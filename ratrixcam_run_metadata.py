@@ -451,21 +451,19 @@ class RunMetadata:
                     continue  # the log is closed and moved last; the run folder is the destination; the status file is written until the end
                 if entry.is_file():
                     if entry.name != ".DS_Store":
-                        _ = shutil.move(str(entry), str(self.temp_run_dir / entry.name))
+                        target = _free_name(self.temp_run_dir, entry.name)
+                        if target.name != entry.name:
+                            print(f"{entry.name} moved into the run metadata folder as {target.name}: a file of that name was already there")
+                        _ = shutil.move(str(entry), str(target))
                         gathered += 1
                 elif entry.is_dir() and not _remove_if_empty(entry):
                     # BY DESIGN (design document item 4): a camera folder still holding clips
                     # travels into the metadata folder and from there onto the drive, where
                     # videoproc does not look for clips; the WARNING is their only trace. The
                     # room check before the move is one times the folder's size; the stop-time
-                    # check planned for the next stage demands room for all of temp plus a
-                    # margin before the cleanup starts.
+                    # check demands room for all of temp plus a margin before the cleanup starts.
                     count = sum(1 for f in entry.rglob("*") if f.is_file())
-                    target = self.temp_run_dir / entry.name
-                    n = 1
-                    while target.exists():  # a name the metadata folder already uses
-                        n += 1
-                        target = self.temp_run_dir / f"{entry.name}_from_temp{n if n > 2 else ''}"
+                    target = _free_name(self.temp_run_dir, entry.name)
                     _ = shutil.move(str(entry), str(target))
                     print(f"WARNING: folder {entry.name} with {count} file(s) moved into the run metadata folder")
         except OSError as e:
@@ -575,6 +573,19 @@ def _move_tree(src: Path, dst: Path) -> bool:
         flush_to_device(str(folder))
     shutil.rmtree(src)
     return True
+
+
+def _free_name(folder: Path, name: str) -> Path:
+    """folder/name if nothing is there yet, else the name with _from_temp (then _from_temp3,
+    _from_temp4, ...) before the extension, so that nothing already in the folder is written
+    over by a stray file or folder gathered from temp."""
+    target = folder / name
+    stem, ext = os.path.splitext(name)
+    n = 1
+    while target.exists():
+        n += 1
+        target = folder / f"{stem}_from_temp{n if n > 2 else ''}{ext}"
+    return target
 
 
 def _remove_if_empty(folder: Path) -> bool:

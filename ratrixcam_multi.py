@@ -108,7 +108,10 @@ def run(config: Config, stop_event: Event, abort_event: Event | None = None):
             if camera_state[idx]: #still running
                 continue
             elif cam_up_prev:# not running, but was previously: indicate offline in GUI and terminal
-                _ = shutil.copyfile(BLANK_IMAGE, still_path(stills_folder, name))
+                try:
+                    _ = shutil.copyfile(BLANK_IMAGE, still_path(stills_folder, name))
+                except OSError as e:  # the still is cosmetic; the supervisor must outlive it
+                    print(f"WARNING: could not place the offline image for camera {name}: {e.strerror or e}")
                 print(
                     f"Camera {name} went offline at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}."
                 )

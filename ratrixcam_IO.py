@@ -573,10 +573,6 @@ def main():
         print("ERROR: Stills folder does not exist and could not be created")
         return
 
-    if not ensure_dir_exists(config.temp_path):
-        print("ERROR: Temp streaming folder does not exist and could not be created")
-        return
-
     state.camera_process = Process(target=run_without_handlers, args=(config, stop_event, abort_event))
     state.camera_process.start()
     state.run_metadata.record_start()

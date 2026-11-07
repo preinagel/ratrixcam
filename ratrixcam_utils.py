@@ -140,8 +140,14 @@ def place_offline_stills(config: Config):
 # -----------------------------------------------------------
 # BEGIN FUNCTION DEFS
 def load_settings(json_path: str) -> Config | None:
-    with open(json_path, "r") as myfile:
-        json = myfile.read()
+    """The config file as a Config, or None after one ERROR line: the file cannot be read, or
+    its content fails the checks."""
+    try:
+        with open(json_path, "r") as myfile:
+            json = myfile.read()
+    except OSError as e:
+        print(f"ERROR: cannot read the config file {json_path}: {e.strerror or e}")
+        return None
     try:
         config = Config.model_validate_json(json)
     except ValidationError as e:

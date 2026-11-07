@@ -61,7 +61,7 @@ def move_file(
     time.sleep(TRANSFER_PAUSE if pause is None else pause)  # pause before first attempt reduces failures
     name = os.path.basename(temp_file)
     if not os.path.exists(temp_file):
-        print(f"WARNING: the temp file '{temp_file}' was not found!")
+        print(f"WARNING: {name} was not found in its temp folder {os.path.basename(os.path.dirname(temp_file))}; nothing to transfer")
         return False
     try:
         size = os.path.getsize(temp_file)
