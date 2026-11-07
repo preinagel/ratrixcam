@@ -153,7 +153,7 @@ class CameraParams(BaseModel):
     width: int
     height: int
     fps: int
-    cam_exposure: float
+    cam_exposure: float  # read from the config, unused: the exposure set is disabled (GitHub #51)
     crf: int  # ffmpeg quality for this camera's clips, recorded for videoproc
 
 
@@ -382,7 +382,12 @@ def run(config: Config, device_id: int, stop_event: Event, abort_event: Event | 
     _ = capture.set(cv2.CAP_PROP_FRAME_WIDTH, params.width)
     _ = capture.set(cv2.CAP_PROP_FRAME_HEIGHT, params.height)
     _ = capture.set(cv2.CAP_PROP_FPS, params.fps)
-    _ = capture.set(cv2.CAP_PROP_EXPOSURE, params.cam_exposure)
+    # DISABLED (GitHub #51): the AVFoundation backend on macOS does not implement CAP_PROP_EXPOSURE
+    # or CAP_PROP_AUTO_EXPOSURE (set() returns False, get() returns 0), so this never had an effect;
+    # the cameras run their own auto-exposure. To re-enable on V4L2 or DirectShow: set
+    # CAP_PROP_AUTO_EXPOSURE to manual first where the backend needs it, set CAP_PROP_EXPOSURE in
+    # that backend's units, check set()'s return value and read the value back before trusting it.
+    # _ = capture.set(cv2.CAP_PROP_EXPOSURE, params.cam_exposure)
 
     if not capture.isOpened():
         print(f"Cam_server: Camera {params.name} Failed to open recording device {device_id}")

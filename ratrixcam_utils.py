@@ -20,7 +20,7 @@ class CameraConfig(BaseModel):
     fps: int | None = None
     width: int | None = None
     height: int | None = None
-    exposure: float | None = None  # LUT code for camera exposure setting, eg -8
+    exposure: float | None = None  # read but unused on macOS (GitHub #51)
 
 
 class Config(BaseModel):
@@ -34,7 +34,7 @@ class Config(BaseModel):
     default_fps: int
     default_width: int
     default_height: int
-    default_cam_exposure: float  # LUT code for camera exposure setting, eg -8
+    default_cam_exposure: float  # read but unused on macOS (GitHub #51); still required in every config
     time_slice: int
     preview_interval: int
     save_path: str  # final destination folder for video files

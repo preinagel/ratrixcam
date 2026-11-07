@@ -51,12 +51,10 @@ PLACEHOLDER_OPTIONS: dict[str, list[Any]] = {
     "default_crf": [25],
     "default_fps": [30],
     "default_resolution": ["640x480"],
-    "default_cam_exposure": [-8.0],
     "preview_interval": [1],
     "camera_crf": [],
     "camera_fps": [],
     "camera_resolution": [],
-    "camera_exposure": [],
 }
 # what the advanced fields are set to on a fresh form
 PRESETS: dict[str, Any] = {

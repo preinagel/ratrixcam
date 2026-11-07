@@ -32,7 +32,6 @@ const ADVANCED_FIELDS = [
   { key: "default_crf", label: "Default crf", kind: "int", min: 0, max: 51 },
   { key: "default_fps", label: "Default fps", kind: "int", min: 1, max: 240 },
   { key: "default_resolution", label: "Default resolution", kind: "resolution" },
-  { key: "default_cam_exposure", label: "Default LUT code", kind: "float", min: -20, max: 20 },
   { key: "preview_interval", label: "Still image interval (s)", kind: "int", min: 1, max: 3600 },
 ];
 // per camera: the required name fields, the position, then optional overrides of the
@@ -44,8 +43,10 @@ const CAMERA_FIELDS = [
   { key: "crf", label: "crf", kind: "int", min: 0, max: 51, options: "camera_crf", optional: true },
   { key: "fps", label: "fps", kind: "int", min: 1, max: 240, options: "camera_fps", optional: true },
   { key: "resolution", label: "Resolution", kind: "resolution", options: "camera_resolution", optional: true },
-  { key: "exposure", label: "LUT", kind: "float", min: -20, max: 20, options: "camera_exposure", optional: true },
 ];
+// not on the form, kept in the file: the exposure setting has no effect on macOS (GitHub #51),
+// but the camera code still requires default_cam_exposure, and a loaded file's values are preserved
+const HIDDEN_DEFAULT_CAM_EXPOSURE = -8.0;
 // the file's key order (the server writes the same): run-level, cameras, then the defaults
 const FILE_KEY_ORDER = ["machine_name", "save_path", "temp_path", "study_label", "subject_prefix", "time_slice", "cameras",
   "default_crf", "default_fps", "default_width", "default_height", "default_cam_exposure", "preview_interval"];
@@ -61,6 +62,7 @@ function emptyConfig() {
   const c = {};
   for (const f of RUN_FIELDS) c[f.key] = null;
   for (const f of ADVANCED_FIELDS) c[f.key] = presets[f.key] != null ? presets[f.key] : null;
+  c.default_cam_exposure = presets.default_cam_exposure != null ? presets.default_cam_exposure : HIDDEN_DEFAULT_CAM_EXPOSURE;
   c.cameras = [emptyCamera()];
   return c;
 }
@@ -392,10 +394,12 @@ async function loadFile() {
   const src = data.config;
   const c = emptyConfig();
   for (const f of [...RUN_FIELDS, ...ADVANCED_FIELDS]) if (f.key !== "default_resolution" && src[f.key] !== undefined) c[f.key] = src[f.key];
+  if (src.default_cam_exposure !== undefined) c.default_cam_exposure = src.default_cam_exposure;
   c.default_resolution = resolutionOf(src.default_width, src.default_height);
   c.cameras = (Array.isArray(src.cameras) ? src.cameras : []).map((s) => {
     const cam = emptyCamera();
     for (const f of CAMERA_FIELDS) if (f.key !== "resolution" && s[f.key] !== undefined) cam[f.key] = s[f.key];
+    if (s.exposure !== undefined) cam.exposure = s.exposure;
     cam.resolution = resolutionOf(s.width, s.height);
     return cam;
   });
