@@ -35,7 +35,7 @@ from ratrixcam_naming import (
     temp_run_metadata_dir,
     terminal_log_filename,
 )
-from ratrixcam_utils import Config, ensure_dir_exists, flush_to_device, not_writable, stills_dir
+from ratrixcam_utils import Config, ensure_dir_exists, flush_to_device, not_writable, opens_as_video, stills_dir
 
 LOG_START_ATTEMPTS = 3
 LOG_START_RETRY_DELAY = 0.5  # seconds
@@ -367,7 +367,7 @@ class RunMetadata:
         unlisted. Returns (deleted, kept)."""
         deleted = kept = 0
         for clip in unlisted:
-            if _opens_as_video(clip):
+            if opens_as_video(str(clip)):
                 kept += 1
                 print(f"WARNING: {clip.name} has no manifest row but opens as video; kept")
             elif not all_read:
@@ -398,7 +398,7 @@ class RunMetadata:
             partial = out + PARTIAL_SUFFIX
             if name in in_temp or os.path.exists(out) or not os.path.exists(partial):
                 continue
-            if not _opens_as_video(Path(partial)):
+            if not opens_as_video(partial):
                 print(f"WARNING: {self.short(partial)} is a partial copy that cannot be opened as video; left in place")
                 continue
             try:
@@ -526,18 +526,6 @@ class RunMetadata:
                     failed += 1
                     print(f"WARNING: could not add {fields['path']} to {self.short(manifest_path)} at cleanup: {e.strerror or e}")
         print(f"Manifest rows added at cleanup: {added}" + (f" ({failed} could not be added)" if failed else ""))
-
-
-def _opens_as_video(path: Path) -> bool:
-    """Whether OpenCV can open the file and read a frame from it. A clip whose writer was
-    never released (a camera killed mid-clip) has no index and fails here."""
-    import cv2  # heavy; imported where used
-
-    capture = cv2.VideoCapture(str(path))
-    try:
-        return capture.isOpened() and capture.read()[0]
-    finally:
-        capture.release()
 
 
 def _error_text(e: OSError) -> str:

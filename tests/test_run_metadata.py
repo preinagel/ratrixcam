@@ -678,3 +678,18 @@ def test_the_end_message_counts_the_clips_that_did_not_transfer(tmp_path, no_tra
     final = json.loads((run.run_dir / STATUS_FILENAME).read_text())
     assert final["run"]["message"].endswith("; temp folder removed; 1 clip(s) not transferred travel inside it")
     assert not temp.exists()
+
+
+def test_a_superseded_temp_copy_counts_as_not_transferred_and_travels_with_its_folder(tmp_path, capsys):
+    from test_move_file import openable_clip
+
+    run, temp, clip = start_run_with_a_stranded_clip(tmp_path)
+    _ = openable_clip(clip, frames=3)  # the stranded copy, small
+    _ = openable_clip(Path(run.config.save_path) / DAY / CLIP, frames=40)  # the drive already holds a larger one
+
+    run.collect_at_shutdown()
+
+    out = capsys.readouterr().out
+    assert "Clips found in temp: 1; 0 transferred, 1 not transferred" in out
+    assert f"{CLIP} transferred" not in out
+    assert (run.run_dir / "Test_subj001_cam1" / "subj001_cam1_20260102_03-04-05_superseded.mp4").exists()

@@ -88,6 +88,19 @@ def not_writable(folder: str) -> str | None:
     return None
 
 
+def opens_as_video(path: str) -> bool:
+    """Whether OpenCV can open the file and read a frame from it. A clip whose writer was
+    never released (a camera killed mid-clip) has no index and fails here. Used by the
+    shutdown cleanup and by the clip transfer."""
+    import cv2  # heavy; imported where used
+
+    capture = cv2.VideoCapture(path)
+    try:
+        return capture.isOpened() and capture.read()[0]
+    finally:
+        capture.release()
+
+
 def flush_to_device(path: str) -> None:
     """Push a file's data, or a folder's entries, out of the OS write cache onto the drive, so
     that a drive pulled right afterwards still holds it. F_FULLFSYNC (macOS) also empties the

@@ -314,3 +314,81 @@ def test_close_writer_without_transfer_releases_and_lists_the_clip(tmp_path: Pat
     assert "c.mp4 closed and left in temp (run aborted)" in capsys.readouterr().out
     assert "Test_subj001_cam1_20260102/c.mp4" in Path(manifest.path).read_text()
     assert cv2.VideoCapture(str(cam_dir / "c.mp4")).isOpened()  # finalised, so it opens
+
+
+# ------------------------------------------------- a file already carrying the clip's name at the destination
+
+def openable_clip(path: Path, frames: int) -> int:
+    """A real mp4 of `frames` frames at path; returns its size."""
+    import cv2
+    import numpy as np
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    writer = cv2.VideoWriter(str(path), cv2.VideoWriter.fourcc(*"mp4v"), 10, (64, 48))
+    assert writer.isOpened()
+    for i in range(frames):
+        writer.write(np.full((48, 64, 3), i * 7 % 256, dtype=np.uint8))
+    writer.release()
+    return path.stat().st_size
+
+
+def test_an_identical_clip_on_the_drive_means_nothing_to_copy(clip: Clip, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]):
+    day = Path(clip.out_file).parent
+    day.mkdir()
+    Path(clip.out_file).write_bytes(CLIP)  # transferred earlier; only the temp copy survived
+    monkeypatch.setattr(shutil, "copy2", lambda *a: pytest.fail("nothing should be copied"))
+    assert server.move_file(*clip) is True
+    assert not os.path.exists(clip.temp_file)
+    assert Path(clip.out_file).read_bytes() == CLIP
+    assert os.listdir(day) == ["c.mp4"]
+    out = capsys.readouterr().out
+    assert "c.mp4 is already on the drive, identical (5000 bytes); the temp copy is removed" in out
+    assert "WARNING" not in out
+
+
+def test_an_unopenable_file_on_the_drive_is_replaced_by_the_openable_temp_clip(clip: Clip, capsys: pytest.CaptureFixture[str]):
+    size = openable_clip(Path(clip.temp_file), frames=5)
+    Path(clip.out_file).parent.mkdir()
+    Path(clip.out_file).write_bytes(b"junk that carries the clip's name")
+    assert server.move_file(*clip) is True
+    assert Path(clip.out_file).stat().st_size == size
+    assert not os.path.exists(clip.temp_file)
+    assert sorted(os.listdir(Path(clip.out_file).parent)) == ["c.mp4"]
+    out = capsys.readouterr().out
+    assert "WARNING: c.mp4 is on the drive already and differs" in out and "cannot be opened as video and is replaced" in out
+
+
+def test_an_unopenable_temp_clip_is_deleted_when_the_drive_holds_an_openable_one(clip: Clip, capsys: pytest.CaptureFixture[str]):
+    size = openable_clip(Path(clip.out_file), frames=5)  # the temp copy is the fixture's 5000 bytes of 'x'
+    assert server.move_file(*clip) is True
+    assert not os.path.exists(clip.temp_file)
+    assert Path(clip.out_file).stat().st_size == size
+    assert sorted(os.listdir(Path(clip.out_file).parent)) == ["c.mp4"]
+    out = capsys.readouterr().out
+    assert "WARNING: c.mp4 is on the drive already and differs" in out and "the temp copy cannot be opened as video and is deleted" in out
+
+
+def test_when_both_open_the_larger_keeps_the_name_and_the_smaller_is_renamed(clip: Clip, capsys: pytest.CaptureFixture[str]):
+    big = openable_clip(Path(clip.temp_file), frames=40)
+    small = openable_clip(Path(clip.out_file), frames=3)
+    assert big > small
+    assert server.move_file(*clip) is True
+    day = Path(clip.out_file).parent
+    assert Path(clip.out_file).stat().st_size == big
+    assert (day / "c_superseded.mp4").stat().st_size == small  # left where it was found, under no clip's name
+    assert not os.path.exists(clip.temp_file)
+    out = capsys.readouterr().out
+    assert "both open as video" in out and "the file on the drive is renamed c_superseded.mp4 and the temp copy is transferred" in out
+
+
+def test_when_both_open_and_the_drive_has_the_larger_the_temp_copy_is_renamed_in_place(clip: Clip, capsys: pytest.CaptureFixture[str]):
+    small = openable_clip(Path(clip.temp_file), frames=3)
+    big = openable_clip(Path(clip.out_file), frames=40)
+    assert server.move_file(*clip) is False  # the drive keeps its clip; this copy did not transfer
+    assert Path(clip.out_file).stat().st_size == big  # untouched
+    temp_dir = Path(clip.temp_file).parent
+    assert sorted(os.listdir(temp_dir)) == ["c_superseded.mp4"]
+    assert (temp_dir / "c_superseded.mp4").stat().st_size == small
+    out = capsys.readouterr().out
+    assert "the file on the drive keeps the name and the temp copy is renamed c_superseded.mp4" in out
+    assert "could not be removed" not in out and "gave up" not in out  # final at once: no retries, no give-up line

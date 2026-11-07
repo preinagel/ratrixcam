@@ -21,7 +21,7 @@ from pydantic import BaseModel
 
 from ratrixcam_manifest import ManifestMetadata
 from ratrixcam_naming import camera_name, clip_filename, still_path
-from ratrixcam_utils import Config, ensure_dir_exists, flush_to_device, load_settings, stills_dir
+from ratrixcam_utils import Config, ensure_dir_exists, flush_to_device, load_settings, opens_as_video, stills_dir
 
 video_codec = cv2.VideoWriter.fourcc(*"mp4v")
 
@@ -76,6 +76,8 @@ def move_file(
         problem = _transfer_attempt(temp_file, out_file, save_root, size, xfer_mode)
         if problem is None:
             break
+        if problem == SUPERSEDED:
+            return False  # final, already reported: the drive keeps its larger clip, this copy stays in temp under another name
         if time.monotonic() >= deadline:
             try:
                 if os.path.exists(out_file + PARTIAL_SUFFIX):
@@ -88,9 +90,80 @@ def move_file(
 
     try:
         os.remove(temp_file)
+    except FileNotFoundError:
+        pass  # already gone: a collision at the destination left it under another name, or removed it
     except OSError as e:
         print(f"WARNING: {name} transferred, but its temp copy could not be removed ({e.strerror or e})")
     return True
+
+
+SUPERSEDED_SUFFIX = "_superseded"  # a damaged or smaller twin of a clip, renamed so it carries no clip's name
+SUPERSEDED = "temp copy superseded"  # an attempt's outcome that is final: the temp copy was renamed in place
+COMPARE_CHUNK = 1 << 20  # bytes read at a time when two files are compared
+
+
+def _same_content(a: str, b: str) -> bool:
+    """Whether the two files hold the same bytes, read in chunks and stopped at the first
+    difference. No hashing: the identical case reads both to the end, which is no more I/O
+    than the copy it saves."""
+    with open(a, "rb") as fa, open(b, "rb") as fb:
+        while True:
+            ca, cb = fa.read(COMPARE_CHUNK), fb.read(COMPARE_CHUNK)
+            if ca != cb:
+                return False
+            if not ca:
+                return True
+
+
+def _superseded_name(path: str) -> str:
+    """path with SUPERSEDED_SUFFIX before the extension, numbered if that name is taken."""
+    stem, ext = os.path.splitext(path)
+    candidate = f"{stem}{SUPERSEDED_SUFFIX}{ext}"
+    n = 1
+    while os.path.exists(candidate):
+        n += 1
+        candidate = f"{stem}{SUPERSEDED_SUFFIX}{n}{ext}"
+    return candidate
+
+
+def _resolve_collision(temp_file: str, out_file: str, size: int) -> str | None:
+    """A file already carries the clip's name at the destination: decide what to do before
+    any copy. Returns None when the copy should go ahead, "done" when the drive holds the
+    clip and there is nothing to copy (the caller removes the temp copy), or SUPERSEDED
+    when the temp copy was renamed in place: the drive keeps the clip, but this copy did
+    not transfer, which the caller reports as such with no retry. Within a run no collision can
+    arise (names are per camera and per second); this runs on a re-request at cleanup.
+    Identical content: the clip was transferred earlier and only its temp copy survived;
+    nothing to copy, the caller removes the temp copy. Otherwise one of the two is the clip
+    and the other damaged: the one OpenCV can open keeps the name and the other is deleted;
+    when both open (or neither), the larger keeps the name and the smaller is renamed with
+    SUPERSEDED_SUFFIX where it lies, so it carries no clip's name. Every outcome but the
+    identical one is a WARNING naming both files, their sizes and the rule. Raises OSError
+    on a failure, which the caller reports as a failed attempt."""
+    name = os.path.basename(temp_file)
+    dest_size = os.path.getsize(out_file)
+    if dest_size == size and _same_content(temp_file, out_file):
+        print(f"{name} is already on the drive, identical ({size} bytes); the temp copy is removed")
+        return "done"
+    temp_ok, dest_ok = opens_as_video(temp_file), opens_as_video(out_file)
+    both = f"temp copy {size} bytes, on the drive {dest_size} bytes"
+    if dest_ok and not temp_ok:
+        print(f"WARNING: {name} is on the drive already and differs ({both}); the temp copy cannot be opened as video and is deleted")
+        return "done"  # the caller removes the temp copy
+    if temp_ok and not dest_ok:
+        os.remove(out_file)
+        print(f"WARNING: {name} is on the drive already and differs ({both}); the file on the drive cannot be opened as video and is replaced")
+        return None
+    opening = "both open as video" if temp_ok else "neither opens as video"
+    if size > dest_size:
+        renamed = _superseded_name(out_file)
+        os.replace(out_file, renamed)
+        print(f"WARNING: {name} is on the drive already and differs ({both}, {opening}); the larger wins: the file on the drive is renamed {os.path.basename(renamed)} and the temp copy is transferred")
+        return None
+    renamed = _superseded_name(temp_file)
+    os.replace(temp_file, renamed)
+    print(f"WARNING: {name} is on the drive already and differs ({both}, {opening}); the larger wins: the file on the drive keeps the name and the temp copy is renamed {os.path.basename(renamed)}")
+    return SUPERSEDED
 
 
 PARTIAL_SUFFIX = ".part"  # a clip is copied under this suffix and renamed once its size is verified,
@@ -118,6 +191,12 @@ def _transfer_attempt(temp_file: str, out_file: str, save_root: str, size: int, 
     if free < size * TRANSFER_SPACE_FACTOR:
         return "destination short of space"
     try:
+        if os.path.exists(out_file):
+            outcome = _resolve_collision(temp_file, out_file, size)
+            if outcome == SUPERSEDED:
+                return SUPERSEDED
+            if outcome is not None:
+                return None  # nothing to copy: the drive holds the clip
         if xfer_mode == "copy":
             partial = out_file + PARTIAL_SUFFIX
             _ = shutil.copy2(temp_file, partial)
