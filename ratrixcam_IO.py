@@ -25,7 +25,6 @@ from ratrixcam_server import TRANSFER_PAUSE, TRANSFER_RETRY_WINDOW
 from ratrixcam_status import StatusWriter
 from ratrixcam_utils import (
     Config,
-    ensure_config_file_exists,
     ensure_dir_exists,
     load_settings,
     not_writable,
@@ -529,7 +528,9 @@ def main():
     args = vars(parser.parse_args())
     config_path: str = args["config"]  # pyright: ignore[reportAny]  # argparse hands back Any
 
-    ensure_config_file_exists(config_path)
+    if not os.path.isfile(config_path):
+        print(f"ERROR: config file not found: {config_path}")
+        return
 
     config = load_settings(config_path)
     if config is None:

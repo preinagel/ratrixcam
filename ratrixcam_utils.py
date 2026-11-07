@@ -58,21 +58,6 @@ def ensure_dir_exists(path: str) -> bool:
     return False
 
 
-def ensure_config_file_exists(config_file: str):
-    if not os.path.isfile(config_file):
-        try:
-            _ = shutil.copy(
-                os.path.join(
-                    os.path.dirname(os.path.abspath(__file__)), "default_config.json"
-                ),
-                config_file,
-            )
-        except Exception as e:
-            print("Fatal Error: failed to find settings file " + config_file)
-            print(type(e), e)
-            return
-
-
 # image shown for a camera that has no still yet or has gone offline
 BLANK_IMAGE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "blanks", "offline_status.png")
 
