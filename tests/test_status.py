@@ -193,3 +193,17 @@ def test_the_write_probe_runs_once_per_interval_and_at_once_after_the_drive_was_
     os.mkdir(w.config.save_path)
     _ = snap(w, True)  # back: probed at once
     assert len(probes) == 2
+
+
+def test_a_drive_back_but_read_only_reports_both_transitions(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]):
+    w = writer(tmp_path)
+    monkeypatch.setattr(ratrixcam_status, "PROBE_INTERVAL", 0)
+    shutil.rmtree(w.config.save_path)
+    w.write(cameras_alive=True, force=True)  # gone: one line, "not accepting" goes without saying
+    monkeypatch.setattr(ratrixcam_status, "not_writable", lambda _f: "Read-only file system")
+    os.mkdir(w.config.save_path)
+    w.write(cameras_alive=True, force=True)  # back, but read-only: both lines
+    out = capsys.readouterr().out
+    assert out.count("WARNING: save drive not found") == 1
+    assert out.count("Save drive back") == 1
+    assert out.count("WARNING: save drive no longer accepting clips") == 1

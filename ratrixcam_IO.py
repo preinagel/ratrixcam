@@ -32,6 +32,7 @@ from ratrixcam_utils import (
     seconds_until_full,
     stills_dir,
     temp_is_clear,
+    write_rate,
 )
 
 
@@ -131,12 +132,16 @@ def start_viewer(temp_path: str) -> tuple[subprocess.Popen[bytes], str] | None:
     return None
 
 
-def forced_exit(state: State) -> Callable[[int, FrameType | None], None]:
+def forced_exit(state: State, stop_event: Event, abort_event: Event) -> Callable[[int, FrameType | None], None]:
     """The handler for a second Ctrl-C: end the process at once, as the default action would,
-    but take the viewer's server with it, since it runs in its own session and would outlive
+    but first set the abort and stop events, so that the camera servers, which ignore the
+    terminal's signal, wind down on their own instead of recording on with no launcher, and
+    take the viewer's server with it, since it runs in its own session and would outlive
     the launcher otherwise."""
 
     def handler(_sig: int, _frame: FrameType | None) -> None:
+        abort_event.set()
+        stop_event.set()
         stop_viewer(state)
         os._exit(130)
 
@@ -194,7 +199,7 @@ def stop_requested(state: State, window: tk.Tk | None) -> bool:
         print(f"Stop requested, save drive check failed: {problem}")
         # SSD Ready re-runs the check inside the dialog, never the cached result; the
         # dialog returns 'ready' only once a check has passed
-        choice = replace_ssd_dialog(window, problem, lambda: save_drive_problem(config), config.temp_path)
+        choice = replace_ssd_dialog(window, problem, lambda: save_drive_problem(config), config)
         if choice == "continue":
             print("Continue Run chosen: recording goes on")
             return False
@@ -208,27 +213,28 @@ def stop_requested(state: State, window: tk.Tk | None) -> bool:
         state.stopping = False
 
 
-def temp_time_left_text(temp_path: str) -> str:
+def temp_time_left_text(config: Config) -> str:
     """How long the cameras can go on before the temp drive is full, at the assumed write
-    rate, or 'unknown' if the drive cannot be queried."""
+    rate scaled to this rig's camera count, or 'unknown' if the drive cannot be queried."""
     try:
-        return time_left_text(seconds_until_full(shutil.disk_usage(temp_path).free))
+        free = shutil.disk_usage(config.temp_path).free
     except OSError:
         return "unknown"
+    return time_left_text(seconds_until_full(free, write_rate(len(config.cameras))))
 
 
-def replace_ssd_text(problem: str, temp_path: str) -> str:
+def replace_ssd_text(problem: str, config: Config) -> str:
     """The body of the Replace SSD dialog for this problem."""
     return (
         f"{problem}\n\n"
         "This drive cannot take the files waiting in the temp folder. Recording continues while this window is up.\n"
         "Eject it and mount a drive with enough space at the same path, then press SSD Ready.\n"
         "Abort Run ends the run with every file left in the temp folder.\n"
-        f"Continue Run returns to recording; the temp drive has room for {temp_time_left_text(temp_path)} more."
+        f"Continue Run returns to recording; the temp drive has room for {temp_time_left_text(config)} more."
     )
 
 
-def replace_ssd_dialog(window: tk.Tk, problem: str, check: Callable[[], str | None], temp_path: str) -> str:
+def replace_ssd_dialog(window: tk.Tk, problem: str, check: Callable[[], str | None], config: Config) -> str:
     """Block on a small window telling the operator what is wrong with the save drive, with
     three buttons; returns 'ready' once a check has passed, else 'abort' or 'continue'. SSD
     Ready runs the check again from inside the window: the buttons go dead, "Checking the
@@ -249,7 +255,7 @@ def replace_ssd_dialog(window: tk.Tk, problem: str, check: Callable[[], str | No
         dialog.destroy()
 
     dialog.protocol("WM_DELETE_WINDOW", lambda: choose("continue"))
-    message = tk.Label(dialog, text=replace_ssd_text(problem, temp_path), justify="left", wraplength=520, padx=16, pady=12)
+    message = tk.Label(dialog, text=replace_ssd_text(problem, config), justify="left", wraplength=520, padx=16, pady=12)
     message.pack()
     status = tk.Label(dialog, text="", justify="left", wraplength=520, padx=16, fg="#a00000")
     status.pack()
@@ -270,7 +276,7 @@ def replace_ssd_dialog(window: tk.Tk, problem: str, check: Callable[[], str | No
             choose("ready")
             return
         print(f"SSD Ready pressed, save drive check failed again: {found}")
-        _ = message.config(text=replace_ssd_text(found, temp_path))
+        _ = message.config(text=replace_ssd_text(found, config))
         _ = status.config(text=f"Checked {checks['count']} time(s), last at {dt.datetime.now():%H:%M:%S}: still {found}")
         dialog.protocol("WM_DELETE_WINDOW", lambda: choose("continue"))
         for button in buttons:
@@ -412,7 +418,7 @@ def close_window(window: tk.Tk) -> None:
 
 
 def graceful_shutdown(state: State, stop_event: Event, abort_event: Event):
-    _ = signal.signal(signal.SIGINT, forced_exit(state))
+    _ = signal.signal(signal.SIGINT, forced_exit(state, stop_event, abort_event))
     _ = signal.signal(signal.SIGTERM, signal.SIG_DFL)
 
     if state.current_window is not None:
@@ -507,7 +513,7 @@ def main():
             "Received signal to terminate, shutting down gracefully.\nTo force exit, press Ctrl+C again; "
             + "once the cameras have stopped, the collection finishes before the program exits."
         )
-        _ = signal.signal(signal.SIGINT, forced_exit(state))
+        _ = signal.signal(signal.SIGINT, forced_exit(state, stop_event, abort_event))
         stop_from_signal()
 
     def term_handler(_sig: int, _frame: FrameType | None):

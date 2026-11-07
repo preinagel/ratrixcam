@@ -65,6 +65,13 @@ def labels_in_dialog(tk, root) -> list[str]:
 PROBLEM = "SSD drive full: 1.0 GB needed for the files in temp, 0.1 GB free"
 
 
+def one_camera(tmp_path):
+    """A stand-in config with one camera and tmp_path as the temp folder."""
+    from types import SimpleNamespace
+
+    return SimpleNamespace(temp_path=str(tmp_path), cameras=[object()])
+
+
 @pytest.fixture
 def no_check_pause(monkeypatch):
     monkeypatch.setattr(io, "CHECK_PAUSE", 0)
@@ -75,7 +82,7 @@ def test_replace_ssd_dialog_returns_the_choice_pressed(tmp_path, no_check_pause)
     results = []
     for label in io.REPLACE_SSD_CHOICES:
         root.after(50, press_in_dialog, tk, root, label)
-        results.append(io.replace_ssd_dialog(root, PROBLEM, lambda: None, str(tmp_path)))  # the check passes
+        results.append(io.replace_ssd_dialog(root, PROBLEM, lambda: None, one_camera(tmp_path)))  # the check passes
     root.destroy()
     assert results == ["ready", "abort", "continue"]
 
@@ -96,7 +103,7 @@ def test_ssd_ready_checks_again_in_place_until_the_check_passes(tmp_path, no_che
             root.after(50, press_and_look)
 
     root.after(50, press_and_look)
-    result = io.replace_ssd_dialog(root, PROBLEM, lambda: next(outcomes), str(tmp_path))
+    result = io.replace_ssd_dialog(root, PROBLEM, lambda: next(outcomes), one_camera(tmp_path))
     root.destroy()
     assert result == "ready"
     assert len(set(map(id, dialogs))) == 1  # one window throughout, never recreated
@@ -112,8 +119,9 @@ def test_replace_ssd_text_says_how_long_temp_can_go_on(tmp_path, monkeypatch):
     from collections import namedtuple
 
     Usage = namedtuple("Usage", "total used free")
-    monkeypatch.setattr(shutil, "disk_usage", lambda _p: Usage(10**12, 10**12 - int(RATE * 1800), int(RATE * 1800)))
-    text = io.replace_ssd_text(PROBLEM, str(tmp_path))
+    free = int(RATE / 8 * 1800)  # 30 minutes at one camera's share of the 8-camera rate
+    monkeypatch.setattr(shutil, "disk_usage", lambda _p: Usage(10**12, 10**12 - free, free))
+    text = io.replace_ssd_text(PROBLEM, one_camera(tmp_path))
     assert text.startswith(PROBLEM)
     assert "finish" not in text
     assert text.endswith("Continue Run returns to recording; the temp drive has room for ~30 min more.")
@@ -123,7 +131,7 @@ def test_replace_ssd_dialog_closed_by_its_close_box_means_continue(tmp_path):
     tk, root = hidden_root()
 
     root.after(50, lambda: the_dialog(tk, root).destroy())  # what the window manager does when the close box is used
-    result = io.replace_ssd_dialog(root, "SSD drive not reachable", lambda: None, str(tmp_path))
+    result = io.replace_ssd_dialog(root, "SSD drive not reachable", lambda: None, one_camera(tmp_path))
     root.destroy()
     assert result == "continue"
 
@@ -302,3 +310,21 @@ def test_no_free_port_is_a_warning_not_a_stop(tmp_path, fake_viewer, monkeypatch
     finally:
         for s in held:
             s.close()
+
+
+def test_a_second_ctrl_c_sets_both_events_before_the_forced_exit(monkeypatch):
+    order = []
+
+    class Event:
+        def __init__(self, name):
+            self.name = name
+
+        def set(self):
+            order.append(self.name)
+
+    exits = []
+    monkeypatch.setattr(io.os, "_exit", lambda code: exits.append(code))
+    state = io.State()
+    io.forced_exit(state, Event("stop"), Event("abort"))(2, None)
+    assert order == ["abort", "stop"]  # the servers wind down and leave their clips in temp
+    assert exits == [130]
