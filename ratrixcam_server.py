@@ -310,8 +310,8 @@ def save_frame_to_writer(
     capture: cv2.VideoCapture,
     writer: cv2.VideoWriter,
     params: CameraParams,
-    current_time: datetime,  
-    label: str
+    current_time: datetime,
+    overlay_text: str
 ) -> MatLike | None:
 
     ret=False
@@ -325,45 +325,23 @@ def save_frame_to_writer(
         print(
             f"Cam_server: Failed to capture a frame from camera {params.name} at {datetime.now().strftime('%H:%M:%S.%f')}"
         )
-        return  
-    
+        return
+
 
     # time stamp to overlay on video frame
-    video_date = current_time.strftime("%Y%m%d")  
-    video_time_long = current_time.strftime("%H:%M:%S.%f")[:-4] # Truncate to .01s to reflect actual accuracy of timestamps
+    date_text = current_time.strftime("%Y%m%d")
+    time_text = current_time.strftime("%H:%M:%S.%f")[:-4] # Truncate to .01s to reflect actual accuracy of timestamps
 
     font = cv2.FONT_HERSHEY_PLAIN
     font_scale = params.height / 480
-    _ = cv2.putText(
-        frame,
-        label,
-        (math.ceil(0.015 * params.width), math.floor(0.97 * params.height)),
-        font,
-        font_scale,
-        (255, 255, 255),
-        thickness=1,
-        lineType=cv2.LINE_AA,
-    )
-    _ = cv2.putText(
-        frame,
-        video_date,
-        (math.floor(0.8 * params.width), math.floor(0.94 * params.height)),
-        font,
-        font_scale,
-        (255, 255, 255),
-        thickness=1,
-        lineType=cv2.LINE_AA,
-    )
-    _ = cv2.putText(
-        frame,
-        video_time_long,
-        (math.floor(0.8 * params.width), math.floor(0.97 * params.height)),
-        font,
-        font_scale,
-        (255, 255, 255),
-        thickness=1,
-        lineType=cv2.LINE_AA,
-    )
+
+    def draw(text: str, x: int, y: int) -> None:
+        # white text, anti-aliased, positioned as a fraction of the frame size
+        _ = cv2.putText(frame, text, (x, y), font, font_scale, (255, 255, 255), thickness=1, lineType=cv2.LINE_AA)
+
+    draw(overlay_text, math.ceil(0.015 * params.width), math.floor(0.97 * params.height))  # bottom left
+    draw(date_text, math.floor(0.8 * params.width), math.floor(0.94 * params.height))  # bottom right, upper line
+    draw(time_text, math.floor(0.8 * params.width), math.floor(0.97 * params.height))  # bottom right, lower line
 
     writer.write(frame)
 
@@ -371,7 +349,7 @@ def save_frame_to_writer(
 
 class WriterState(NamedTuple):
     writer: cv2.VideoWriter
-    save_dir: str
+    day_folder: str  # the clip's destination folder on the save drive, one per camera and day
     temp_dir: str
     file_name: str
     started: datetime  # time of the first frame written to this clip
@@ -384,13 +362,13 @@ def close_writer(
     transfer=False (the run is being aborted) the release and the row still happen, in that
     order, so the clip left in temp is a valid, listed clip; only the transfer is skipped."""
     writer_state.writer.release()
-    _ = manifest.append(os.path.basename(writer_state.save_dir), writer_state.file_name, writer_state.started)
+    _ = manifest.append(os.path.basename(writer_state.day_folder), writer_state.file_name, writer_state.started)
     if not transfer:
         print(f"Cam_server: {writer_state.file_name} closed and left in temp (run aborted)")
         return
 
     temp_video_path = os.path.join(writer_state.temp_dir, writer_state.file_name)
-    out_path = os.path.join(writer_state.save_dir, writer_state.file_name)
+    out_path = os.path.join(writer_state.day_folder, writer_state.file_name)
 
     # spawn a separate process to move the closed tmp file to permanent location
     print(f"Cam_server: Starting transfer of file:{writer_state.file_name}") # {temp_video_path} to {out_path}")
@@ -435,10 +413,10 @@ def run(config: Config, device_id: int, stop_event: Event, abort_event: Event | 
         cam_exposure=(camera.exposure or config.default_cam_exposure),
         crf=(camera.crf if camera.crf is not None else config.default_crf),
     )
-    label: str = f"{config.study_label}_{params.name}"
+    camera_label: str = f"{config.study_label}_{params.name}"  # names the temp folder, the day folders and the overlay
     manifest = ManifestMetadata(config.temp_path, params.name, camera.subjID, camera.view, params.crf)
 
-    temp_dir = os.path.join(config.temp_path, label)
+    temp_dir = os.path.join(config.temp_path, camera_label)
     if not ensure_dir_exists(temp_dir):
         print("ERROR: Temporary streaming folder does not exist and cannot be created")
         return
@@ -499,8 +477,8 @@ def run(config: Config, device_id: int, stop_event: Event, abort_event: Event | 
         print(f"WARNING: camera {params.name}'s clips are labelled with the true values, {fps} fps at {measured.width}x{measured.height}")
     params = params.model_copy(update={"fps": fps, "width": measured.width, "height": measured.height})
 
-    count:int = 0  # tracks frames since last still image update
-    filecount: int = 0
+    frame_count: int = 0  # frames since the camera started: printed on each frame, paces the still updates
+    clip_count: int = 0
     file_transfer_processes: list[Process] = []
     writer_state: WriterState | None = None
 
@@ -518,12 +496,12 @@ def run(config: Config, device_id: int, stop_event: Event, abort_event: Event | 
             # close the old writer
             if writer_state is not None:
                 close_writer(writer_state, file_transfer_processes, manifest, config.save_path)
-            filecount += 1
+            clip_count += 1
 
             # open a new writer; the clip's destination day folder is created by move_file
             # when the clip is transferred, so this loop never touches the save drive
-            current_save_dir = os.path.join(
-                config.save_path, f"{label}_{current_datetime.strftime('%Y%m%d')}"
+            day_folder = os.path.join(
+                config.save_path, f"{camera_label}_{current_datetime.strftime('%Y%m%d')}"
             )
             current_file_name = clip_filename(params.name, current_datetime)
             # Create video writer
@@ -534,7 +512,7 @@ def run(config: Config, device_id: int, stop_event: Event, abort_event: Event | 
                     params.fps,
                     (params.width, params.height),
                 ),
-                current_save_dir,
+                day_folder,
                 temp_dir,
                 current_file_name,
                 current_datetime,
@@ -543,15 +521,15 @@ def run(config: Config, device_id: int, stop_event: Event, abort_event: Event | 
 
         # proceed to capture the next frame in the buffer
         # NOTE maybe should try 2-3x before giving up?  
-        full_label: str = label + ' frame ' + str(count) #include frame# in overlay text
+        overlay_text: str = camera_label + ' frame ' + str(frame_count)
         frame = save_frame_to_writer(
-            capture, writer_state.writer, params, current_datetime, label=full_label
+            capture, writer_state.writer, params, current_datetime, overlay_text
         )
         if frame is None:
             break #if you fail to capture, interpret that camera is down, fall out of loop
         
         # once per N sec, try to update the still image
-        if count % (config.preview_interval * params.fps) == 0:
+        if frame_count % (config.preview_interval * params.fps) == 0:
             try:
                 result = cv2.imwrite(camera_still_path, frame)
                 if result is False:
@@ -560,7 +538,7 @@ def run(config: Config, device_id: int, stop_event: Event, abort_event: Event | 
                     )
             except Exception as e:
                 print(type(e), e)
-        count += 1  # increment frame count whether that succeeds or fails
+        frame_count += 1  # whether the still update succeeds or fails
 
     # reach this line whenever camera fails to capture a frame (camera presumed offline)
     print(f"Camera server {device_id+1} attempting to shut down nicely")
@@ -569,7 +547,7 @@ def run(config: Config, device_id: int, stop_event: Event, abort_event: Event | 
         # flush remaining frames 
         while (
             save_frame_to_writer(
-                capture, writer_state.writer, params, datetime.now(), label
+                capture, writer_state.writer, params, datetime.now(), camera_label
             )
             is not None
         ):
@@ -584,7 +562,7 @@ def run(config: Config, device_id: int, stop_event: Event, abort_event: Event | 
     )
     _ = wait_for_transfers(file_transfer_processes, abort_event)  # an abort arriving meanwhile is honoured too
 
-    print(f"ratrixcam server {device_id+1}: shutdown complete; saved {filecount} files during this run")
+    print(f"ratrixcam server {device_id+1}: shutdown complete; saved {clip_count} files during this run")
 
 
 def main():

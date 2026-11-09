@@ -101,15 +101,15 @@ def run(config: Config, stop_event: Event, abort_event: Event | None = None):
                     f"Only detected {devices}/{num_cameras} camera(s), waiting for all to be connected"
                 )
 
-        just_started_a_cam = False
-        for idx, (process, cam_up_prev, camera_config) in enumerate(
+        launched_this_pass = False
+        for idx, (process, was_alive, camera_config) in enumerate(
             zip(camera_processes, camera_state, config.cameras)
         ):
             name = camera_name(config.subject_prefix, camera_config.subjID, camera_config.view)
             camera_state[idx] = process is not None and process.is_alive()
             if camera_state[idx]: #still running
                 continue
-            elif cam_up_prev:# not running, but was previously: indicate offline in GUI and terminal
+            elif was_alive:  # not running, but was on the previous pass: indicate offline in GUI and terminal
                 try:
                     _ = shutil.copyfile(BLANK_IMAGE, still_path(stills_folder, name))
                 except OSError as e:  # the still is cosmetic; the supervisor must outlive it
@@ -121,15 +121,15 @@ def run(config: Config, stop_event: Event, abort_event: Event | None = None):
                 continue
             # only when all devices are detected, try to re-launch the ones that went offline
             try: 
-                if just_started_a_cam: # if another camera was already launched within this loop,
-                    time.sleep(5)  # wait a bit before trying to launch another one
+                if launched_this_pass:  # another camera was launched within this pass of the loop:
+                    time.sleep(5)  # wait a bit before launching another one
                 cam_proc = Process(
                     target=run_without_handlers,
                     args=(config, idx, stop_event, abort_event),
                 )
                 cam_proc.start()
                 camera_processes[idx] = cam_proc
-                just_started_a_cam=True
+                launched_this_pass = True
                 print(f"Multicam: Started camera {name}")
 
             except Exception as e:
