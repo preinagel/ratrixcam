@@ -4,7 +4,8 @@
     python3 simulate.py <sample temp folder> [--scenario NAME] [--port N] [--end-after SECONDS]
 
 The sample folder is copied (without clips) into a scratch folder; every second the stills
-are touched so they look fresh and a status file is written the way python will. Scenarios:
+are touched so they look fresh and a status file is written the way the camera program
+writes it. Scenarios:
 
     normal        ample room on both drives, no banners (default)
     fyi           less than a day of recording left (orange)
@@ -33,6 +34,7 @@ from typing import cast
 
 GUI_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(GUI_DIR))
+# imported under lowercase aliases: the type checker forbids redefining an uppercase name in the fallback
 try:
     from ratrixcam_naming import STATUS_FILENAME as shared_status_filename
     from ratrixcam_utils import ASSUMED_WRITE_RATE as shared_write_rate
@@ -74,7 +76,7 @@ def drive(path: str, total: float, free: float) -> dict[str, object]:
 
 def write_status(temp_dir: str, started: datetime, run_id: str, config: dict[str, object], save_total: float, save_free: float, temp_free: float,
                  run_state: str = "running", message: str = "", clips_waiting: int = 0, recording: bool = True):
-    """The status file as STATUS_FILE_WISHLIST.md asks python to write it."""
+    """The status file in the shape the camera program writes it (ratrixcam_status.py)."""
     save = drive(str(config.get("save_path", "")), save_total, save_free)
     save["accepting_clips"] = save_free > 0
     temp = drive(str(config.get("temp_path", "")), 1 * TB, temp_free)
@@ -120,11 +122,9 @@ def main() -> int:
             with open(os.path.join(meta, name)) as f:
                 config = json.load(f)
     run_id = "ratrixcam_simulated"
-    for name in os.listdir(temp_dir):
+    for name in os.listdir(temp_dir):  # the sample's terminal log names its run
         if name.startswith("terminal_") and name.endswith(".log"):
             run_id = name[len("terminal_"):-len(".log")]
-    log_name = f"terminal_{run_id}.log"
-    open(os.path.join(temp_dir, log_name), "a").close()
     started = datetime.now()
     stills = [os.path.join(temp_dir, "status", n) for n in os.listdir(os.path.join(temp_dir, "status"))]
     save_total, save_free, temp_free = scenario_drives(scenario)

@@ -6,7 +6,7 @@
 const TEMP = "/temp/";
 const METADATA_DIR = "ratrixcam_run_metadata";
 const STILLS_DIR = "status";
-const STATUS_FILENAME = "ratrixcam_status.json"; // written by python (see STATUS_FILE_WISHLIST.md)
+const STATUS_FILENAME = "ratrixcam_status.json"; // written by the camera program (ratrixcam_status.py)
 const OFFLINE_IMAGE = "offline_status.png";
 
 // camera positions on the display: A B | E F over C D | G H; grid column 2 is the gap
@@ -17,13 +17,13 @@ const GAP_COL = 2;
 const TILE_GAP = 0.025;
 const BLOCK_GAP = 0.09;
 const TITLE_FONT = 0.05; // clamped to 9..18 px
-const ACC_ROWS = 4; // rows in the accounting table (two columns)
-const ACC_FONT_MIN = 11, ACC_FONT_MAX = 20;
-const ACC_MAX_SHARE = 0.22; // of the window height, at most, for the accounting table
+const ACCOUNTING_ROWS = 4; // rows in the accounting table (two columns)
+const ACCOUNTING_FONT_MIN = 11, ACCOUNTING_FONT_MAX = 20;
+const ACCOUNTING_MAX_SHARE = 0.22; // of the window height, at most, for the accounting table
 
 // save-drive warning thresholds, on the expected recording time left
-const FYI_S = 24 * 3600; // orange: space for less than a day
-const NEARLY_FULL_S = 3600; // red
+const WARN_S = 24 * 3600; // orange (warn): space for less than a day
+const ALARM_S = 3600; // red (alarm): space for less than an hour
 
 const LAST = "/last/"; // serve.py keeps the last status file it served, for after cleanup
 
@@ -31,16 +31,15 @@ const state = {
   config: null,
   configName: null,
   configCandidates: [],
-  cameras: [], // {name, subjID, view, position, tile, stillMtime, lastSeen, offline}
+  cameras: [], // {name, position, tile, stillMtime, lastSeen, offline}
   status: null, // last good status file contents
   statusWritten: null, // Date from its "written" field
   runStarted: null, // Date
-  runId: null,
   layout: "strict",
   tempSeen: false, // the temp folder has answered at least once
   tempGone: null, // Date the temp folder disappeared, or null
   shutdown: null, // {kind: "stopping" | "aborted" | "ended" | "silent", since: Date}
-  lastChecked: false, // /last/ was consulted because the temp folder was never seen
+  lastTried: false, // /last/ was tried once, because the temp folder was never seen
 };
 
 // ---------- fetch helpers ----------
@@ -168,7 +167,7 @@ function buildTiles() {
     tile.querySelector("img").src = OFFLINE_IMAGE;
     grid.appendChild(tile);
     state.cameras.push({
-      name: cameraName(state.config, cam), subjID: cam.subjID, view: cam.view, position: cam.position,
+      name: cameraName(state.config, cam), position: cam.position,
       tile, stillMtime: null, lastSeen: null, offline: false,
     });
   }
@@ -200,17 +199,17 @@ function applyLayout() {
   grid.dataset.rows = rows.length;
   grid.dataset.cols = cols.filter((c) => c !== GAP_COL).length;
   grid.dataset.gap = cols.includes(GAP_COL) ? "1" : "0";
-  fitTiles();
+  fitToWindow();
 }
 
 function titleFont(w) {
   return Math.min(18, Math.max(9, w * TITLE_FONT));
 }
 
-// choose the tile width so the grid fills the window's width, or its height after the top
-// strip, the banners and the accounting table; gaps and the title font follow the tile
-// width, so they shrink with the window
-function fitTiles() {
+// size the accounting table, then choose the tile width so the grid fills the window's
+// width, or its height after the top strip, the banners and the accounting table; gaps and
+// the title font follow the tile width, so they shrink with the window
+function fitToWindow() {
   const grid = el("grid");
   const nRows = +grid.dataset.rows || 0, nCols = +grid.dataset.cols || 0;
   if (!nRows || !nCols) return;
@@ -242,16 +241,16 @@ function fitAccounting() {
   const box = el("accounting");
   if (box.hidden) return;
   const root = document.documentElement.style;
-  let size = (window.innerHeight * ACC_MAX_SHARE) / (ACC_ROWS * 2.4);
+  let size = (window.innerHeight * ACCOUNTING_MAX_SHARE) / (ACCOUNTING_ROWS * 2.4);
   const probe = 10; // measure every cell's text at this size, then scale
-  root.setProperty("--acc-font", `${probe}px`);
+  root.setProperty("--accounting-font", `${probe}px`);
   for (const cell of box.querySelectorAll(".cell")) {
     const inner = cell.firstElementChild; // the text, measured on its own so it can exceed the cell
     const textW = inner ? inner.getBoundingClientRect().width : 0;
     if (textW > 0) size = Math.min(size, probe * cell.clientWidth / textW);
   }
-  size = Math.min(ACC_FONT_MAX, Math.max(ACC_FONT_MIN, size));
-  root.setProperty("--acc-font", `${size.toFixed(1)}px`);
+  size = Math.min(ACCOUNTING_FONT_MAX, Math.max(ACCOUNTING_FONT_MIN, size));
+  root.setProperty("--accounting-font", `${size.toFixed(1)}px`);
 }
 
 function setLayout(mode) {
@@ -299,7 +298,7 @@ function runState() {
 
 // what the shutdown banner should say: python's run.state when it exists; otherwise, while
 // every camera is offline, the viewer's own reading
-async function checkShutdown() {
+function checkShutdown() {
   const reported = runState();
   if (reported && reported !== "running") {
     state.shutdown = { kind: reported, since: state.statusWritten };
@@ -315,7 +314,7 @@ async function checkShutdown() {
 
 // the temp folder is already gone when the page opens: what serve.py last saw of the run
 async function loadLast() {
-  state.lastChecked = true;
+  state.lastTried = true;
   let found = false;
   try {
     const st = await fetchJSON(LAST + "status.json");
@@ -324,7 +323,6 @@ async function loadLast() {
     if (st.run) {
       const d = parseLocalTime(st.run.started);
       if (d) state.runStarted = d;
-      if (st.run.run_id) state.runId = st.run.run_id;
     }
     found = true;
   } catch (e) { /* nothing cached */ }
@@ -336,7 +334,7 @@ async function pollTemp() {
   try { root = await listDir(""); } catch (e) { root = null; }
   if (root === null) {
     if (state.tempSeen && !state.tempGone) state.tempGone = new Date();
-    else if (!state.tempSeen && !state.lastChecked) await loadLast();
+    else if (!state.tempSeen && !state.lastTried) await loadLast();
     return;
   }
   if (state.tempGone) { location.reload(); return; } // a new run in the same temp folder
@@ -344,7 +342,7 @@ async function pollTemp() {
   let stills = [];
   try { stills = await listDir(STILLS_DIR); } catch (e) { /* no stills folder yet */ }
   updateStills(stills);
-  await checkShutdown();
+  checkShutdown();
 }
 
 // ---------- status file (run accounting) ----------
@@ -364,7 +362,6 @@ async function pollStatus() {
   if (run) {
     const d = parseLocalTime(run.started);
     if (d) state.runStarted = d;
-    if (run.run_id) state.runId = run.run_id;
   }
 }
 
@@ -392,8 +389,8 @@ function driveWarning() {
   }
   const left = save.seconds_until_full;
   if (left == null) return null;
-  if (left < NEARLY_FULL_S) return { cls: "alarm", head: "SAVE DRIVE NEARLY FULL", body: `${fmtDHM(left)} of recording left` };
-  if (left < FYI_S) return { cls: "warn", head: `Save drive has space for another ${fmtDHM(left)}`, body: "" };
+  if (left < ALARM_S) return { cls: "alarm", head: "SAVE DRIVE NEARLY FULL", body: `${fmtDHM(left)} of recording left` };
+  if (left < WARN_S) return { cls: "warn", head: `Save drive has space for another ${fmtDHM(left)}`, body: "" };
   return null;
 }
 
@@ -422,7 +419,7 @@ function renderAccounting() {
   left.push(cellHTML("Started", state.runStarted ? `${fmtDate(state.runStarted)} ${fmtHM(state.runStarted)}` : ""));
   left.push(cellHTML("Running for", state.runStarted ? fmtDHM((now - state.runStarted) / 1000) : ""));
   const leftKnown = save.found !== false && save.seconds_until_full != null;
-  const leftCls = !leftKnown ? "" : save.seconds_until_full <= 0 ? "zero" : save.seconds_until_full < FYI_S ? "warn" : "";
+  const leftCls = !leftKnown ? "" : save.seconds_until_full <= 0 ? "zero" : save.seconds_until_full < WARN_S ? "warn" : "";
   left.push(cellHTML("Recording time left", leftKnown ? fmtDHM(save.seconds_until_full) : "", leftCls));
   left.push(cellHTML("Clip length", cfg ? `${Number.isInteger(cfg.time_slice / 60) ? cfg.time_slice / 60 : (cfg.time_slice / 60).toFixed(1)} min` : ""));
 
@@ -441,7 +438,7 @@ function renderAccounting() {
   right.push(cellHTML("Temp drive free", temp.free_bytes != null ? fmtBytes(temp.free_bytes) : "", temp.free_bytes === 0 ? "zero" : ""));
 
   const cells = [];
-  for (let i = 0; i < ACC_ROWS; i++) cells.push(left[i] || "", right[i] || "");
+  for (let i = 0; i < ACCOUNTING_ROWS; i++) cells.push(left[i] || "", right[i] || "");
   const html = cells.join("");
   const box = el("accounting");
   if (box.dataset.html !== html) { box.innerHTML = html; box.dataset.html = html; fitAccounting(); }
@@ -488,7 +485,7 @@ function renderBanners() {
     }
     box.appendChild(node);
   }
-  fitTiles();
+  fitToWindow();
 }
 
 // the run is over when python says so (run.state "ended") or when the temp folder is gone
@@ -524,12 +521,12 @@ async function main() {
   try { state.layout = localStorage.getItem("ratrixcam-viewer-layout") || "strict"; } catch (e) { /* ignore */ }
   el("layout-btn").addEventListener("click", () => setLayout(state.layout === "strict" ? "compact" : "strict"));
   el("layout-btn").textContent = `Layout: ${state.layout}`;
-  window.addEventListener("resize", fitTiles);
+  window.addEventListener("resize", fitToWindow);
 
   try { await loadConfig(); } catch (e) { state.config = null; }
   buildTiles();
   await tick();
-  fitTiles();
+  fitToWindow();
   setInterval(tick, previewInterval() * 1000);
   // the config is re-read occasionally in case the viewer was opened before the run started
   setInterval(async () => {

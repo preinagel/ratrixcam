@@ -78,7 +78,7 @@ def good_config(tmp_path: Path) -> dict[str, object]:
         "default_fps": 30,
         "default_width": 640,
         "default_height": 480,
-        "default_cam_exposure": -8.0,
+        "default_cam_exposure": 0,
         "preview_interval": 1,
     }
 

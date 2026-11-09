@@ -29,6 +29,7 @@ from urllib.parse import unquote, urlsplit
 
 GUI_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(GUI_DIR))
+# imported under a lowercase alias: the type checker forbids redefining an uppercase name in the fallback
 try:
     from ratrixcam_naming import STATUS_FILENAME as shared_status_filename
 except ImportError:  # the viewer folder copied on its own
@@ -147,8 +148,8 @@ class ViewerHandler(SimpleHTTPRequestHandler):
 
     @override
     def log_error(self, format: str, *args: object) -> None:
-        # a missing file is normal here: the viewer polls for the status file and for manifests
-        # that the cameras may not have written yet
+        # a missing file is normal here: the viewer polls for the status file and the stills
+        # before the camera program has written them
         if args and args[0] == HTTPStatus.NOT_FOUND:
             return
         _ = sys.stderr.write("%s - %s\n" % (self.address_string(), format % args))

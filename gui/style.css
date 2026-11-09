@@ -1,12 +1,12 @@
 /* the viewer page; tokens and base rules come from theme.css */
 
 :root {
-  --tile-w: 320px;      /* all set by viewer.js to fit the window */
+  --tile-w: 320px;      /* these five are set by viewer.js to fit the window */
   --tile-gap: 8px;
   --block-gap: 32px;
   --title-font: 16px;
-  --acc-font: 14px;
-  --pad: 10px;
+  --accounting-font: 14px;
+  --pad: 10px;          /* read by viewer.js */
 }
 
 html, body { height: 100%; overflow: hidden; }
@@ -109,7 +109,7 @@ body { display: flex; flex-direction: column; }
 .tile .still { width: 100%; aspect-ratio: 4 / 3; background: #000; }
 .tile .still img { display: block; width: 100%; height: 100%; object-fit: contain; }
 
-/* ---------- accounting below the cameras: fills what is left ---------- */
+/* ---------- accounting below the cameras, at its natural height ---------- */
 
 #accounting {
   flex: 0 0 auto;
@@ -123,7 +123,7 @@ body { display: flex; flex-direction: column; }
   column-gap: 2em;
   row-gap: 1.1em;      /* about one blank line between rows */
   padding: 0.8em 1em;
-  font-size: var(--acc-font);
+  font-size: var(--accounting-font);
   line-height: 1.3;
   font-variant-numeric: tabular-nums;
 }

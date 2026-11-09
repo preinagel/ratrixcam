@@ -13,7 +13,6 @@ header {
 }
 h1 { font-size: 16px; font-weight: 600; margin: 0; letter-spacing: 0.01em; }
 .machine { margin-left: auto; display: flex; gap: 10px; align-items: center; }
-.machine .value { font-weight: 500; }
 
 .notice { padding: 8px 20px; font-size: 13px; }
 .notice.warn { background: var(--warn); color: #15171b; }
@@ -145,13 +144,13 @@ aside h2 { margin: 14px 0 8px; }
 .buttons { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
 
 #manage-lists { overflow: auto; display: flex; flex-direction: column; gap: 14px; padding-right: 4px; }
-.vsection { border-top: 1px solid var(--line); padding-top: 10px; }
-.vsection:first-child { border-top: none; padding-top: 0; }
-.vtitle { margin-bottom: 8px; color: var(--text-2); }
-.vgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px 18px; }
-.vlist .name { margin-bottom: 4px; }
-.vlist .item { display: flex; align-items: center; gap: 6px; padding: 2px 0; border-top: 1px solid var(--line); }
-.vlist .item:first-of-type { border-top: none; }
-.vlist .item .v { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.vlist .item .inuse { font-size: 11px; color: var(--muted); }
-.vlist .empty { color: var(--muted); font-style: italic; font-size: 12px; }
+.values-section { border-top: 1px solid var(--line); padding-top: 10px; }
+.values-section:first-child { border-top: none; padding-top: 0; }
+.values-title { margin-bottom: 8px; color: var(--text-2); }
+.values-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px 18px; }
+.values-list .name { margin-bottom: 4px; }
+.values-list .item { display: flex; align-items: center; gap: 6px; padding: 2px 0; border-top: 1px solid var(--line); }
+.values-list .item:first-of-type { border-top: none; }
+.values-list .item .value { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.values-list .item .inuse { font-size: 11px; color: var(--muted); }
+.values-list .empty { color: var(--muted); font-style: italic; font-size: 12px; }

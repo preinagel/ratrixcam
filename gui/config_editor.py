@@ -40,14 +40,14 @@ except Exception:  # noqa: BLE001  (any import problem: pydantic missing, repo m
 # The per-camera override lists (camera_*) start empty: a camera uses the run's defaults
 # unless the user deliberately adds a value to choose from. Resolutions are one value
 # ("640x480"), written to the file as width and height.
-PLACEHOLDER_OPTIONS: dict[str, list[Any]] = {
+SHIPPED_OPTIONS: dict[str, list[Any]] = {
     "machine_name": [socket.gethostname().split(".")[0]],
     "study_label": ["Test"],
     "subject_prefix": ["subj"],
-    "subjID": ["000", "999"],
-    "view": ["view1", "view2"],
+    "subjID": ["000"],
+    "view": ["view1"],
     "time_slice": [60, 600],
-    "save_path": ["/Volumes/your_drive/"],
+    "save_path": ["/Volumes/data/"],
     "temp_path": [os.path.expanduser("~/Desktop/temp/")],
     "default_crf": [25],
     "default_fps": [30],
@@ -62,7 +62,7 @@ PRESETS: dict[str, Any] = {
     "default_crf": 25,
     "default_fps": 30,
     "default_resolution": "640x480",
-    "default_cam_exposure": -8.0,
+    "default_cam_exposure": 0, # unsupported feature, kept for future development
     "preview_interval": 1,
 }
 # the file's key order: run-level fields, the cameras, then the advanced defaults at the end
@@ -81,7 +81,7 @@ def machine_id() -> str:
 
 
 def load_options(options_file: str) -> dict[str, Any]:
-    """The options file, created with placeholders on first use; a list or preset this
+    """The options file, created with the shipped values on first use; a list or preset this
     version knows and the file lacks is added, so an older file keeps working."""
     data: dict[str, Any]
     try:
@@ -94,12 +94,12 @@ def load_options(options_file: str) -> dict[str, Any]:
         }
     loaded = json.loads(json.dumps(data))  # what the file held, to tell a migration from a plain read
     options = data.setdefault("options", {})
-    for key, values in PLACEHOLDER_OPTIONS.items():
+    for key, values in SHIPPED_OPTIONS.items():
         options.setdefault(key, list(values))
     old_name = data.pop("machine_name", None)  # an earlier version kept the name here
     if isinstance(old_name, str) and old_name and old_name not in options["machine_name"]:
         options["machine_name"].append(old_name)
-    for key in [k for k in options if k not in PLACEHOLDER_OPTIONS]:
+    for key in [k for k in options if k not in SHIPPED_OPTIONS]:
         del options[key]  # a list an earlier version of the editor kept
     for key in ("save_path", "temp_path"):
         options[key] = [os.path.expanduser(p) if isinstance(p, str) else p for p in options[key]]
@@ -265,7 +265,7 @@ class EditorHandler(SimpleHTTPRequestHandler):
                 fresh = {
                     "machine_id": machine_id(),
                     "created": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "options": {k: list(v) for k, v in PLACEHOLDER_OPTIONS.items()},
+                    "options": {k: list(v) for k, v in SHIPPED_OPTIONS.items()},
                     "presets": dict(PRESETS),
                 }
                 write_json(self.options_file, fresh)
@@ -280,7 +280,7 @@ class EditorHandler(SimpleHTTPRequestHandler):
                 self.send_json({"error": "options must be an object"}, HTTPStatus.BAD_REQUEST)
                 return
             data["machine_id"] = machine_id()  # saving from this machine binds the file to it
-            for key in ("machine_id_now", "machine_mismatch", "options_file", "machine_name"):
+            for key in ("machine_id_now", "machine_mismatch", "options_file"):  # added by GET, not stored
                 _ = data.pop(key, None)
             write_json(self.options_file, data)
             self.send_json({"ok": True})

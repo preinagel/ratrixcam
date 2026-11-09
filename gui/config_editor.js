@@ -7,8 +7,8 @@
 const POSITIONS = ["A", "B", "C", "D", "E", "F", "G", "H"];
 const ADD = "__add__";
 
-// kinds: name (used in file and folder names; maxLen per field), int, float, path,
-// resolution ("640x480"), machine (a free name for this computer)
+// kinds: name (used in file and folder names; maxLen per field), int, path,
+// resolution ("640x480"), machine (a free name for this computer), position
 const RULES = {
   name: { re: (f) => new RegExp(`^[A-Za-z0-9-]{1,${f.maxLen}}$`), help: (f) => `Letters, digits and - only (case matters); no spaces, dots or _; up to ${f.maxLen} characters.` },
   machine: { re: () => /^[A-Za-z0-9][A-Za-z0-9 -]{0,31}$/, help: () => "Letters, digits, spaces and -; up to 32 characters." },
@@ -46,7 +46,7 @@ const CAMERA_FIELDS = [
 ];
 // not on the form, kept in the file: the exposure setting has no effect on macOS (GitHub #51),
 // but the camera code still requires default_cam_exposure, and a loaded file's values are preserved
-const HIDDEN_DEFAULT_CAM_EXPOSURE = -8.0;
+const HIDDEN_DEFAULT_CAM_EXPOSURE = 0;  // unsupported feature, kept for future development; matches config_editor.py
 // the file's key order (the server writes the same): run-level, cameras, then the defaults
 const FILE_KEY_ORDER = ["machine_name", "save_path", "temp_path", "study_label", "subject_prefix", "time_slice", "cameras",
   "default_crf", "default_fps", "default_width", "default_height", "default_cam_exposure", "preview_interval"];
@@ -113,9 +113,9 @@ async function saveOptions() {
 // {value, error} for raw text entered for a field of this kind
 function checkValue(field, raw) {
   const text = String(raw).trim();
-  if (field.kind === "int" || field.kind === "float") {
-    const n = field.kind === "int" ? (/^-?\d+$/.test(text) ? parseInt(text, 10) : NaN) : Number(text);
-    if (text === "" || !isFinite(n)) return { error: field.kind === "int" ? "Must be a whole number." : "Must be a number." };
+  if (field.kind === "int") {
+    const n = /^-?\d+$/.test(text) ? parseInt(text, 10) : NaN;
+    if (text === "" || !isFinite(n)) return { error: "Must be a whole number." };
     if (n < field.min || n > field.max) return { error: `Must be between ${field.min} and ${field.max}.` };
     return { value: n };
   }
@@ -126,7 +126,7 @@ function checkValue(field, raw) {
 }
 
 function helpFor(field) {
-  if (field.kind === "int" || field.kind === "float") return `A number between ${field.min} and ${field.max}.`;
+  if (field.kind === "int") return `A whole number between ${field.min} and ${field.max}.`;
   return RULES[field.kind].help(field);
 }
 
@@ -154,7 +154,7 @@ function makeSelect(field, optionsKey, getCurrent, onChange) {
       refreshSelects(optionsKey);
       return;
     }
-    onChange(sel.value === "" ? null : (field.kind === "int" || field.kind === "float" ? Number(sel.value) : sel.value));
+    onChange(sel.value === "" ? null : (field.kind === "int" ? Number(sel.value) : sel.value));
     sel._refresh(); // drops a "(not in list)" entry once a legal value replaced it, and the red outline with it
   });
   return sel;
@@ -198,10 +198,10 @@ function refreshSelects(optionsKey) {
 
 // ---------- the "Add new..." dialog ----------
 
-function promptNewValue(field, optionsKey, title) {
+function promptNewValue(field, optionsKey) {
   return new Promise((resolve) => {
     const box = el("prompt"), input = el("prompt-input"), err = el("prompt-error");
-    el("prompt-title").textContent = title || `New legal value for ${field.label || field.key}`;
+    el("prompt-title").textContent = `New legal value for ${field.label || field.key}`;
     el("prompt-help").textContent = helpFor(field);
     input.value = "";
     err.textContent = "";
@@ -215,7 +215,7 @@ function promptNewValue(field, optionsKey, title) {
         if (isLegal(optionsKey, value)) { err.textContent = "Already in the list."; return; }
         const list = legalValues(optionsKey).slice();
         list.push(value);
-        if (field.kind === "int" || field.kind === "float") list.sort((a, b) => a - b);
+        if (field.kind === "int") list.sort((a, b) => a - b);
         state.options.options[optionsKey] = list;
         await saveOptions();
       }
@@ -244,12 +244,6 @@ function buildField(field, container) {
   const sel = makeSelect(field, field.key, () => state.config[field.key], (v) => { state.config[field.key] = v; render(); });
   wrap.appendChild(label);
   wrap.appendChild(sel);
-  if (field.hint) {
-    const hint = document.createElement("div");
-    hint.className = "hint";
-    hint.textContent = field.hint;
-    wrap.appendChild(hint);
-  }
   container.appendChild(wrap);
 }
 
@@ -449,13 +443,13 @@ function renderManage() {
   box.textContent = "";
   for (const section of listSections()) {
     const block = document.createElement("div");
-    block.className = "vsection";
+    block.className = "values-section";
     const title = document.createElement("div");
-    title.className = "vtitle";
+    title.className = "values-title";
     title.textContent = section.title;
     block.appendChild(title);
     const grid = document.createElement("div");
-    grid.className = "vgrid";
+    grid.className = "values-grid";
     block.appendChild(grid);
     box.appendChild(block);
     for (const list of section.lists) renderList(list, grid);
@@ -464,7 +458,7 @@ function renderManage() {
 
 function renderList(list, box) {
   const wrap = document.createElement("div");
-  wrap.className = "vlist";
+  wrap.className = "values-list";
   const name = document.createElement("div");
   name.className = "name";
   name.textContent = list.label;
@@ -474,7 +468,7 @@ function renderList(list, box) {
     const item = document.createElement("div");
     item.className = "item";
     const text = document.createElement("span");
-    text.className = "v";
+    text.className = "value";
     text.textContent = list.blank;
     item.appendChild(text);
     wrap.appendChild(item);
@@ -488,7 +482,7 @@ function renderList(list, box) {
     const item = document.createElement("div");
     item.className = "item";
     const text = document.createElement("span");
-    text.className = "v";
+    text.className = "value";
     text.textContent = String(v);
     item.appendChild(text);
     if (list.inUse(v)) {
