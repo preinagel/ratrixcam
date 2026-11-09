@@ -37,12 +37,12 @@ sys.path.insert(0, os.path.dirname(GUI_DIR))
 # imported under lowercase aliases: the type checker forbids redefining an uppercase name in the fallback
 try:
     from ratrixcam_naming import STATUS_FILENAME as shared_status_filename
-    from ratrixcam_utils import ASSUMED_WRITE_RATE as shared_write_rate
+    from ratrixcam_utils import ASSUMED_WRITE_RATE_PER_CAMERA as shared_write_rate
 except ImportError:  # the viewer folder copied on its own
     shared_status_filename = "ratrixcam_status.json"
-    shared_write_rate = 1e9 / 60  # bytes per second, the camera code's assumed rig write rate
+    shared_write_rate = 1e9 / 60 / 8  # bytes per second, the camera code's assumed rate for one camera
 STATUS_FILENAME = shared_status_filename
-WRITE_RATE = shared_write_rate
+WRITE_RATE = shared_write_rate * 8  # the simulated rig has 8 cameras
 TB = 10**12
 GB = 10**9
 

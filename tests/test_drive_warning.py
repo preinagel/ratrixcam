@@ -17,7 +17,7 @@ else:
     io = pytest.importorskip("ratrixcam_IO")
     tk = pytest.importorskip("tkinter")
 
-from ratrixcam_utils import ASSUMED_WRITE_RATE as RATE, Config  # noqa: E402  # the assumed 8-camera write rate
+from ratrixcam_utils import ASSUMED_WRITE_RATE_PER_CAMERA as RATE_PER_CAMERA, Config  # noqa: E402
 
 # the stand-ins below are duck-typed doubles; the casts hand them to the typed launcher functions
 def as_config(double: object) -> Config:
@@ -142,7 +142,7 @@ def test_replace_ssd_text_says_how_long_temp_can_go_on(tmp_path, monkeypatch):
 
     from test_run_metadata import Usage
 
-    free = int(RATE / 8 * 1800)  # 30 minutes at one camera's share of the 8-camera rate
+    free = int(RATE_PER_CAMERA * 1800)  # 30 minutes of one camera
     monkeypatch.setattr(shutil, "disk_usage", lambda _p: Usage(10**12, 10**12 - free, free))
     text = io.replace_ssd_text(PROBLEM, one_camera(tmp_path))
     assert text.startswith(PROBLEM)

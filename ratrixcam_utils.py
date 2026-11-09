@@ -120,17 +120,18 @@ def flush_to_device(path: str) -> None:
         os.close(fd)
 
 
-# Assumed write rate of a full rig of 8 cameras, used to estimate how long a drive will last.
-# A ballpark constant for now; it could be replaced by a rate measured during the run.
-ASSUMED_WRITE_RATE = 1e9 / 60  # bytes per second (1 GB per minute)
+# Assumed write rate of one camera, used to estimate how long a drive will last. A ballpark
+# constant based on sample 640x480 30fps recordings. It could be replaced by a rate measured
+# from the run's own clips.
+ASSUMED_WRITE_RATE_PER_CAMERA = 1e9 / 60 / 8  # bytes per second
 
 
 def write_rate(n_cameras: int) -> float:
-    """The assumed write rate of this rig: the 8-camera rate scaled by its camera count."""
-    return ASSUMED_WRITE_RATE * n_cameras / 8
+    """The assumed write rate of a rig with this many cameras."""
+    return ASSUMED_WRITE_RATE_PER_CAMERA * n_cameras
 
 
-def seconds_until_full(free_bytes: int, rate: float = ASSUMED_WRITE_RATE) -> float:
+def seconds_until_full(free_bytes: int, rate: float) -> float:
     """Expected time until a drive with this much free space is full, at this write rate."""
     return free_bytes / rate
 
