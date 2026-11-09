@@ -11,8 +11,9 @@ import csv
 import shutil
 from pathlib import Path
 
-from compress_drive import INDEX_FIELDS, _file_lock, index_row
+from compress_drive import INDEX_FIELDS, index_row
 from manifest import SUMMARY_FILENAME
+from util import file_lock
 
 
 def rebuild(metadata_root: Path) -> int:
@@ -28,7 +29,7 @@ def rebuild(metadata_root: Path) -> int:
         rows.append(index_row(run_dir.name, summary))
 
     index_path = metadata_root / "index.csv"
-    with _file_lock(index_path.with_suffix(".csv.lock")):
+    with file_lock(index_path.with_suffix(".csv.lock")):
         if index_path.exists():
             shutil.copy2(index_path, index_path.with_suffix(".csv.bak"))
         with open(index_path, "w", newline="") as f:

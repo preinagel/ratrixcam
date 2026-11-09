@@ -16,6 +16,16 @@ import numpy as np
 
 import detect_motion
 
+# the detector's settings as one dict, for the helpers below; detect_motion itself uses the constants
+PARAMETERS = {
+    "n_frames_to_skip": detect_motion.N_FRAMES_TO_SKIP,
+    "sample_every": detect_motion.SAMPLE_EVERY,
+    "resize_divisor": detect_motion.RESIZE_DIVISOR,
+    "mog2_history": detect_motion.MOG2_HISTORY,
+    "mog2_var_threshold": detect_motion.MOG2_VAR_THRESHOLD,
+    "opening_kernel": detect_motion.OPENING_KERNEL,
+}
+
 # ---- the lab's strict clip-filename parser, as used on the legacy branch (videoproc/util.py
 # there); the pipeline no longer parses filenames, it reads manifests
 SUBJECT_IDS = frozenset(f"rat{n}" for n in range(556, 564))  # rat556 .. rat563
@@ -73,7 +83,7 @@ def read_motion_timeseries(run_dir: Path) -> dict[str, np.ndarray]:
     return {clip: np.asarray(values) for clip, values in series.items()}
 
 
-def sampled_frame_numbers(n_samples: int, parameters: dict = detect_motion.PARAMETERS) -> np.ndarray:
+def sampled_frame_numbers(n_samples: int, parameters: dict = PARAMETERS) -> np.ndarray:
     """0-based video frame number of each sampled score, given the detector parameters."""
     skip, every = parameters["n_frames_to_skip"], parameters["sample_every"]
     first = (skip // every + 1) * every - 1

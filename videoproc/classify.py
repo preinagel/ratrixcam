@@ -1,4 +1,6 @@
-"""Per-file decision logic and CSV logging shared by compress_drive.py and confirm_and_delete.py."""
+"""Per-file decision logic shared by compress_drive.py and confirm_and_delete.py, the status
+vocabulary of their logs, and the CSV logger of compress_drive.py (confirm_and_delete.py writes
+its own log with these columns plus its own)."""
 
 import csv
 from collections import Counter
@@ -78,8 +80,8 @@ class Logger:
     compression_time: float | None = None
     valid_output: bool | None = None
 
-    def __init__(self, log_path: Path, action_items_path: Path, fields=LOG_FIELDS):
-        self.fields = list(fields)
+    def __init__(self, log_path: Path, action_items_path: Path):
+        self.fields = list(LOG_FIELDS)
         self.log_path = log_path
         self.action_items_path = action_items_path
         self.status_counts: Counter[str] = Counter()
@@ -129,9 +131,7 @@ class Decision:
     note: str | None
     input_codec: str | None
     input_n_frames: int | None
-    output_exists: bool
-    output_codec: str | None
-    output_n_frames: int | None
+    output_codec: str | None  # None when nothing openable is at the destination
 
 
 def classify_file(
@@ -158,9 +158,7 @@ def classify_file(
     output_is_raw = output_codec == RAW_CODEC
 
     def decision(action=None, skip=None, note=None):
-        return Decision(
-            action, skip, note, input_codec, input_n_frames, output_exists, output_codec, output_n_frames
-        )
+        return Decision(action, skip, note, input_codec, input_n_frames, output_codec)
 
     def skipped(status, reason, action_item=False):
         return decision(skip=SkipFile(status, reason, action_item))

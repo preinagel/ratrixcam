@@ -2,12 +2,9 @@
 
 import argparse
 import concurrent.futures
-import contextlib
 import csv
 import io
-import os
 import shutil
-import socket
 import subprocess
 import sys
 import time
@@ -46,7 +43,7 @@ from manifest import (
     summarize_by_subject_and_view,
     write_summary,
 )
-from util import build_output_path, code_version, get_codec_nframes, shorten
+from util import build_output_path, code_version, file_lock, get_codec_nframes, shorten
 
 # NON-NEGOTIABLE HARDWIRED CONSTANTS DEFINED HERE
 # connectivity-loss handling: if the input/output root becomes unreachable (e.g. a
@@ -59,8 +56,8 @@ CONNECTIVITY_TOTAL_TIMEOUT_HOURS = 10
 
 VIDEO_CODEC = "libx264"
 PIX_FMT = "yuv420p"
-CRF_NO_MOTION = 40   # agressive compression setting for videos with no motion, if motion detection used
-GOP_NO_MOTION = 1800 # GroupOfPicutres: keyframe interval for aggressive compression of no-motion videos
+CRF_NO_MOTION = 40  # aggressive compression setting for videos with no motion, if motion detection used
+GOP_NO_MOTION = 1800  # group of pictures: keyframe interval for aggressive compression of no-motion videos
 
 # motion review: material kept so a no-motion classification can be checked before the raw
 # clip is deleted (see --motion_review)
@@ -76,48 +73,9 @@ MOTION_REVIEW_FIELDS = [
     "still_path",
 ]
 
-INDEX_LOCK_TIMEOUT_SECONDS = 300  # how long a run waits for index.csv before giving up on it
-INDEX_LOCK_STALE_SECONDS = 600  # a lock is held for milliseconds; one this old belongs to a dead run
-INDEX_LOCK_POLL_SECONDS = 0.5
 INDEX_FIELDS = [
     "run_id", "subjects", "range_start", "range_end", "n_streams", "n_files", "motion_detection", "motion_threshold",
 ]
-
-
-@contextlib.contextmanager
-def _file_lock(
-    lock_path: Path,
-    timeout: float = INDEX_LOCK_TIMEOUT_SECONDS,
-    stale_after: float = INDEX_LOCK_STALE_SECONDS,
-    poll_interval: float = INDEX_LOCK_POLL_SECONDS,
-):
-    """Cross-platform mutual-exclusion lock using atomic exclusive file creation
-    (os.O_CREAT | os.O_EXCL is atomic on both NTFS and POSIX filesystems, unlike
-    fcntl.flock which is POSIX-only and wouldn't work on Windows). A lock file older than
-    `stale_after` was left behind by a run that died holding it and is removed."""
-    deadline = time.time() + timeout
-    while True:
-        try:
-            fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-            break
-        except FileExistsError:
-            try:
-                age = time.time() - lock_path.stat().st_mtime
-            except FileNotFoundError:
-                continue  # released between our attempt and the stat; retry at once
-            if age > stale_after:
-                print(f"WARNING: removing stale lock {lock_path} (age {age:.0f} s)")
-                lock_path.unlink(missing_ok=True)
-                continue
-            if time.time() >= deadline:
-                raise TimeoutError(f"could not acquire lock {lock_path} within {timeout}s")
-            time.sleep(poll_interval)
-    try:
-        os.write(fd, f"{socket.gethostname()} pid {os.getpid()} {datetime.now():%Y-%m-%d %H:%M:%S}\n".encode())
-        yield
-    finally:
-        os.close(fd)
-        lock_path.unlink(missing_ok=True)
 
 
 def index_row(
@@ -153,7 +111,7 @@ def append_index_row(
     row = index_row(run_id, summary, motion_detection, motion_threshold)
     lock_path = index_path.with_suffix(index_path.suffix + ".lock")
     try:
-        with _file_lock(lock_path):
+        with file_lock(lock_path):
             is_new = not index_path.exists()
             with open(index_path, "a", newline="") as f:
                 writer = csv.DictWriter(f, fieldnames=INDEX_FIELDS)
@@ -173,10 +131,10 @@ def append_motion_timeseries(path: Path, clip_filename: str, motion_by_frame) ->
     """Append one clip's per-sampled-frame motion values as a single row (clip filename,
     then the values space-separated, 4 significant digits), so per-frame activity (e.g. for
     an occupancy timeline or picking high-activity sub-clips) survives past the single
-    found_motion/motion_perc summary in the per-file log. detect_motion.py skips the first
-    N_FRAMES_TO_SKIP frames then keeps every SAMPLE_EVERY-th, so value i corresponds to true
-    video frame ~(N_FRAMES_TO_SKIP + SAMPLE_EVERY) + SAMPLE_EVERY*i. Read back with
-    `[float(x) for x in row['motion_values'].split()]`."""
+    found_motion/motion_perc summary in the per-file log. detect_motion.py scores every
+    SAMPLE_EVERY-th frame after the first N_FRAMES_TO_SKIP, so value i is the score of 0-based
+    frame N_FRAMES_TO_SKIP + SAMPLE_EVERY*(i+1) - 1, the numbering peak_frame_number uses.
+    Read back with `[float(x) for x in row['motion_values'].split()]`."""
     is_new = not path.exists()
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "a", newline="") as f:
@@ -289,7 +247,7 @@ def copy_file(in_file: Path, out_file: Path, max_retries: int = 5) -> None:
     Copy a file, retrying up to max_retries times if it fails.
     Raises an exception if all attempts fail.
     """
-    timeout: float = 0.1  # seconds
+    retry_pause: float = 0.1  # seconds between attempts
     out_file.parent.mkdir(parents=True, exist_ok=True)
 
     for attempt in range(1, max_retries + 1):
@@ -299,9 +257,9 @@ def copy_file(in_file: Path, out_file: Path, max_retries: int = 5) -> None:
                 return
         except Exception as e:
             print(
-                f"WARNING: Failed to copy {in_file} to {out_file} (attempt {attempt}/{max_retries}), retrying in {timeout} seconds: {e}"
+                f"WARNING: Failed to copy {in_file} to {out_file} (attempt {attempt}/{max_retries}), retrying in {retry_pause} seconds: {e}"
             )
-            time.sleep(timeout)
+            time.sleep(retry_pause)
     raise RuntimeError(f"Failed to copy {in_file} to {out_file} after {max_retries} attempts")
 
 
@@ -322,20 +280,20 @@ def run_motion_detection(input_path: Path, motion_percentile: float, motion_thre
     """Motion detection on one clip. None when the clip has too few frames to score."""
     try:
         start = time.time()
-        motion_by_frame, peak_frame, peak_frame_number = detect_motion.main(
+        motion_by_frame, peak_frame, peak_frame_number = detect_motion.motion_scores(
             input_path, play_video=False, return_peak=True
         )
         motion_perc = float(np.percentile(motion_by_frame, motion_percentile))
-        over = motion_by_frame >= motion_threshold
-        print("     ", float(np.mean(over)), "of frames reached the motion threshold")
+        over_threshold = motion_by_frame >= motion_threshold
+        print("     ", float(np.mean(over_threshold)), "of frames reached the motion threshold")
         return MotionResult(
             motion_perc,
             bool(motion_perc >= motion_threshold),  # a Python bool: the caller tests `is False`
             time.time() - start,
-            float(np.mean(over)),
+            float(np.mean(over_threshold)),
             motion_by_frame,
             float(motion_by_frame.max()),
-            int(over.sum()),
+            int(over_threshold.sum()),
             peak_frame,
             peak_frame_number,
         )
@@ -406,11 +364,10 @@ def print_summary(
     logger: Logger,
     n_listed: int,
     motion_detection: bool,
-    motion_review: bool = False,
-    n_no_motion: int = 0,
-    flagged_by_view: Counter[str] | None = None,
+    motion_review: bool,
+    n_no_motion: int,
+    flagged_by_view: Counter[str],
 ) -> None:
-    flagged_by_view = flagged_by_view or Counter()
     n_rows = sum(logger.status_counts.values())
     print("\n==== run summary ====")
     print(f"clips listed in the manifest(s): {n_listed}")
@@ -580,49 +537,49 @@ def main(
                 # (6) motion detection -- only when requested
                 found_motion = None
                 if motion_detection:
-                    res = run_motion_detection(input_path, motion_percentile, motion_threshold)
+                    motion = run_motion_detection(input_path, motion_percentile, motion_threshold)
                     # too few frames to score: treated as motion, i.e. the conservative encoding
-                    found_motion = True if res is None else res.found_motion
-                    if res is not None:
-                        logger.motion_detection_time = res.detection_time
-                        logger.motion_perc = res.motion_perc
-                        logger.found_motion = res.found_motion
-                        logger.fract_frames_exceeding = res.fract_frames_exceeding
-                        logger.motion_max = res.motion_max
-                        logger.n_frames_over_threshold = res.n_frames_over_threshold
+                    found_motion = True if motion is None else motion.found_motion
+                    if motion is not None:
+                        logger.motion_detection_time = motion.detection_time
+                        logger.motion_perc = motion.motion_perc
+                        logger.found_motion = motion.found_motion
+                        logger.fract_frames_exceeding = motion.fract_frames_exceeding
+                        logger.motion_max = motion.motion_max
+                        logger.n_frames_over_threshold = motion.n_frames_over_threshold
                         flagged = False
-                        if motion_review and not res.found_motion:
+                        if motion_review and not motion.found_motion:
                             n_no_motion += 1
-                            assert res.peak_frame is not None and res.peak_frame_number is not None  # return_peak=True
+                            assert motion.peak_frame is not None and motion.peak_frame_number is not None  # return_peak=True
                             still = save_peak_still(
                                 run_metadata_dir / NO_MOTION_STILLS_DIRNAME,
                                 input_path.name,
-                                res.peak_frame,
-                                res.peak_frame_number,
+                                motion.peak_frame,
+                                motion.peak_frame_number,
                             )
-                            flagged = res.n_frames_over_threshold > 0
+                            flagged = motion.n_frames_over_threshold > 0
                             logger.motion_review_flag = flagged
                             if flagged:
                                 flagged_by_view[view] += 1
                                 print(
                                     f"    REVIEW: no motion by the {motion_percentile}th-percentile rule, but "
-                                    f"{res.n_frames_over_threshold} sampled frame(s) reach the threshold "
-                                    f"(max {res.motion_max:.4g}); still and time series kept"
+                                    f"{motion.n_frames_over_threshold} sampled frame(s) reach the threshold "
+                                    f"(max {motion.motion_max:.4g}); still and time series kept"
                                 )
                                 append_motion_review_row(
                                     run_metadata_dir / MOTION_REVIEW_FILENAME,
                                     {
                                         "clip_filename": input_path.name,
                                         "output_path": output_path,
-                                        "motion_max": f"{res.motion_max:.4g}",
-                                        "n_frames_over_threshold": res.n_frames_over_threshold,
-                                        "motion_perc": f"{res.motion_perc:.4g}",
-                                        "peak_frame_number": res.peak_frame_number,
+                                        "motion_max": f"{motion.motion_max:.4g}",
+                                        "n_frames_over_threshold": motion.n_frames_over_threshold,
+                                        "motion_perc": f"{motion.motion_perc:.4g}",
+                                        "peak_frame_number": motion.peak_frame_number,
                                         "still_path": still,
                                     },
                                 )
-                        if res.found_motion or flagged or not motion_review:
-                            append_motion_timeseries(motion_timeseries_path, input_path.name, res.motion_by_frame)
+                        if motion.found_motion or flagged or not motion_review:
+                            append_motion_timeseries(motion_timeseries_path, input_path.name, motion.motion_by_frame)
                 # (7) choose the encoding: if motion detection is in use, a motionless clip gets the
                 # fixed aggressive setting; otherwise, or when motion was detected, the CRF comes
                 # from the manifest (DEFAULT_CRF if the row has none)
@@ -643,7 +600,7 @@ def main(
                 if err_msg:
                     logger.error = err_msg
 
-                # (8) check output exists, has non-zero size, and frame count matches
+                # (9) check output exists, has non-zero size, and frame count matches
                 _, output_n_frames = get_codec_nframes(output_path)
                 if (
                     (not output_path.exists())
@@ -724,7 +681,8 @@ def add_processing_arguments(parser: argparse.ArgumentParser) -> None:
         type=float,
         help="with --motion_detection: a clip whose motion score is at or above this counts as having motion. "
         "The default 0 classifies every clip as motion (encoded according to camera policy) while still "
-        "recording motion_timeseries.csv; this lab uses 0.001, calibrated on its own raw video",
+        "recording motion_timeseries.csv; a working value is calibrated on the rig's own raw video, "
+        "e.g. from the motion_timeseries.csv of a run at the default",
     )
     parser.add_argument(
         "--motion_review",
@@ -739,7 +697,7 @@ def add_processing_arguments(parser: argparse.ArgumentParser) -> None:
         "--n_threads",
         default=4,
         type=int,
-        help="number of threads used by ffmpeg {4 for mac05, 5 for mac06, 5 for mac07}",
+        help="number of threads ffmpeg may use; about the machine's core count minus one",
     )
     parser.add_argument(
         "--compress_spd",

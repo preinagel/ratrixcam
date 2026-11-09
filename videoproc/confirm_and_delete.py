@@ -2,7 +2,7 @@
 """Verify that every video listed in a manifest has a valid compressed copy at its standard
 destination path, report what is and is not safe to delete, and -- only with --delete --
 remove the verified source files. Writes nothing to the destination except its own run
-folder under videoproc_run_metadata/.
+folder under videoproc_run_metadata/ and the run's line in the index.csv there.
 
 Checks run in two passes: everything cheap first (presence, codec/frame-count probe, age),
 so a run that would end in a refusal is stopped before the expensive per-file decode."""
@@ -61,10 +61,10 @@ class Outcome:
 def append_deletion_rows(run_dir: Path, rows: list[list[object]]) -> Path:
     """Append rows to the run's deletion_log.csv, creating it with its header if needed."""
     deletion_log = run_dir / "deletion_log.csv"
-    new = not deletion_log.exists()
+    is_new = not deletion_log.exists()
     with open(deletion_log, "a", newline="") as f:
         writer = csv.writer(f)
-        if new:
+        if is_new:
             writer.writerow(DELETION_FIELDS)
         writer.writerows(rows)
     return deletion_log
@@ -169,7 +169,7 @@ def remove_emptied_folders(source_root: Path, folders: set[Path]) -> int:
 
 
 def delete_sources(
-    source_root: Path, deletable: list[tuple[Path, Path]], run_dir: Path, short: Callable[[Path | str], str] = str
+    source_root: Path, deletable: list[tuple[Path, Path]], run_dir: Path, short: Callable[[Path | str], str]
 ) -> int:
     """Delete verified source files one by one, logging each as it goes so an interrupted run
     leaves a complete record; then remove the folders this left empty. Returns the number of
@@ -184,11 +184,11 @@ def delete_sources(
         return 0
 
     deletion_log = run_dir / "deletion_log.csv"
-    new = not deletion_log.exists()
+    is_new = not deletion_log.exists()
     n_deleted = 0
     with open(deletion_log, "a", newline="") as f:
         writer = csv.writer(f)
-        if new:
+        if is_new:
             writer.writerow(DELETION_FIELDS)
         for src, dst in deletable:
             size = src.stat().st_size

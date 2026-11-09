@@ -11,9 +11,6 @@ LocalConfig.json
 /config.json
 *.scpt
 
-# site-specific filename rules; local only (see custom_filename_parser_example.py)
-custom_filename_parser.py
-
 # pytest
 .pytest_cache/
 

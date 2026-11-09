@@ -14,8 +14,8 @@ compress_drive runs once per recording run with that run's manifests, <root> as 
 and <destination> as the output root; then, appended to that compression run's own terminal
 log, the run's folder is copied whole to <destination>/ratrixcam_run_metadata/<run id>/, never
 overwriting a destination file that differs in size. Run folders that could not be processed
-are carried the same way afterwards and reported on the terminal only. Files under <root>
-outside the run folders are neither inspected nor touched; nothing under <root> is deleted.
+are carried the same way afterwards and reported on the terminal only. Under <root> only the
+listed clips and the run folders are read; nothing under <root> is deleted.
 
 confirm: the same run by run, with confirm_and_delete: each run's listed clips are verified
 against the destination and, with --delete, the verified ones are deleted after the tool's
@@ -45,7 +45,7 @@ from pathlib import Path
 from pprint import pprint
 from typing import IO, Any, Callable
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repo root; the shared module moves next (#26)
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # the repo root, where ratrixcam_naming lives
 from ratrixcam_naming import MANIFEST_SUFFIX, MANIFESTS_DIRNAME, NOTES_FILENAME, RUN_METADATA_DIRNAME  # noqa: E402
 
 import compress_drive  # noqa: E402
@@ -105,7 +105,7 @@ def _files(folder: Path) -> dict[str, int]:
     return {p.relative_to(folder).as_posix(): p.stat().st_size for p in folder.rglob("*") if p.is_file()}
 
 
-def compare(src_dir: Path, dest_dir: Path) -> tuple[list[str], list[str]]:
+def compare_sizes(src_dir: Path, dest_dir: Path) -> tuple[list[str], list[str]]:
     """(files missing at the destination, files present with a different size)."""
     src, dst = _files(src_dir), (_files(dest_dir) if dest_dir.exists() else {})
     missing = sorted(f for f in src if f not in dst)
@@ -128,7 +128,7 @@ def compare_bytes(src_dir: Path, dest_dir: Path) -> tuple[list[str], list[str]]:
 def transfer(src_dir: Path, dest_dir: Path) -> tuple[int, list[str]]:
     """Copy the files the destination lacks; leave files that already exist alone. Returns
     (number copied, files whose destination copy differs in size -- never overwritten)."""
-    missing, differing = compare(src_dir, dest_dir)
+    missing, differing = compare_sizes(src_dir, dest_dir)
     for rel in missing:
         target = dest_dir / rel
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -233,7 +233,7 @@ def compress(
         print(f"ERROR: no {RUN_METADATA_DIRNAME} folder under {root}; nothing to process")
         return 1
     problems: list[str] = []
-    ready, _skipped = runs_to_process(root, studyname, subject_prefix, problems)
+    ready, _ = runs_to_process(root, studyname, subject_prefix, problems)
     processed: set[str] = set()
     for run, run_studyname, run_prefix in ready:
         run_header(run.run_id)
@@ -309,14 +309,14 @@ def settle_run_folder(
 
 def looks_ratrixcam(name: str) -> bool:
     """A file name of one of the kinds ratrixcam writes besides clips."""
-    low = name.lower()
+    lower = name.lower()
     return (
         fnmatch(name, "terminal_*.log")
-        or fnmatch(low, "*config*.json")
+        or fnmatch(lower, "*config*.json")
         or name.endswith(MANIFEST_SUFFIX)
         or fnmatch(name, "cam_*_status.png")
         or name == NOTES_FILENAME
-        or low.startswith("readme")
+        or lower.startswith("readme")
     )
 
 
@@ -346,7 +346,7 @@ def inventory_leftovers(
     manifest-listed clip (resolved) to its row and run id; `statuses` holds the confirm
     status and reason of the clips a run checked; `kept_runs` the remaining run folders and
     why they remain."""
-    left = Leftovers()
+    leftovers = Leftovers()
     folders_with_files: set[Path] = set()
     all_folders: set[Path] = set()
     run_folder_stats: dict[str, list[int]] = {}
@@ -373,80 +373,80 @@ def inventory_leftovers(
             if deletable:
                 continue  # would go with --delete or --delete_partial: not a leftover
             blocking_by_run[run_id] = blocking_by_run.get(run_id, 0) + 1
-            left.listed_clips.append(
+            leftovers.listed_clips.append(
                 {"path": row.path, "subjID": row.subjID, "view": row.view, "clip_start": row.clip_start,
                  "crf": "" if row.crf is None else row.crf, "run_id": run_id, "status": status, "reason": reason}
             )
         elif path.suffix.lower() == VIDEO_SUFFIX:
-            left.videos.append(rel)
+            leftovers.videos.append(rel)
         elif looks_ratrixcam(path.name):
-            left.ratrixcam_like.append(rel)
+            leftovers.ratrixcam_like.append(rel)
         else:
-            left.other_files += 1
-            left.other_bytes += path.stat().st_size
-            left.other_folders.add(path.parent)
+            leftovers.other_files += 1
+            leftovers.other_bytes += path.stat().st_size
+            leftovers.other_folders.add(path.parent)
     for run_id, reason in kept_runs.items():
         if run_id not in run_folder_stats:
             continue
         n_blocking = blocking_by_run.get(run_id, 0)
         if reason == KEPT_NO_DELETE:
             if not n_blocking:
-                left.deletable_run_folders += 1  # would go with --delete: not a leftover
+                leftovers.deletable_run_folders += 1  # would go with --delete: not a leftover
                 continue
             reason = f"{n_blocking} listed clip(s) not deletable"
         n_files, n_bytes = run_folder_stats[run_id]
-        left.run_folders.append(
+        leftovers.run_folders.append(
             {"path": Path(RUN_METADATA_DIRNAME) / run_id, "n_files": n_files, "bytes": n_bytes, "reason": reason}
         )
-    left.empty_folders = len(all_folders - folders_with_files - {root})
-    return left
+    leftovers.empty_folders = len(all_folders - folders_with_files - {root})
+    return leftovers
 
 
-def report_leftovers(root: Path, left: Leftovers) -> None:
+def report_leftovers(root: Path, leftovers: Leftovers) -> None:
     """What would still be at the root after a --delete --delete_partial run."""
     print(f"\n==== ratrixcam folder <source> = {root}: what would remain after --delete --delete_partial ====")
-    print(f"listed clips not deletable: {len(left.listed_clips)} (reasons in the run summaries above and in {LEFTOVER_LISTED_CLIPS})")
-    print(f"run folders that would remain: {len(left.run_folders)}" + (f" (plus {left.deletable_run_folders} that --delete would remove)" if left.deletable_run_folders else ""))
-    for row in left.run_folders:
+    print(f"listed clips not deletable: {len(leftovers.listed_clips)} (reasons in the run summaries above and in {LEFTOVER_LISTED_CLIPS})")
+    print(f"run folders that would remain: {len(leftovers.run_folders)}" + (f" (plus {leftovers.deletable_run_folders} that --delete would remove)" if leftovers.deletable_run_folders else ""))
+    for row in leftovers.run_folders:
         print(f"    {row['path']}  {row['n_files']} file(s), {row['bytes']} bytes: {row['reason']}")
-    n = len(left.videos)
+    n = len(leftovers.videos)
     print(f"video files not listed in any manifest: {n}")
-    for rel in left.videos[:MAX_LISTED]:
+    for rel in leftovers.videos[:MAX_LISTED]:
         print(f"    {rel}")
     if n > MAX_LISTED:
         print(f"    ... {n - MAX_LISTED} more")
-    print(f"other ratrixcam-looking files outside the run folders: {len(left.ratrixcam_like)}")
-    if left.other_files or left.empty_folders:
+    print(f"other ratrixcam-looking files outside the run folders: {len(leftovers.ratrixcam_like)}")
+    if leftovers.other_files or leftovers.empty_folders:
         print(
-            f"The source folder is not empty. It contains {left.other_files} other file(s) in "
-            f"{len(left.other_folders)} folder(s), {left.other_bytes / 1e9:.2f} GB, not recognized as "
-            f"ratrixcam-related, and {left.empty_folders} empty folder(s)."
+            f"The source folder is not empty. It contains {leftovers.other_files} other file(s) in "
+            f"{len(leftovers.other_folders)} folder(s), {leftovers.other_bytes / 1e9:.2f} GB, not recognized as "
+            f"ratrixcam-related, and {leftovers.empty_folders} empty folder(s)."
         )
     else:
         print("no other files; empty folders: 0")
 
 
-def write_leftovers(root: Path, left: Leftovers) -> None:
+def write_leftovers(root: Path, leftovers: Leftovers) -> None:
     """The leftover_*.csv files at the root, one per non-empty category; stale ones removed."""
     for name in LEFTOVER_FILENAMES:
         (root / name).unlink(missing_ok=True)
-    if left.listed_clips:
+    if leftovers.listed_clips:
         with open(root / LEFTOVER_LISTED_CLIPS, "w", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=REQUIRED_COLUMNS + ["crf", "run_id", "status", "reason"])
             writer.writeheader()
-            writer.writerows(left.listed_clips)
+            writer.writerows(leftovers.listed_clips)
         print(f"written: <source>/{LEFTOVER_LISTED_CLIPS}")
-    if left.run_folders:
+    if leftovers.run_folders:
         with open(root / LEFTOVER_RUN_FOLDERS, "w", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=["path", "n_files", "bytes", "reason"])
             writer.writeheader()
-            writer.writerows(left.run_folders)
+            writer.writerows(leftovers.run_folders)
         print(f"written: <source>/{LEFTOVER_RUN_FOLDERS}")
-    if left.videos or left.ratrixcam_like:
+    if leftovers.videos or leftovers.ratrixcam_like:
         with open(root / LEFTOVER_UNLISTED_FILES, "w", newline="") as f:
             writer = csv.writer(f)
             writer.writerow(["path"])
-            writer.writerows([[rel.as_posix()] for rel in left.videos + left.ratrixcam_like])
+            writer.writerows([[rel.as_posix()] for rel in leftovers.videos + leftovers.ratrixcam_like])
         print(f"written: <source>/{LEFTOVER_UNLISTED_FILES}")
 
 
@@ -517,15 +517,15 @@ def confirm(
         print("none")
     print(f"runs processed: {processed} of {len(ready) + len(problems)}")
 
-    left = inventory_leftovers(root, listed, statuses, kept_runs)
-    report_leftovers(root, left)
-    if left.has_csv_content():
+    leftovers = inventory_leftovers(root, listed, statuses, kept_runs)
+    report_leftovers(root, leftovers)
+    if leftovers.has_csv_content():
         try:
             answer = input(f"Write the leftover_*.csv file(s) to {root}? [y/N]: ")
         except EOFError:
             answer = ""
         if answer.strip().lower() == "y":
-            write_leftovers(root, left)
+            write_leftovers(root, leftovers)
         else:
             print("leftover files not written")
     return 1 if problems or not processed else 0
@@ -534,17 +534,17 @@ def confirm(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="process a folder written by ratrixcam with the videoproc tools")
     commands = parser.add_subparsers(dest="command", required=True)
-    p = commands.add_parser(
+    compress_parser = commands.add_parser(
         "compress",
         help="compress_drive once per run in the folder, each followed by its run metadata folder",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    c = commands.add_parser(
+    confirm_parser = commands.add_parser(
         "confirm",
         help="confirm_and_delete once per run in the folder, on the clips its manifests list",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    for sub in (p, c):
+    for sub in (compress_parser, confirm_parser):
         sub.add_argument("root", type=Path, help="folder written by ratrixcam: a save_path drive, or a copy of one")
         sub.add_argument("destination", type=Path, help="destination root, as for compress_drive")
         sub.add_argument(
@@ -555,9 +555,9 @@ if __name__ == "__main__":
             "--subject_prefix", type=str, default=None,
             help="subject prefix of the destination paths of every run, in place of each run's config copy; '' for none",
         )
-    compress_drive.add_processing_arguments(p)
-    confirm_and_delete.add_processing_arguments(c)
-    c.add_argument("--no_pause", action="store_true", help="do not wait for Enter between runs (unattended use)")
+    compress_drive.add_processing_arguments(compress_parser)
+    confirm_and_delete.add_processing_arguments(confirm_parser)
+    confirm_parser.add_argument("--no_pause", action="store_true", help="do not wait for Enter between runs (unattended use)")
     kwargs = vars(parser.parse_args())
     command = kwargs.pop("command")
 
