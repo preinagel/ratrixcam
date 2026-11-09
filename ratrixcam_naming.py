@@ -48,11 +48,6 @@ def code_version(anchor: Path | None = None) -> str:
         return "unknown"
 
 
-def safe_token(text: str) -> str:
-    """A string made safe for use inside a file or folder name on any OS."""
-    return "".join(c if c.isalnum() or c in "-." else "_" for c in text.strip()) or "unnamed"
-
-
 def run_id(started: datetime) -> str:
     """ratrixcam_<YYYYMMDD>_<HHMMSS>_<8 random hex>, the same shape as videoproc's run ids."""
     return f"ratrixcam_{started:%Y%m%d_%H%M%S}_{uuid.uuid4().hex[:8]}"

@@ -29,7 +29,6 @@ from ratrixcam_utils import (
     load_settings,
     not_writable,
     seconds_until_full,
-    stills_dir,
     temp_is_clear,
     write_rate,
 )
@@ -448,8 +447,9 @@ def graceful_shutdown(state: State, stop_event: Event, abort_event: Event):
         if status is not None:
             status.write(cameras_alive=cameras_alive)  # at most once per preview interval
 
-    timeout = 600 #transcoding takes ~50% video duration, so wait 10min before killing unfinished processes
-                  #would be better to set this based on the slice duration but this is not available info
+    timeout = 600  # seconds for the supervisor and its cameras to finish or give up their transfers (a
+                   # transfer retries for TRANSFER_RETRY_WINDOW on a failing drive) before they are killed.
+                   # If on-the-fly transcoding is revived, allow about half the slice duration on top.
     print("Waiting for child processes to terminate...")
     phase = (
         f"{verb}.\nStopping the cameras; their pending transfers are being stopped."
@@ -562,16 +562,7 @@ def main():
     if not state.run_metadata.start_terminal_log():
         sys.exit(1)
 
-    # GUI
     bgcolor = "#3b0a0a"
-    if os.environ.get("DISPLAY", "") == "":
-        os.environ.__setitem__("DISPLAY", ":0.0")
-
-    # the folders themselves are named at the top of the terminal log
-    stills_folder = stills_dir(config.temp_path)
-    if not ensure_dir_exists(stills_folder):
-        print("ERROR: Stills folder does not exist and could not be created")
-        return
 
     state.camera_process = Process(target=run_without_handlers, args=(config, stop_event, abort_event))
     state.camera_process.start()

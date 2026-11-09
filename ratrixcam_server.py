@@ -1,4 +1,3 @@
-# version 250306_1325
 import argparse
 import multiprocessing
 import os
@@ -28,8 +27,6 @@ video_codec = cv2.VideoWriter.fourcc(*"mp4v")
 
 # ----------------------------------------------------------------------
 # BEGIN FUNCTION DEFINITIONS
-# function to move video file from temporary to permanent location
-# NOTE TRY MODIFYING THIS FUNCTION TO TEST TRANSCODING INSTEAD OF COPYING?
 TRANSFER_PAUSE: float = 3  # seconds before the first attempt; hand tuned to prevent race condition failures (fragile)
 TRANSFER_RETRY_DELAY: float = 5  # seconds between attempts
 TRANSFER_RETRY_WINDOW: float = 180  # seconds of silent retrying before a clip is left in temp: long enough for a
@@ -209,17 +206,19 @@ def _transfer_attempt(temp_file: str, out_file: str, save_root: str, size: int, 
                 flush_to_device(out_dir)  # the rename itself; best effort
             except OSError:
                 pass
-        else:
-            # The following works with timeout=3 but only for 640x480 on most cameras;can handle 2 780p cams
-            # HEADS-UP before enabling: os.system hands this string to the shell with the two paths
-            # unquoted, so a folder name with a space or a shell character breaks or alters the
-            # command; use subprocess.run with an argument list instead.
-            conversion_failed: int = os.system(command=f"ffmpeg -i {temp_file} -c:v hevc_videotoolbox -q:v 65 -tag:v hvc1 -loglevel error {out_file}")  # pyright: ignore[reportDeprecated]  # disabled branch kept as an extension point; see the HEADS-UP above
-            if conversion_failed:  # returns 0 for success, other outcomes
-                print(f"fmpeg conversion of {temp_file} failed with exit code {conversion_failed}")
-            # verify existence of the transcoded output file (its size differs from the original)
-            if not (os.path.exists(out_file) and os.path.isfile(out_file)):
-                return "no output file"
+        # NOT FINISHED, KEPT FOR A FUTURE VERSION: transcoding on the fly instead of copying
+        # (GitHub #16), as an xfer_mode other than "copy". Commented out, not deleted, so it can
+        # be revived. It worked with timeout=3 for 640x480 on most cameras and for two 720p
+        # cameras. HEADS-UP before reviving: os.system hands the string to the shell with the two
+        # paths unquoted, so a folder name with a space or a shell character breaks or alters the
+        # command; use subprocess.run with an argument list instead.
+        # else:
+        #     conversion_failed: int = os.system(f"ffmpeg -i {temp_file} -c:v hevc_videotoolbox -q:v 65 -tag:v hvc1 -loglevel error {out_file}")
+        #     if conversion_failed:  # returns 0 for success, other outcomes
+        #         print(f"ffmpeg conversion of {temp_file} failed with exit code {conversion_failed}")
+        #     # the transcoded output cannot be verified by size: check it exists
+        #     if not os.path.isfile(out_file):
+        #         return "no output file"
     except OSError as e:
         return f"copy failed: {e.strerror or e}"
     except Exception as e:
@@ -232,7 +231,7 @@ class CameraParams(BaseModel):
     width: int
     height: int
     fps: int
-    cam_exposure: float  # read from the config, unused: the exposure set is disabled (GitHub #51)
+    cam_exposure: float  # read from the config; the exposure setting is not implemented (GitHub #51)
     crf: int  # ffmpeg quality for this camera's clips, recorded for videoproc
 
 
@@ -333,13 +332,12 @@ def save_frame_to_writer(
     video_date = current_time.strftime("%Y%m%d")  
     video_time_long = current_time.strftime("%H:%M:%S.%f")[:-4] # Truncate to .01s to reflect actual accuracy of timestamps
 
-    # NOTE text position is hardwired for 640x480 videos, needs generalization
     font = cv2.FONT_HERSHEY_PLAIN
-    font_scale = params.height/480 #params.width / 640
+    font_scale = params.height / 480
     _ = cv2.putText(
         frame,
         label,
-        (math.ceil(0.015*params.width), math.floor(0.97*params.height )),  #(10, params.height - 10),
+        (math.ceil(0.015 * params.width), math.floor(0.97 * params.height)),
         font,
         font_scale,
         (255, 255, 255),
@@ -349,7 +347,7 @@ def save_frame_to_writer(
     _ = cv2.putText(
         frame,
         video_date,
-        (math.floor(0.8*params.width), math.floor(0.94*params.height) ), #(params.width - 115, params.height - 25),
+        (math.floor(0.8 * params.width), math.floor(0.94 * params.height)),
         font,
         font_scale,
         (255, 255, 255),
@@ -359,7 +357,7 @@ def save_frame_to_writer(
     _ = cv2.putText(
         frame,
         video_time_long,
-        (math.floor(0.8*params.width), math.floor(0.97*params.height) ),#(params.width - 115, params.height - 10),
+        (math.floor(0.8 * params.width), math.floor(0.97 * params.height)),
         font,
         font_scale,
         (255, 255, 255),
@@ -439,7 +437,6 @@ def run(config: Config, device_id: int, stop_event: Event, abort_event: Event | 
     )
     label: str = f"{config.study_label}_{params.name}"
     manifest = ManifestMetadata(config.temp_path, params.name, camera.subjID, camera.view, params.crf)
-    #ifi: float=1/params.fps #nominal interframe interval
 
     temp_dir = os.path.join(config.temp_path, label)
     if not ensure_dir_exists(temp_dir):
@@ -448,7 +445,7 @@ def run(config: Config, device_id: int, stop_event: Event, abort_event: Event | 
 
     stills_folder = stills_dir(config.temp_path)
     if not ensure_dir_exists(stills_folder):
-        print("ERROR: Still image folder does not existand cannot be created")
+        print("ERROR: Still image folder does not exist and cannot be created")
         return
 
     # create full path filename for updating still images (used for GUI display)
@@ -461,11 +458,12 @@ def run(config: Config, device_id: int, stop_event: Event, abort_event: Event | 
     _ = capture.set(cv2.CAP_PROP_FRAME_WIDTH, params.width)
     _ = capture.set(cv2.CAP_PROP_FRAME_HEIGHT, params.height)
     _ = capture.set(cv2.CAP_PROP_FPS, params.fps)
-    # DISABLED (GitHub #51): the AVFoundation backend on macOS does not implement CAP_PROP_EXPOSURE
-    # or CAP_PROP_AUTO_EXPOSURE (set() returns False, get() returns 0), so this never had an effect;
-    # the cameras run their own auto-exposure. To re-enable on V4L2 or DirectShow: set
-    # CAP_PROP_AUTO_EXPOSURE to manual first where the backend needs it, set CAP_PROP_EXPOSURE in
-    # that backend's units, check set()'s return value and read the value back before trusting it.
+    # UNTESTED, KEPT FOR A FUTURE VERSION: the camera's exposure setting (GitHub #51).
+    # Commented out, not deleted. The AVFoundation backend on macOS does not implement
+    # CAP_PROP_EXPOSURE or CAP_PROP_AUTO_EXPOSURE (set() returns False, get() returns 0); the
+    # cameras run their own auto-exposure. To revive on V4L2 or DirectShow: set CAP_PROP_AUTO_EXPOSURE
+    # to manual first where the backend needs it, set CAP_PROP_EXPOSURE in that backend's units,
+    # check set()'s return value and read the value back before trusting it.
     # _ = capture.set(cv2.CAP_PROP_EXPOSURE, params.cam_exposure)
 
     if not capture.isOpened():
@@ -506,7 +504,7 @@ def run(config: Config, device_id: int, stop_event: Event, abort_event: Event | 
     file_transfer_processes: list[Process] = []
     writer_state: WriterState | None = None
 
-    # this loop is executed once per video frame until camera is stcaopped
+    # this loop is executed once per video frame until the camera is stopped
     while capture.isOpened() and not stop_event.is_set():
         current_time: float = time.time()
         current_datetime: datetime = datetime.fromtimestamp(timestamp=current_time)
@@ -514,15 +512,6 @@ def run(config: Config, device_id: int, stop_event: Event, abort_event: Event | 
         # if not started yet, open first video file
         # or if video slice duration has been exceeded, close video file and initialize new one
         if writer_state is None or current_time - start > config.time_slice:
-            #timer = time.time_ns() 
-            # check for unfinished file transfers
-            # file_transfer_processes = [
-            #     p for p in file_transfer_processes if p.is_alive()
-            # ]
-            # if len(file_transfer_processes) > 0:
-            #     print(
-            #         f"WARNING: {len(file_transfer_processes)} previous file transfer processes are still running"
-            #     )
             start = current_time # update start time for first frame of new video (time.time() format)
                                         # note that the next frame captured will be written to the new writer
 
@@ -552,15 +541,6 @@ def run(config: Config, device_id: int, stop_event: Event, abort_event: Event | 
             )
             print(f"Cam_server: Camera {params.name} will now stream to {current_file_name}")
 
-            #elapsed = time.time_ns() - timer
-            #print("Took", elapsed / 1e6, "ms to open new video writer")
-
-        # Testing whether we could compute time from frame count? Result: no, fps is not exactly the nominal fps
-        # frametime: float=start+count*ifi  #nominal time since video started
-        # frame_datetime: datetime=datetime.fromtimestamp(timestamp=frametime)
-        # frame_timestr: str=frame_datetime.strftime("%H:%M:%S.%f")[:-3] 
-        # print(label,'frame',count,'capture time',current_datetime.strftime("%H:%M:%S.%f")[:-3],'nominal time',frame_timestr)
-
         # proceed to capture the next frame in the buffer
         # NOTE maybe should try 2-3x before giving up?  
         full_label: str = label + ' frame ' + str(count) #include frame# in overlay text
@@ -572,14 +552,12 @@ def run(config: Config, device_id: int, stop_event: Event, abort_event: Event | 
         
         # once per N sec, try to update the still image
         if count % (config.preview_interval * params.fps) == 0:
-            # print('attempting to overwrite',camera_still_path)
             try:
                 result = cv2.imwrite(camera_still_path, frame)
                 if result is False:
                     print(
                         f"WARNING: Failed to write still image to {camera_still_path}"
                     )
-                # print('image saved as',camera_still_path)
             except Exception as e:
                 print(type(e), e)
         count += 1  # increment frame count whether that succeeds or fails
@@ -606,10 +584,6 @@ def run(config: Config, device_id: int, stop_event: Event, abort_event: Event | 
     )
     _ = wait_for_transfers(file_transfer_processes, abort_event)  # an abort arriving meanwhile is honoured too
 
-    # print(
-    #     f"==== STOPPING CAMERA {str(device_id + 1).zfill(2)} at: {datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}",
-    # )
-    
     print(f"ratrixcam server {device_id+1}: shutdown complete; saved {filecount} files during this run")
 
 

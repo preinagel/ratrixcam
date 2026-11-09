@@ -22,9 +22,11 @@ from ratrixcam_utils import (
     stills_dir,
 )
 
-# not currently supported; to be re-introduced as config options when implemented
-RECORDING_AUDIO = False
-RECORDING_TTL = False
+# NOT IMPLEMENTED, KEPT FOR A FUTURE VERSION: audio recording and TTL input (GitHub #13). The
+# code for them is commented out, not deleted, so that it can be revived with the config options
+# that would switch them on.
+# RECORDING_AUDIO = False
+# RECORDING_TTL = False
 
 
 def count_video_devices():
@@ -83,7 +85,7 @@ def run(config: Config, stop_event: Event, abort_event: Event | None = None):
 
     camera_processes: list[Process | None] = [None for _ in range(num_cameras)]
     camera_state: list[bool] = [False for _ in range(num_cameras)]
-    p_TTL: Process | None = None
+    # p_TTL: Process | None = None  # TTL input, not implemented (see the top of the file)
 
     devices = 0
     while not stop_event.is_set():
@@ -120,7 +122,7 @@ def run(config: Config, stop_event: Event, abort_event: Event | None = None):
             # only when all devices are detected, try to re-launch the ones that went offline
             try: 
                 if just_started_a_cam: # if another camera was already launched within this loop,
-                    time.sleep(5)  # wait a bit before trying to launch another one (640x480 0.5 is suffic)
+                    time.sleep(5)  # wait a bit before trying to launch another one
                 cam_proc = Process(
                     target=run_without_handlers,
                     args=(config, idx, stop_event, abort_event),
@@ -133,30 +135,30 @@ def run(config: Config, stop_event: Event, abort_event: Event | None = None):
             except Exception as e:
                 print(f"Multicam: error starting camera {name}:", e)
 
-        # check the TTL process and restart if applicable
-        if RECORDING_TTL:
-            raise Exception("TTL server not implemented")
-            # if p_TTL is not None and p_TTL.is_alive():
-            #     continue
-            # # if not running, try to relaunch
-            # try:
-            #     # p_TTL = Process(target=ttl.run, args=(...))
-            #     print("TTL logging restarted")
-            # except Exception as e:
-            #     print(type(e), e)
-            #     print("Cannot restart TTL logging")
+        # TTL input, not implemented (see the top of the file): check its process and restart it
+        # if RECORDING_TTL:
+        #     if p_TTL is not None and p_TTL.is_alive():
+        #         continue
+        #     try:
+        #         p_TTL = Process(target=ttl.run, args=(...))
+        #         print("TTL logging restarted")
+        #     except Exception as e:
+        #         print(type(e), e)
+        #         print("Cannot restart TTL logging")
         _ = stop_event.wait(1)
 
     print("Multicam attempting to shut down nicely")
 
-    timeout = 600 #changed from 10 to allow time for transcoding to complete 250716
+    timeout = 600  # seconds for the cameras to finish or give up their transfers (a transfer retries for
+                   # TRANSFER_RETRY_WINDOW on a failing drive) before they are killed. If on-the-fly
+                   # transcoding is revived, allow about half the slice duration on top.
     print("Waiting for child processes to terminate...")
     for _ in range(int(timeout / 0.1)):
         all_cameras_terminated = all(
             process is None or not process.is_alive() for process in camera_processes
         )
-        TTL_terminated = p_TTL is None or not p_TTL.is_alive()
-        if all_cameras_terminated and TTL_terminated:
+        # TTL_terminated = p_TTL is None or not p_TTL.is_alive()  # TTL input, not implemented
+        if all_cameras_terminated:
             break
         time.sleep(0.1)  # wait a bit before trying again
     else:
@@ -168,6 +170,7 @@ def run(config: Config, stop_event: Event, abort_event: Event | None = None):
             name = camera_name(config.subject_prefix, camera_config.subjID, camera_config.view)
             print(f"Camera {name} failed to terminate, killing process")
             process.kill()
+        # TTL input, not implemented (see the top of the file)
         # if p_TTL is not None:
         #     print("TTL logging failed to terminate, killing process")
         #     p_TTL.kill()
@@ -206,7 +209,5 @@ def main():
     run(config, stop_event)
 
 
-# If in recording mode, initialize the cameras and any other processes on entry
-# is this the correct way to implement a main guard for this section of the code?
 if __name__ == "__main__":
     main()
