@@ -16,17 +16,17 @@ TIME = re.compile(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}")
 
 
 def test_header_once_then_one_row_per_clip(tmp_path):
-    m = ManifestMetadata(str(tmp_path), "rat999_home", "999", "home", 25)
-    assert Path(m.path) == tmp_path / "ratrixcam_run_metadata" / "manifests" / "rat999_home_manifest.csv"
-    assert m.append("Test_rat999_home_20261019", "rat999_home_20261019_15-23-29.mp4", datetime(2026, 10, 19, 15, 23, 29, 123456))
-    assert m.append("Test_rat999_home_20261019", "rat999_home_20261019_15-24-29.mp4", datetime(2026, 10, 19, 15, 24, 29))
+    m = ManifestMetadata(str(tmp_path), "subj999_view1", "999", "view1", 25)
+    assert Path(m.path) == tmp_path / "ratrixcam_run_metadata" / "manifests" / "subj999_view1_manifest.csv"
+    assert m.append("Test_subj999_view1_20261019", "subj999_view1_20261019_15-23-29.mp4", datetime(2026, 10, 19, 15, 23, 29, 123456))
+    assert m.append("Test_subj999_view1_20261019", "subj999_view1_20261019_15-24-29.mp4", datetime(2026, 10, 19, 15, 24, 29))
 
     with open(m.path, newline="") as f:
         rows = list(csv.reader(f))
     assert rows[0] == MANIFEST_COLUMNS
     assert len(rows) == 3
     assert rows[1][:4] == [
-        "Test_rat999_home_20261019/rat999_home_20261019_15-23-29.mp4", "999", "home", "2026-10-19 15:23:29.123",
+        "Test_subj999_view1_20261019/subj999_view1_20261019_15-23-29.mp4", "999", "view1", "2026-10-19 15:23:29.123",
     ]
     assert rows[2][3] == "2026-10-19 15:24:29.000"
     for row in rows[1:]:
@@ -36,26 +36,26 @@ def test_header_once_then_one_row_per_clip(tmp_path):
 
 def test_write_failure_warns_and_returns_false(tmp_path, capsys):
     (tmp_path / "blocked").write_text("a file where the temp folder should be")
-    m = ManifestMetadata(str(tmp_path / "blocked"), "rat999_home", "999", "home", 25)
-    assert m.append("Test_rat999_home_20261019", "clip.mp4", datetime.now()) is False
+    m = ManifestMetadata(str(tmp_path / "blocked"), "subj999_view1", "999", "view1", 25)
+    assert m.append("Test_subj999_view1_20261019", "clip.mp4", datetime.now()) is False
     out = capsys.readouterr().out
     assert "WARNING" in out and "clip.mp4" in out
     assert not Path(m.path).exists()
     tagged = [parse_manifest_warning(line) for line in out.splitlines()]
     tagged = [t for t in tagged if t is not None]
     assert len(tagged) == 1
-    assert tagged[0]["manifest"] == "rat999_home_manifest.csv"
-    assert tagged[0]["path"] == "Test_rat999_home_20261019/clip.mp4"
+    assert tagged[0]["manifest"] == "subj999_view1_manifest.csv"
+    assert tagged[0]["path"] == "Test_subj999_view1_20261019/clip.mp4"
     assert tagged[0]["crf"] == "25"
 
 
 def test_manifest_warning_round_trip():
-    line = manifest_warning("rat999_home_manifest.csv", "Test_rat999_home_20261021/rat999_home_20261021_08-51-48.mp4", "999", "home", "2026-10-21 08:51:48.297", 25)
+    line = manifest_warning("subj999_view1_manifest.csv", "Test_subj999_view1_20261021/subj999_view1_20261021_08-51-48.mp4", "999", "view1", "2026-10-21 08:51:48.297", 25)
     assert line.startswith("WARNING MANIFEST_ROW_NOT_WRITTEN ")
     assert parse_manifest_warning(line) == {
-        "manifest": "rat999_home_manifest.csv",
-        "path": "Test_rat999_home_20261021/rat999_home_20261021_08-51-48.mp4",
-        "subjID": "999", "view": "home", "clip_start": "2026-10-21 08:51:48.297", "crf": "25",
+        "manifest": "subj999_view1_manifest.csv",
+        "path": "Test_subj999_view1_20261021/subj999_view1_20261021_08-51-48.mp4",
+        "subjID": "999", "view": "view1", "clip_start": "2026-10-21 08:51:48.297", "crf": "25",
     }
     assert parse_manifest_warning("prefix from another process " + line + "\n") is not None  # interleaved output
     assert parse_manifest_warning("WARNING: could not add clip.mp4 to the manifest /temp/m.csv: Permission denied") is None
@@ -72,8 +72,8 @@ def test_a_failed_write_never_waits(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(time, "sleep", no_sleeping)
     blocker = tmp_path / "temp"
     blocker.write_text("a file where the temp folder should be")
-    m = ManifestMetadata(str(blocker), "rat999_home", "999", "home", 25)
-    assert m.append("Test_rat999_home_20261019", "clip.mp4", datetime.now()) is False
+    m = ManifestMetadata(str(blocker), "subj999_view1", "999", "view1", 25)
+    assert m.append("Test_subj999_view1_20261019", "clip.mp4", datetime.now()) is False
     assert capsys.readouterr().out.count("WARNING") == 2  # the readable line and the tagged line, once each
 
 
@@ -84,12 +84,12 @@ def test_close_writer_still_transfers_the_clip_when_the_manifest_fails(tmp_path,
         def release(self):
             pass
 
-    temp_dir, save_dir = tmp_path / "temp" / "Test_rat999_home", tmp_path / "save" / "Test_rat999_home_20261021"
+    temp_dir, save_dir = tmp_path / "temp" / "Test_subj999_view1", tmp_path / "save" / "Test_subj999_view1_20261021"
     temp_dir.mkdir(parents=True)
     save_dir.mkdir(parents=True)
     (temp_dir / "clip.mp4").write_bytes(b"clip")
     (tmp_path / "temp" / "blocked").write_text("a file where the temp folder should be")
-    manifest = ManifestMetadata(str(tmp_path / "temp" / "blocked"), "rat999_home", "999", "home", 25)
+    manifest = ManifestMetadata(str(tmp_path / "temp" / "blocked"), "subj999_view1", "999", "view1", 25)
     state = ratrixcam_server.WriterState(
         StandInWriter(),  # pyright: ignore[reportArgumentType]  (only release() is called)
         str(save_dir), str(temp_dir), "clip.mp4", datetime.now(),

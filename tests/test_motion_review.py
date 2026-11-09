@@ -51,7 +51,7 @@ def test_review_classifies_moving_static_and_blip(tmp_path, clips):
     assert still.exists() and still.name.endswith(f"_frame{review[0]['peak_frame_number']}.jpg")
 
     assert "no-motion clips: 2" in result.stdout
-    assert "flagged for review (>= 1 sampled frame at the threshold): 1 (home 1)" in result.stdout
+    assert "flagged for review (>= 1 sampled frame at the threshold): 1 (view1 1)" in result.stdout
     assert "motion review ON" in result.stdout
 
 

@@ -1,5 +1,5 @@
 """The status file the viewer reads: <temp_path>/ratrixcam_status.json, one per run, the
-contract in gui/STATUS_FILE_WISHLIST.md. Every statement the viewer makes about the run
+contract between this program and gui/viewer.js. Every statement the viewer makes about the run
 ("save drive full", "clips waiting", "stopping", "ended") comes from a field written here;
 the viewer applies only soft thresholds to the numbers. Written through a temporary name
 and a rename, so a reader never sees a half-written file.

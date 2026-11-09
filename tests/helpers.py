@@ -7,12 +7,12 @@ from pathlib import Path
 
 VIDEOPROC_DIR = Path(__file__).resolve().parents[1] / "videoproc"
 
-SUBJECT_PREFIX = "rat"
+SUBJECT_PREFIX = "subj"
 SUBJ_ID = "901"
 SUBJECT = SUBJECT_PREFIX + SUBJ_ID
-VIEW = "home"
+VIEW = "view1"
 DATE = "20250101"
-STUDYNAME = "LS"
+STUDYNAME = "Study"
 MANIFEST_NAME = "test_manifest.csv"  # one manifest per test source tree, at its root
 
 # time tokens for the compress_drive run-1/2/3 test cases (t01..t10 share SUBJECT/VIEW/DATE)
@@ -23,7 +23,7 @@ TIMES = {
 }
 T11_DATE = "20250102"
 T11_TIME = "10-11-00"
-HOM_TIME = "10-12-00"
+NEAR_MISS_TIME = "10-12-00"  # the clip in the "view" stream, a near-miss of VIEW that must stay a separate stream
 T12_TIME = "10-13-00"
 
 
@@ -32,7 +32,7 @@ def fname(time, date=DATE, view=VIEW, subject=SUBJECT):
 
 
 def session_folder_path(source_root: Path, subject=SUBJECT, view=VIEW, date=DATE) -> Path:
-    return source_root / f"Longitudinal Study_{subject}_{view}_{date}"
+    return source_root / f"Old Study_{subject}_{view}_{date}"  # a space in the name, as legacy folders have
 
 
 def session_folder(source_root: Path, subject=SUBJECT, view=VIEW, date=DATE) -> Path:

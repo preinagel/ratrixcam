@@ -39,7 +39,7 @@ def free_port() -> int:
 def temp_folder(tmp_path_factory: pytest.TempPathFactory) -> Path:
     temp = tmp_path_factory.mktemp("temp")
     (temp / "status").mkdir()
-    _ = (temp / "status" / "cam_rat901_home_status.png").write_bytes(PNG)
+    _ = (temp / "status" / "cam_subj901_view1_status.png").write_bytes(PNG)
     (temp / "ratrixcam_run_metadata" / "manifests").mkdir(parents=True)
     _ = (temp / "ratrixcam_run_metadata" / "camera_config.json").write_text('{"cameras": []}\n')
     _ = (temp / LOG_NAME).write_text("ratrixcam run started\n")
@@ -92,7 +92,7 @@ def test_viewer_page_at_root(server: Server):
 
 def test_still_served_as_png_without_caching(server: Server):
     base, _ = server
-    code, headers, body = get(base, "/temp/status/cam_rat901_home_status.png")
+    code, headers, body = get(base, "/temp/status/cam_subj901_view1_status.png")
     assert code == 200
     assert headers["content-type"] == "image/png"
     assert headers["cache-control"] == "no-store"
@@ -115,7 +115,7 @@ def test_subfolder_listing_without_trailing_slash(server: Server):
     base, _ = server
     code, _, body = get(base, "/temp/status")
     assert code == 200
-    assert [e["name"] for e in json.loads(body)["entries"]] == ["cam_rat901_home_status.png"]
+    assert [e["name"] for e in json.loads(body)["entries"]] == ["cam_subj901_view1_status.png"]
 
 
 def test_status_file_served_and_remembered(server: Server, temp_folder: Path):
@@ -180,8 +180,8 @@ def test_missing_files_give_404_and_no_log_line(server: Server):
     base, stderr_path = server
     before = stderr_path.read_text()
     assert get(base, "/temp/missing.json")[0] == 404
-    assert get(base, "/temp/ratrixcam_run_metadata/manifests/rat901_home_manifest.csv")[0] == 404
-    assert get(base, "/temp/status/cam_rat000_face_status.png")[0] == 404
+    assert get(base, "/temp/ratrixcam_run_metadata/manifests/subj901_view1_manifest.csv")[0] == 404
+    assert get(base, "/temp/status/cam_subj000_view2_status.png")[0] == 404
     assert get(base, "/nothing.html")[0] == 404
     time.sleep(0.2)
     assert stderr_path.read_text() == before
@@ -191,6 +191,6 @@ def test_requests_are_not_logged_at_all(server: Server):
     base, stderr_path = server
     before = stderr_path.read_text()
     assert get(base, "/temp/")[0] == 200
-    assert get(base, "/temp/status/cam_rat901_home_status.png")[0] == 200
+    assert get(base, "/temp/status/cam_subj901_view1_status.png")[0] == 200
     time.sleep(0.2)
     assert stderr_path.read_text() == before

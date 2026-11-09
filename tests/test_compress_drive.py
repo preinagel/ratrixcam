@@ -3,9 +3,9 @@ source/destination tree. run1/run2/run3 are the three sequential runs described 
 test brief; each test function checks one outcome from the already-completed run."""
 
 from helpers import (
-    HOM_TIME, STUDYNAME, SUBJECT, T11_DATE, T11_TIME, TIMES,
-    add_manifest_row, dest_path, fname, is_true, last_index_row, latest_run_dir, manifest_path, place,
-    place_clip, read_log, read_rows, run_compress_drive, session_folder_path, source_path,
+    NEAR_MISS_TIME, STUDYNAME, SUBJECT, T11_DATE, T11_TIME, TIMES,
+    add_manifest_row, dest_path, fname, is_true, last_index_row, latest_run_dir, manifest_path,
+    place_clip, read_log, read_rows, run_compress_drive, session_folder_path,
 )
 
 
@@ -87,23 +87,23 @@ def test_run1_files_not_in_the_manifest_are_left_alone(run1, layout):
 
 def test_run1_any_view_string_is_accepted(run1, layout):
     _, dest_root, _ = layout
-    row = run1["log"][fname(HOM_TIME, view="hom")]
+    row = run1["log"][fname(NEAR_MISS_TIME, view="view")]
     assert row["status"] == "compressed"
-    assert row["view"] == "hom"
-    assert dest_path(dest_root, HOM_TIME, view="hom").exists()
+    assert row["view"] == "view"
+    assert dest_path(dest_root, NEAR_MISS_TIME, view="view").exists()
 
 
 def test_run1_destination_layout_from_manifest_and_arguments(run1, layout):
     _, dest_root, _ = layout
     row = run1["log"][fname(TIMES["t01"])]
-    assert row["output_path"] == str(dest_root / SUBJECT / f"{STUDYNAME}_{SUBJECT}_home_20250101" / fname(TIMES["t01"]))
+    assert row["output_path"] == str(dest_root / SUBJECT / f"{STUDYNAME}_{SUBJECT}_view1_20250101" / fname(TIMES["t01"]))
     assert row["subjID"] == "901" and row["crf"] == "25"
 
 
 def test_run1_summary_and_index_row(run1, layout):
     _, dest_root, _ = layout
     summary = read_rows(run1["run_dir"] / "summary_by_subj_and_view.csv")
-    assert [(r["subjID"], r["view"], r["file_count"]) for r in summary] == [("901", "hom", "1"), ("901", "home", "11")]
+    assert [(r["subjID"], r["view"], r["file_count"]) for r in summary] == [("901", "view", "1"), ("901", "view1", "11")]
     index = last_index_row(dest_root)
     assert index["run_id"] == run1["run_dir"].name and index["run_id"].startswith("compression_")
     assert index["n_files"] == "12" and index["n_streams"] == "2"
@@ -116,7 +116,7 @@ def test_run1_motion_timeseries_has_one_row_per_motion_detected_clip(run1):
     rows = read_rows(run1["run_dir"] / "motion_timeseries.csv")
     expected_names = {
         fname(TIMES["t01"]), fname(TIMES["t05"]),
-        fname(TIMES["t10"]), fname(HOM_TIME, view="hom"),
+        fname(TIMES["t10"]), fname(NEAR_MISS_TIME, view="view"),
     }
     assert {row["clip_filename"] for row in rows} == expected_names
     for row in rows:
@@ -213,7 +213,7 @@ def test_listed_file_missing_at_source_is_flagged(tmp_path, clips):
     source_root, dest_root = tmp_path / "source", tmp_path / "dest"
     dest_root.mkdir()
     place_clip(clips["R30"], source_root, "10-00-00")
-    add_manifest_row(source_root, "Longitudinal Study_rat901_home_20250101/missing.mp4", "901", "home", "2025-01-01 10:05:00")
+    add_manifest_row(source_root, "Old Study_subj901_view1_20250101/missing.mp4", "901", "view1", "2025-01-01 10:05:00")
 
     result = run_compress_drive(source_root, dest_root, extra_args=["--n_threads", "4"])
     assert result.returncode == 0, result.stderr
@@ -233,7 +233,7 @@ def test_no_studyname_and_blank_prefix_shape_the_destination(tmp_path, clips):
            "--subject_prefix", "", "--n_threads", "4"]
     result = subprocess.run(cmd, cwd=VIDEOPROC_DIR, input="\n", capture_output=True, text=True, timeout=300)
     assert result.returncode == 0, result.stderr
-    assert (dest_root / "901" / "901_home_20250101" / fname("10-00-00")).exists()
+    assert (dest_root / "901" / "901_view1_20250101" / fname("10-00-00")).exists()
 
 
 def test_manifest_missing_a_required_column_stops_the_run(tmp_path, clips):
@@ -251,7 +251,7 @@ def test_a_path_listed_twice_is_processed_once(tmp_path, clips):
     source_root, dest_root = tmp_path / "source", tmp_path / "dest"
     dest_root.mkdir()
     target = place_clip(clips["R30"], source_root, "10-00-00")
-    add_manifest_row(source_root, target.relative_to(source_root).as_posix(), "901", "home", "2025-01-01 10:00:00")
+    add_manifest_row(source_root, target.relative_to(source_root).as_posix(), "901", "view1", "2025-01-01 10:00:00")
     result = run_compress_drive(source_root, dest_root, extra_args=["--n_threads", "4"])
     assert result.returncode == 0, result.stderr
     assert "duplicate" in result.stdout.lower() or "already listed" in result.stdout

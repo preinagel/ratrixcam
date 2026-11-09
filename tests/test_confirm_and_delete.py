@@ -9,7 +9,7 @@ import sys
 import pytest
 
 from helpers import (
-    HOM_TIME, T11_DATE, T11_TIME, T12_TIME, TIMES, VIDEOPROC_DIR,
+    NEAR_MISS_TIME, T11_DATE, T11_TIME, T12_TIME, TIMES, VIDEOPROC_DIR,
     add_manifest_row, dest_path, fname, is_true, latest_run_dir, manifest_path, place, place_clip, read_log, read_rows,
     run_compress_drive, run_confirm_and_delete, session_folder_path, source_path,
 )
@@ -97,7 +97,7 @@ def test_confirm_listed_file_missing_at_source_is_flagged_but_does_not_block_del
     dest_root.mkdir()
     place_clip(clips["R30"], source_root, "10-00-00")
     assert run_compress_drive(source_root, dest_root, extra_args=["--n_threads", "4"]).returncode == 0
-    add_manifest_row(source_root, "Longitudinal Study_rat901_home_20250101/missing.mp4", "901", "home", "2025-01-01 10:05:00")
+    add_manifest_row(source_root, "Old Study_subj901_view1_20250101/missing.mp4", "901", "view1", "2025-01-01 10:05:00")
     result = run_confirm_and_delete(source_root, dest_root, extra_args=["--min_age_hours", "0", "--no-decode"], delete=True)
     assert result.returncode == 0, result.stderr
     run_dir = latest_run_dir(dest_root, "confirm_")
@@ -145,14 +145,14 @@ def test_confirm_b_deletes_nothing(confirm_b, cd_prepared):
 
 def test_confirm_destination_inside_own_source_is_an_error(tmp_path, clips):
     dest2 = tmp_path / "dest2"
-    source_c = dest2 / "rat903"
+    source_c = dest2 / "subj903"
     place_clip(clips["R30"], source_c, "10-00-00", subj_id="903")
 
     result = run_confirm_and_delete(source_c, dest2, extra_args=["--min_age_hours", "0"])
     assert result.returncode == 0, result.stderr
 
     run_dir = latest_run_dir(dest2, "confirm_")
-    row = read_log(run_dir)[fname("10-00-00", subject="rat903")]
+    row = read_log(run_dir)[fname("10-00-00", subject="subj903")]
     assert row["status"] == "error"
     assert is_true(row["action_item"])
     assert "inside the source folder" in row["skipped_reason"]
@@ -199,13 +199,13 @@ def test_confirm_d_deletes_exactly_the_three_verified_clips(confirm_d, cd_prepar
     source_root, _ = cd_prepared
     assert not source_path(source_root, TIMES["t03"]).exists()
     assert not source_path(source_root, T11_TIME, date=T11_DATE).exists()
-    assert not source_path(source_root, HOM_TIME, view="hom").exists()
+    assert not source_path(source_root, NEAR_MISS_TIME, view="view").exists()
 
 
 def test_confirm_d_removes_the_folders_it_emptied_and_keeps_the_others(confirm_d, cd_prepared):
     source_root, _ = cd_prepared
     assert not session_folder_path(source_root, date=T11_DATE).exists()  # emptied by this run: removed
-    assert not session_folder_path(source_root, view="hom").exists()
+    assert not session_folder_path(source_root, view="view").exists()
     assert "Removed 2 source folder(s) left empty" in confirm_d["result"].stdout
     assert (session_folder_path(source_root) / "weird_clip.mp4").exists()  # unlisted file keeps its folder
     assert source_path(source_root, TIMES["t01"]).exists()

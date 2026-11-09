@@ -11,10 +11,10 @@ from pathlib import Path
 from helpers import DATE, SUBJECT, VIDEOPROC_DIR, clip_start, fname, latest_run_dir, place, read_log, read_rows
 
 RUN_ID = "ratrixcam_20250101_095900_abcd1234"
-STUDY = "LS"
+STUDY = "Study"
 
 
-def add_run(root: Path, clips: dict[str, Path], run_id: str, times, study=STUDY, view="home") -> Path:
+def add_run(root: Path, clips: dict[str, Path], run_id: str, times, study=STUDY, view="view1") -> Path:
     """One recording run as ratrixcam leaves it: a day folder with the clips, and the run's
     metadata folder holding the config copy, notes, log, stills and manifests. Returns the
     manifests folder."""
@@ -29,10 +29,10 @@ def add_run(root: Path, clips: dict[str, Path], run_id: str, times, study=STUDY,
             place(clips["R30"], day / fname(t, view=view))
             w.writerow([f"{day.name}/{fname(t, view=view)}", "901", view, clip_start(t), clip_start(t), 25])
     (meta / "stills").mkdir(parents=True)
-    (meta / "camera_config_test.json").write_text(json.dumps({"study_label": study, "subject_prefix": "rat", "cameras": []}))
+    (meta / "camera_config_test.json").write_text(json.dumps({"study_label": study, "subject_prefix": "subj", "cameras": []}))
     (meta / "notes.txt").write_text("notes\n")
     (meta / f"terminal_{run_id}.log").write_text("log\n")
-    (meta / "stills" / f"cam_rat901_{view}_status.png").write_bytes(b"png")
+    (meta / "stills" / f"cam_subj901_{view}_status.png").write_bytes(b"png")
     return manifests
 
 
@@ -63,10 +63,10 @@ def test_compress_processes_listed_clips_and_carries_the_folders(tmp_path, clips
     result = run_wrapper(root, dest)
     assert result.returncode == 0, result.stderr + result.stdout
 
-    assert (dest / SUBJECT / f"{STUDY}_{SUBJECT}_home_{DATE}" / fname("10-00-00")).exists()
+    assert (dest / SUBJECT / f"{STUDY}_{SUBJECT}_view1_{DATE}" / fname("10-00-00")).exists()
     assert (dest / "ratrixcam_run_metadata" / RUN_ID / "camera_config_test.json").exists()
-    assert (dest / "ratrixcam_run_metadata" / RUN_ID / "stills" / "cam_rat901_home_status.png").exists()
-    assert (dest / "ratrixcam_run_metadata" / RUN_ID / "manifests" / f"{SUBJECT}_home_manifest.csv").exists()
+    assert (dest / "ratrixcam_run_metadata" / RUN_ID / "stills" / "cam_subj901_view1_status.png").exists()
+    assert (dest / "ratrixcam_run_metadata" / RUN_ID / "manifests" / f"{SUBJECT}_view1_manifest.csv").exists()
     assert "ratrixcam run-metadata folders transferred: 1 (5 file(s) copied)" in result.stdout
 
     run_dir = latest_run_dir(dest, "compression_")
@@ -108,20 +108,20 @@ def test_each_recording_run_is_its_own_compression_run(tmp_path, clips):
     dest.mkdir()
     second = "ratrixcam_20250101_110000_ef567890"
     add_run(root, clips, RUN_ID, ("10-00-00",))
-    add_run(root, clips, second, ("11-00-00",), study="Pilot", view="face")
+    add_run(root, clips, second, ("11-00-00",), study="Pilot", view="view2")
 
     result = run_wrapper(root, dest)
     assert result.returncode == 0, result.stderr + result.stdout
     runs = compression_runs(dest)
     assert len(runs) == 2
-    assert (dest / SUBJECT / f"{STUDY}_{SUBJECT}_home_{DATE}" / fname("10-00-00")).exists()
-    assert (dest / SUBJECT / f"Pilot_{SUBJECT}_face_{DATE}" / fname("11-00-00", view="face")).exists()
+    assert (dest / SUBJECT / f"{STUDY}_{SUBJECT}_view1_{DATE}" / fname("10-00-00")).exists()
+    assert (dest / SUBJECT / f"Pilot_{SUBJECT}_view2_{DATE}" / fname("11-00-00", view="view2")).exists()
     terminals = {p: (p / "terminal.log").read_text() for p in runs}
     # each compression run carries its own run's folder ...
     assert all("run metadata folder:" in t for t in terminals.values())
     assert f"==== ratrixcam run {RUN_ID} ====" in result.stdout and f"==== ratrixcam run {second} ====" in result.stdout
     assert (dest / "ratrixcam_run_metadata" / RUN_ID / "notes.txt").exists()
-    assert (dest / "ratrixcam_run_metadata" / second / "manifests" / f"{SUBJECT}_face_manifest.csv").exists()
+    assert (dest / "ratrixcam_run_metadata" / second / "manifests" / f"{SUBJECT}_view2_manifest.csv").exists()
     assert "runs processed: 2 of 2" in result.stdout
 
 
@@ -131,7 +131,7 @@ def test_a_run_folder_without_manifests_is_skipped_but_still_carried(tmp_path, c
     add_run(root, clips, RUN_ID, ("10-00-00",))
     empty_run = root / "ratrixcam_run_metadata" / "ratrixcam_20250101_120000_00000000"
     empty_run.mkdir()
-    (empty_run / "camera_config_test.json").write_text(json.dumps({"study_label": STUDY, "subject_prefix": "rat"}))
+    (empty_run / "camera_config_test.json").write_text(json.dumps({"study_label": STUDY, "subject_prefix": "subj"}))
     (empty_run / "notes.txt").write_text("recorded nothing\n")
 
     result = run_wrapper(root, dest)
@@ -166,7 +166,7 @@ def test_studyname_and_prefix_arguments_override_the_config_copy(tmp_path, clips
 
     result = run_wrapper(root, dest, extra_args=["--studyname", "Pilot", "--subject_prefix", ""])
     assert result.returncode == 0, result.stderr + result.stdout
-    assert (dest / "901" / f"Pilot_901_home_{DATE}" / fname("10-00-00")).exists()  # clip names unchanged
+    assert (dest / "901" / f"Pilot_901_view1_{DATE}" / fname("10-00-00")).exists()  # clip names unchanged
 
 
 def test_compress_without_run_folders_stops(tmp_path):
@@ -206,7 +206,7 @@ def test_confirm_reports_the_listed_clips_of_each_run(tmp_path, clips):
     assert set(log) == {fname("10-00-00"), fname("10-01-00")}  # the stray video is not considered
     assert all(row["status"] == "already_done" and row["deletable"] == "True" for row in log.values())
     assert "nothing was deleted" in result.stdout and "runs processed: 1 of 1" in result.stdout
-    assert (root / f"{STUDY}_{SUBJECT}_home_{DATE}" / fname("10-00-00")).exists()
+    assert (root / f"{STUDY}_{SUBJECT}_view1_{DATE}" / fname("10-00-00")).exists()
     terminal = (runs[0] / "terminal.log").read_text()
     assert "run folder verified byte for byte" in terminal and "run folder kept: --delete not set" in terminal
     assert (root / "ratrixcam_run_metadata" / RUN_ID / "notes.txt").exists()
@@ -222,7 +222,7 @@ def test_confirm_report_only_lists_what_delete_partial_would_leave(tmp_path, cli
     dest.mkdir()
     make_drive(root, clips)  # two clips listed
     assert run_wrapper(root, dest).returncode == 0
-    (dest / SUBJECT / f"{STUDY}_{SUBJECT}_home_{DATE}" / fname("10-01-00")).unlink()  # one destination copy gone
+    (dest / SUBJECT / f"{STUDY}_{SUBJECT}_view1_{DATE}" / fname("10-01-00")).unlink()  # one destination copy gone
 
     result = run_confirm(root, dest, extra_args=["--min_age_hours", "0"], write_leftovers="y")
     assert result.returncode == 0, result.stderr + result.stdout
@@ -238,7 +238,7 @@ def test_confirm_pauses_between_runs_unless_told_not_to(tmp_path, clips):
     root, dest = tmp_path / "drive", tmp_path / "dest"
     dest.mkdir()
     add_run(root, clips, RUN_ID, ("10-00-00",))
-    add_run(root, clips, "ratrixcam_20250101_110000_ef567890", ("11-00-00",), view="face")
+    add_run(root, clips, "ratrixcam_20250101_110000_ef567890", ("11-00-00",), view="view2")
     assert run_wrapper(root, dest).returncode == 0
     cmd = [sys.executable, "process_ratrixcam_output.py", "confirm", str(root), str(dest), "--min_age_hours", "0"]
     result = subprocess.run(cmd, cwd=VIDEOPROC_DIR, input="\n\nn\n", capture_output=True, text=True, timeout=300)
@@ -251,14 +251,14 @@ def test_confirm_delete_asks_once_per_run_and_deletes_only_listed_clips(tmp_path
     dest.mkdir()
     second = "ratrixcam_20250101_110000_ef567890"
     make_drive(root, clips, times=("10-00-00",))
-    add_run(root, clips, second, ("11-00-00",), view="face")
+    add_run(root, clips, second, ("11-00-00",), view="view2")
     assert run_wrapper(root, dest).returncode == 0
 
     result = run_confirm(root, dest, extra_args=["--min_age_hours", "0", "--no-decode", "--delete"], n_delete_prompts=4)
     assert result.returncode == 0, result.stderr + result.stdout
     assert result.stdout.count("Type DELETE to proceed") == 4  # clips, then the run folder, for each run
-    assert not (root / f"{STUDY}_{SUBJECT}_home_{DATE}" / fname("10-00-00")).exists()
-    assert not (root / f"{STUDY}_{SUBJECT}_face_{DATE}" / fname("11-00-00", view="face")).exists()
+    assert not (root / f"{STUDY}_{SUBJECT}_view1_{DATE}" / fname("10-00-00")).exists()
+    assert not (root / f"{STUDY}_{SUBJECT}_view2_{DATE}" / fname("11-00-00", view="view2")).exists()
     assert (root / "not_a_day_folder" / "stray.mp4").exists()  # not listed: untouched
     assert not (root / "ratrixcam_run_metadata" / RUN_ID).exists()  # verified, clips gone: deleted
     assert not (root / "ratrixcam_run_metadata" / second).exists()
@@ -283,7 +283,7 @@ def test_confirm_keeps_the_run_folder_when_a_listed_clip_remains(tmp_path, clips
     dest.mkdir()
     make_drive(root, clips)  # two clips listed
     assert run_wrapper(root, dest).returncode == 0
-    (dest / SUBJECT / f"{STUDY}_{SUBJECT}_home_{DATE}" / fname("10-01-00")).unlink()  # one destination copy gone
+    (dest / SUBJECT / f"{STUDY}_{SUBJECT}_view1_{DATE}" / fname("10-01-00")).unlink()  # one destination copy gone
 
     result = run_confirm(
         root, dest, extra_args=["--min_age_hours", "0", "--no-decode", "--delete", "--delete_partial"],
@@ -291,8 +291,8 @@ def test_confirm_keeps_the_run_folder_when_a_listed_clip_remains(tmp_path, clips
     )
     assert result.returncode == 0, result.stderr + result.stdout
     assert result.stdout.count("Type DELETE to proceed") == 1  # the clips only; no folder prompt
-    assert not (root / f"{STUDY}_{SUBJECT}_home_{DATE}" / fname("10-00-00")).exists()
-    assert (root / f"{STUDY}_{SUBJECT}_home_{DATE}" / fname("10-01-00")).exists()
+    assert not (root / f"{STUDY}_{SUBJECT}_view1_{DATE}" / fname("10-00-00")).exists()
+    assert (root / f"{STUDY}_{SUBJECT}_view1_{DATE}" / fname("10-01-00")).exists()
     assert (root / "ratrixcam_run_metadata" / RUN_ID / "notes.txt").exists()
     assert "run folder kept: 1 of its 2 listed clip(s) remain at the source" in result.stdout
 
@@ -352,4 +352,4 @@ def test_confirm_delete_refuses_when_a_listed_clip_is_not_at_the_destination(tmp
     result = run_confirm(root, dest, extra_args=["--min_age_hours", "0", "--delete"], n_delete_prompts=1)
     assert result.returncode == 0, result.stderr + result.stdout  # the run completed; the refusal is the tool's verdict
     assert "REFUSING to delete" in result.stdout
-    assert (root / f"{STUDY}_{SUBJECT}_home_{DATE}" / fname("10-00-00")).exists()
+    assert (root / f"{STUDY}_{SUBJECT}_view1_{DATE}" / fname("10-00-00")).exists()
