@@ -16,9 +16,9 @@ ARGS = ["--n_threads", "4", "--motion_detection", "--motion_threshold", "0.001",
 def _run(tmp_path, clips, extra=()):
     source_root, dest_root = tmp_path / "source", tmp_path / "dest"
     dest_root.mkdir()
-    place_clip(clips["R30"], source_root, MOVING)
-    place_clip(clips["R30_static"], source_root, STATIC)
-    place_clip(clips["R30_blip"], source_root, BLIP)
+    _ = place_clip(clips["R30"], source_root, MOVING)
+    _ = place_clip(clips["R30_static"], source_root, STATIC)
+    _ = place_clip(clips["R30_blip"], source_root, BLIP)
     result = run_compress_drive(source_root, dest_root, extra_args=[*ARGS, *extra])
     assert result.returncode == 0, result.stderr
     return result, latest_run_dir(dest_root, "compression_")

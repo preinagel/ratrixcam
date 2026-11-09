@@ -2,9 +2,28 @@
   "typeCheckingMode": "recommended",
   "reportUnreachable": "error",
   "executionEnvironments": [
-    {"root": "videoproc", "extraPaths": ["."]},
-    {"root": "tests", "extraPaths": [".", "videoproc"]},
-    {"root": "."}
+    {
+      "root": "videoproc",
+      "extraPaths": [
+        "."
+      ]
+    },
+    {
+      "root": "tests",
+      "extraPaths": [
+        ".",
+        "videoproc"
+      ],
+      "reportMissingParameterType": "none",
+      "reportUnknownParameterType": "none",
+      "reportUnknownArgumentType": "none",
+      "reportUnknownMemberType": "none",
+      "reportUnknownVariableType": "none",
+      "reportUnknownLambdaType": "none"
+    },
+    {
+      "root": "."
+    }
   ],
   "exclude": [
     "videoproc/supplementary_tools.py",

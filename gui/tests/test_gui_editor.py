@@ -3,6 +3,7 @@ named by --options, reads a config for editing, and writes the one the form prod
 after the camera code's own checks pass, through a temporary file and a rename, into a
 folder that exists, never inside the temp or save folder."""
 
+import http.client
 import json
 import socket
 import subprocess
@@ -12,6 +13,7 @@ import urllib.error
 import urllib.request
 from collections.abc import Iterator
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -23,9 +25,17 @@ Server = tuple[str, Path]  # base url, options file
 def free_port() -> int:
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
-        port: object = s.getsockname()[1]
+        port = cast(object, s.getsockname()[1])
         assert isinstance(port, int)
         return port
+
+
+def open_url(request: str | urllib.request.Request) -> http.client.HTTPResponse:
+    return cast(http.client.HTTPResponse, urllib.request.urlopen(request))
+
+
+def decode(body: bytes) -> dict[str, object]:
+    return cast(dict[str, object], json.loads(body or b"null"))
 
 
 @pytest.fixture(scope="module")
@@ -39,7 +49,7 @@ def server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Server]:
     base = f"http://127.0.0.1:{port}"
     for _ in range(50):
         try:
-            urllib.request.urlopen(base + "/").close()
+            open_url(base + "/").close()
             break
         except (urllib.error.URLError, ConnectionError):
             time.sleep(0.1)
@@ -56,10 +66,10 @@ def call(base: str, method: str, path: str, body: object = None) -> tuple[int, d
     data = None if body is None else json.dumps(body).encode()
     req = urllib.request.Request(base + path, method=method, data=data, headers={"Content-Type": "application/json"})
     try:
-        with urllib.request.urlopen(req) as r:
-            return r.status, json.loads(r.read() or b"null")
+        with open_url(req) as r:
+            return r.status, decode(r.read())
     except urllib.error.HTTPError as e:
-        return e.code, json.loads(e.read() or b"null")
+        return e.code, decode(e.read())
 
 
 def good_config(tmp_path: Path) -> dict[str, object]:
@@ -86,7 +96,7 @@ def good_config(tmp_path: Path) -> dict[str, object]:
 def problems(reply: dict[str, object]) -> str:
     found = reply.get("problems")
     assert isinstance(found, list)
-    return "\n".join(str(p) for p in found)
+    return "\n".join(str(p) for p in cast(list[object], found))
 
 
 # ---------- writing ----------
@@ -115,7 +125,7 @@ def test_tilde_in_paths_is_expanded_in_the_file(server: Server, tmp_path: Path):
     target = tmp_path / "cfg.json"
     code, _ = call(base, "PUT", f"/api/config?path={target}", config)
     assert code == 200
-    written = json.loads(target.read_text())
+    written = decode(target.read_bytes())
     assert written["temp_path"] == str(Path.home() / "Desktop" / "temp") + "/"
 
 
@@ -151,8 +161,7 @@ def test_missing_folder_is_refused_not_created(server: Server, tmp_path: Path):
 def test_duplicate_camera_is_refused_with_both_reasons(server: Server, tmp_path: Path):
     base, _ = server
     config = good_config(tmp_path)
-    cameras = config["cameras"]
-    assert isinstance(cameras, list)
+    cameras = cast(list[dict[str, object]], config["cameras"])
     cameras.append(dict(cameras[0]))
     target = tmp_path / "dup.json"
     code, reply = call(base, "PUT", f"/api/config?path={target}", config)
@@ -184,8 +193,7 @@ def test_non_object_is_refused(server: Server, tmp_path: Path):
 def test_existing_config_is_read_back_with_its_problems(server: Server, tmp_path: Path):
     base, _ = server
     config = good_config(tmp_path)
-    cameras = config["cameras"]
-    assert isinstance(cameras, list)
+    cameras = cast(list[dict[str, object]], config["cameras"])
     cameras.append(dict(cameras[1]))
     target = tmp_path / "read.json"
     _ = target.write_text(json.dumps(config))
@@ -210,8 +218,7 @@ def test_options_file_is_created_with_placeholders(server: Server):
     code, reply = call(base, "GET", "/api/options")
     assert code == 200
     assert options_file.is_file()
-    options = reply["options"]
-    assert isinstance(options, dict)
+    options = cast(dict[str, list[object]], reply["options"])
     assert options["time_slice"] == [60, 600]
     assert options["camera_crf"] == []
     assert len(options["machine_name"]) == 1
@@ -222,15 +229,18 @@ def test_options_file_is_created_with_placeholders(server: Server):
 def test_options_round_trip_and_reset(server: Server):
     base, _ = server
     _, reply = call(base, "GET", "/api/options")
-    options = reply["options"]
-    assert isinstance(options, dict)
+    options = cast(dict[str, list[object]], reply["options"])
     options["view"].append("tail")
     code, _ = call(base, "PUT", "/api/options", reply)
     assert code == 200
-    assert "tail" in call(base, "GET", "/api/options")[1]["options"]["view"]  # pyright: ignore[reportIndexIssue, reportOperatorIssue]
+
+    def views() -> list[object]:
+        return cast(dict[str, list[object]], call(base, "GET", "/api/options")[1]["options"])["view"]
+
+    assert "tail" in views()
     code, _ = call(base, "PUT", "/api/options?reset=1", {})
     assert code == 200
-    assert "tail" not in call(base, "GET", "/api/options")[1]["options"]["view"]  # pyright: ignore[reportIndexIssue, reportOperatorIssue]
+    assert "tail" not in views()
 
 
 def test_malformed_options_are_refused(server: Server):

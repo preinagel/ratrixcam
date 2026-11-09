@@ -38,10 +38,10 @@ class ManifestMetadata:
     """What one camera writes into every row of its manifest, and where that manifest is."""
 
     def __init__(self, temp_path: str, camera_name_: str, subjID: str, view: str, crf: int):
-        self.path = str(temp_manifests_dir(temp_path) / manifest_filename(camera_name_))
-        self.subjID = subjID
-        self.view = view
-        self.crf = crf
+        self.path: str = str(temp_manifests_dir(temp_path) / manifest_filename(camera_name_))
+        self.subjID: str = subjID
+        self.view: str = view
+        self.crf: int = crf
 
     def append(self, day_folder: str, file_name: str, started: datetime) -> bool:
         """Append the row for one closed clip. One attempt, no waiting: this runs on the

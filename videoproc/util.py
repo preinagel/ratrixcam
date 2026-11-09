@@ -48,7 +48,7 @@ def file_lock(
                 raise TimeoutError(f"could not acquire lock {lock_path} within {timeout}s")
             time.sleep(poll_interval)
     try:
-        os.write(fd, f"{socket.gethostname()} pid {os.getpid()} {datetime.now():%Y-%m-%d %H:%M:%S}\n".encode())
+        _ = os.write(fd, f"{socket.gethostname()} pid {os.getpid()} {datetime.now():%Y-%m-%d %H:%M:%S}\n".encode())
         yield
     finally:
         os.close(fd)

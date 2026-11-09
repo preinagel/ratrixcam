@@ -46,7 +46,7 @@ def _write_raw_clip(path: Path, n_frames: int, square_frames=None) -> None:
 
 
 def _compress(src: Path, dst: Path) -> None:
-    subprocess.run(
+    _ = subprocess.run(
         ["ffmpeg", "-y", "-i", str(src), "-c:v", "libx264", "-crf", "30", "-pix_fmt", "yuv420p", str(dst)],
         check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
     )
@@ -57,12 +57,12 @@ def _truncated_raw_copy(src: Path, dst: Path, keep_fraction: float = 0.8) -> Non
     front first) but whose last (1 - keep_fraction) of frame data is physically missing --
     OpenCV reports the original frame count, but re-encoding it yields fewer frames."""
     faststart = dst.with_suffix(".faststart.mp4")
-    subprocess.run(
+    _ = subprocess.run(
         ["ffmpeg", "-y", "-i", str(src), "-c:v", "mpeg4", "-movflags", "+faststart", str(faststart)],
         check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
     )
     data = faststart.read_bytes()
-    dst.write_bytes(data[: int(len(data) * keep_fraction)])
+    _ = dst.write_bytes(data[: int(len(data) * keep_fraction)])
     faststart.unlink()
 
 
@@ -71,7 +71,7 @@ def _zero_bytes_copy(src: Path, dst: Path, offset_fraction: float, n_bytes: int)
     offset = int(len(data) * offset_fraction)
     for i in range(offset, min(offset + n_bytes, len(data))):
         data[i] = 0
-    dst.write_bytes(bytes(data))
+    _ = dst.write_bytes(bytes(data))
 
 
 @pytest.fixture(scope="session")
@@ -138,7 +138,7 @@ def layout(tmp_path_factory, clips):
         "t09": clips["junk"], "t10": clips["R30_corrupt"],
     }
     for key, clip in sources.items():
-        place_clip(clip, source_root, TIMES[key])
+        _ = place_clip(clip, source_root, TIMES[key])
 
     predest = {
         "t03": clips["R30"], "t04": clips["C20"], "t05": clips["junk"],
@@ -149,12 +149,12 @@ def layout(tmp_path_factory, clips):
 
     place(clips["R30"], session_folder(source_root) / "weird_clip.mp4")  # present, not in the manifest
 
-    place_clip(clips["C30"], source_root, T11_TIME, date=T11_DATE)
+    _ = place_clip(clips["C30"], source_root, T11_TIME, date=T11_DATE)
     t11_dest_dir = dest_path(dest_root, T11_TIME, date=T11_DATE).parent
     t11_dest_dir.mkdir(parents=True)
     t11_dest_dir.chmod(0o555)
 
-    place_clip(clips["R30"], source_root, NEAR_MISS_TIME, view="view")
+    _ = place_clip(clips["R30"], source_root, NEAR_MISS_TIME, view="view")
 
     stray_dir = source_root / "not_a_session_folder"  # present, not in the manifest
     stray_dir.mkdir()
@@ -179,6 +179,7 @@ def run1(layout):
 
 @pytest.fixture(scope="session")
 def run2(run1, layout):
+    _ = run1  # requested so that run 1 has happened first
     source_root, dest_root, t11_dest_dir = layout
     t11_dest_dir.chmod(0o755)  # restore write access so run2's t11 case can succeed
     result = run_compress_drive(source_root, dest_root, extra_args=[
@@ -191,6 +192,7 @@ def run2(run1, layout):
 
 @pytest.fixture(scope="session")
 def run3(run2, layout):
+    _ = run2  # requested so that run 2 has happened first
     source_root, dest_root, _ = layout
     result = run_compress_drive(source_root, dest_root, extra_args=[
         "--n_threads", "4", "--motion_detection", "--motion_threshold", "0.001", "--overwrite_compressed",

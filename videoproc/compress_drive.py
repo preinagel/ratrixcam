@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from pprint import pprint
+from typing import TextIO, cast
 
 import cv2
 import detect_motion
@@ -122,12 +123,12 @@ def append_index_row(
     except TimeoutError as e:
         print(
             f"WARNING: {e}; this run is recorded only in its own folder "
-            "(run rebuild_index.py to regenerate index.csv later)"
+            + "(run rebuild_index.py to regenerate index.csv later)"
         )
         return False
 
 
-def append_motion_timeseries(path: Path, clip_filename: str, motion_by_frame) -> None:
+def append_motion_timeseries(path: Path, clip_filename: str, motion_by_frame: detect_motion.Scores) -> None:
     """Append one clip's per-sampled-frame motion values as a single row (clip filename,
     then the values space-separated, 4 significant digits), so per-frame activity (e.g. for
     an occupancy timeline or picking high-activity sub-clips) survives past the single
@@ -141,15 +142,15 @@ def append_motion_timeseries(path: Path, clip_filename: str, motion_by_frame) ->
         writer = csv.writer(f)
         if is_new:
             writer.writerow(["clip_filename", "motion_values"])
-        writer.writerow([clip_filename, " ".join(f"{value:.4g}" for value in motion_by_frame)])
+        writer.writerow([clip_filename, " ".join(f"{value:.4g}" for value in motion_by_frame)])  # pyright: ignore[reportAny]  # numpy yields untyped scalars
 
 
-def save_peak_still(stills_dir: Path, clip_filename: str, frame, frame_number: int) -> Path:
+def save_peak_still(stills_dir: Path, clip_filename: str, frame: MatLike, frame_number: int) -> Path:
     """JPEG of the sampled frame that scored highest in a clip classified no-motion, so the
     classification can be checked by eye before the raw clip is deleted."""
     stills_dir.mkdir(parents=True, exist_ok=True)
     path = stills_dir / f"{Path(clip_filename).stem}_frame{frame_number}.jpg"
-    cv2.imwrite(str(path), frame, [cv2.IMWRITE_JPEG_QUALITY, 90])
+    _ = cv2.imwrite(str(path), frame, [cv2.IMWRITE_JPEG_QUALITY, 90])
     return path
 
 
@@ -167,32 +168,33 @@ class TeeStream:
     """File-like object that forwards each write to multiple underlying streams, so
     output reaches all of them (e.g. the live terminal and a log file) at once."""
 
-    def __init__(self, *streams):
-        self.streams = streams
+    def __init__(self, *streams: TextIO):
+        self.streams: tuple[TextIO, ...] = streams
 
-    def write(self, data):
+    def write(self, data: str) -> None:
         for stream in self.streams:
-            stream.write(data)
+            _ = stream.write(data)
 
-    def flush(self):
+    def flush(self) -> None:
         for stream in self.streams:
             stream.flush()
 
 
-def start_terminal_log(log_path: Path):
+def start_terminal_log(log_path: Path) -> io.TextIOWrapper:
     """Duplicate everything printed via print()/sys.stdout/sys.stderr to both the live
     terminal and a log file, so a run's terminal output is preserved after the fact. Only
     captures Python-level output -- messages written directly by native libraries (e.g.
     OpenCV) bypass Python's stream objects and won't reach the log file."""
     log_path.parent.mkdir(parents=True, exist_ok=True)
+    terminal_out, terminal_err = sys.__stdout__, sys.__stderr__
+    assert terminal_out is not None and terminal_err is not None  # None only when there is no console at all
     # force line buffering so live output and the log file don't lag behind what's
     # actually been printed
-    for stream in (sys.__stdout__, sys.__stderr__):
-        if isinstance(stream, io.TextIOWrapper):
-            stream.reconfigure(line_buffering=True)
+    for stream in (terminal_out, terminal_err):
+        stream.reconfigure(line_buffering=True)
     log_file = open(log_path, "a", buffering=1)
-    sys.stdout = TeeStream(sys.__stdout__, log_file)
-    sys.stderr = TeeStream(sys.__stderr__, log_file)
+    sys.stdout = TeeStream(terminal_out, log_file)
+    sys.stderr = TeeStream(terminal_err, log_file)
     return log_file
 
 
@@ -252,7 +254,7 @@ def copy_file(in_file: Path, out_file: Path, max_retries: int = 5) -> None:
 
     for attempt in range(1, max_retries + 1):
         try:
-            shutil.copy2(in_file, out_file)
+            _ = shutil.copy2(in_file, out_file)
             if out_file.exists() and out_file.is_file():
                 return
         except Exception as e:
@@ -292,8 +294,8 @@ def run_motion_detection(input_path: Path, motion_percentile: float, motion_thre
             time.time() - start,
             float(np.mean(over_threshold)),
             motion_by_frame,
-            float(motion_by_frame.max()),
-            int(over_threshold.sum()),
+            float(motion_by_frame.max()),  # pyright: ignore[reportAny]  # numpy reductions are untyped
+            int(over_threshold.sum()),  # pyright: ignore[reportAny]  # numpy reductions are untyped
             peak_frame,
             peak_frame_number,
         )
@@ -337,12 +339,12 @@ def compress_video(
 
     # run ffmpeg compression
     try:
-        subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+        _ = subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
         compression_time = time.time() - start
         return True, None, compression_time
     except subprocess.CalledProcessError as e:
         compression_time = time.time() - start
-        return False, e.stderr.decode("utf-8"), compression_time
+        return False, cast(bytes, e.stderr).decode("utf-8"), compression_time
 
 
 def log_not_attempted(logger: Logger, remaining: list[ManifestRow], input_root: Path) -> None:
@@ -416,7 +418,7 @@ def main(
     if not wait_for_connectivity(input, output):
         print(
             f"ABORTING: {input} or {output} unreachable after "
-            f"{CONNECTIVITY_TOTAL_TIMEOUT_HOURS} hours -- exiting before run setup"
+            + f"{CONNECTIVITY_TOTAL_TIMEOUT_HOURS} hours -- exiting before run setup"
         )
         return
 
@@ -465,7 +467,7 @@ def main(
             if motion_review:
                 print(
                     f"motion review ON: peak still for every no-motion clip in {NO_MOTION_STILLS_DIRNAME}/; "
-                    "time series kept for motion clips and for no-motion clips with any sampled frame at the threshold"
+                    + "time series kept for motion clips and for no-motion clips with any sampled frame at the threshold"
                 )
             else:
                 print("motion review OFF: no stills; time series kept for every clip")
@@ -483,8 +485,8 @@ def main(
             if not wait_for_connectivity(input, output):
                 print(
                     f"ABORTING: {input} or {output} still unreachable after "
-                    f"{CONNECTIVITY_TOTAL_TIMEOUT_HOURS} hours -- stopping run rather than "
-                    "continuing to fail on every remaining file"
+                    + f"{CONNECTIVITY_TOTAL_TIMEOUT_HOURS} hours -- stopping run rather than "
+                    + "continuing to fail on every remaining file"
                 )
                 log_not_attempted(logger, rows[i:], input)
                 break
@@ -563,8 +565,8 @@ def main(
                                 flagged_by_view[view] += 1
                                 print(
                                     f"    REVIEW: no motion by the {motion_percentile}th-percentile rule, but "
-                                    f"{motion.n_frames_over_threshold} sampled frame(s) reach the threshold "
-                                    f"(max {motion.motion_max:.4g}); still and time series kept"
+                                    + f"{motion.n_frames_over_threshold} sampled frame(s) reach the threshold "
+                                    + f"(max {motion.motion_max:.4g}); still and time series kept"
                                 )
                                 append_motion_review_row(
                                     run_metadata_dir / MOTION_REVIEW_FILENAME,
@@ -645,14 +647,14 @@ def main(
             flagged_by_view,
         )
         if not indexed:
-            append_index_row(index_path, run_id, summary, motion_detection, motion_threshold)
+            _ = append_index_row(index_path, run_id, summary, motion_detection, motion_threshold)
         return run_metadata_dir
 
     finally:
         # flush and restore stdout/stderr and close the log file, even on an early return
         # or an uncaught exception, so terminal.log ends up complete
-        sys.stdout.flush()
-        sys.stderr.flush()
+        _ = sys.stdout.flush()
+        _ = sys.stderr.flush()
         sys.stdout = sys.__stdout__
         sys.stderr = sys.__stderr__
         log_file.close()
@@ -662,61 +664,61 @@ def add_processing_arguments(parser: argparse.ArgumentParser) -> None:
     """The options that control how each clip is processed, shared with the ratrixcam wrapper
     (process_ratrixcam_output.py); the source, destination and manifest arguments are the
     caller's."""
-    parser.add_argument(
+    _ = parser.add_argument(
         "--motion_detection",
         action="store_true",
         help="analyse each raw clip for motion and compress clips without motion more strongly; also saves "
-        "motion_timeseries.csv (per-frame motion values), which can be used to develop a custom threshold. "
-        "Off by default",
+        + "motion_timeseries.csv (per-frame motion values), which can be used to develop a custom threshold. "
+        + "Off by default",
     )
-    parser.add_argument(
+    _ = parser.add_argument(
         "--motion_percentile",
         default=99.9,
         type=float,
         help="with --motion_detection: percentile of the per-frame motion values used as the clip's motion score",
     )
-    parser.add_argument(
+    _ = parser.add_argument(
         "--motion_threshold",
         default=0.0,
         type=float,
         help="with --motion_detection: a clip whose motion score is at or above this counts as having motion. "
-        "The default 0 classifies every clip as motion (encoded according to camera policy) while still "
-        "recording motion_timeseries.csv; a working value is calibrated on the rig's own raw video, "
-        "e.g. from the motion_timeseries.csv of a run at the default",
+        + "The default 0 classifies every clip as motion (encoded according to camera policy) while still "
+        + "recording motion_timeseries.csv; a working value is calibrated on the rig's own raw video, "
+        + "e.g. from the motion_timeseries.csv of a run at the default",
     )
-    parser.add_argument(
+    _ = parser.add_argument(
         "--motion_review",
         action=argparse.BooleanOptionalAction,
         default=True,
         help="with --motion_detection: save the highest-scoring frame of every no-motion clip as a still "
-        "in the run's no_motion_stills/ folder, and keep the motion time series only for motion clips and "
-        "for no-motion clips in which at least one sampled frame reaches --motion_threshold (listed in "
-        "motion_review.csv). --no-motion_review: no stills, time series for every clip",
+        + "in the run's no_motion_stills/ folder, and keep the motion time series only for motion clips and "
+        + "for no-motion clips in which at least one sampled frame reaches --motion_threshold (listed in "
+        + "motion_review.csv). --no-motion_review: no stills, time series for every clip",
     )
-    parser.add_argument(
+    _ = parser.add_argument(
         "--n_threads",
         default=4,
         type=int,
         help="number of threads ffmpeg may use; about the machine's core count minus one",
     )
-    parser.add_argument(
+    _ = parser.add_argument(
         "--compress_spd",
         default="veryfast",
         type=str,
         help="compression speed {ultrafast, superfast, veryfast, ..., veryslow}",
     )
-    parser.add_argument(
+    _ = parser.add_argument(
         "--recompress",
         action="store_true",
         help="re-encode source files that are already compressed instead of copying them as-is "
-        "(emergency use only: compresses lossy video a second time)",
+        + "(emergency use only: compresses lossy video a second time)",
     )
-    parser.add_argument(
+    _ = parser.add_argument(
         "--overwrite_raw",
         action="store_true",
         help="replace a raw (uncompressed) video already at the destination with the processed source",
     )
-    parser.add_argument(
+    _ = parser.add_argument(
         "--overwrite_compressed",
         action="store_true",
         help="replace a compressed video already at the destination with a fresh processing of the source",
@@ -730,25 +732,25 @@ if __name__ == "__main__":
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     # positional arguments: required
-    parser.add_argument("input", type=Path, help="source root; manifest paths are relative to it")
-    parser.add_argument("output", type=Path, help="destination root")
-    parser.add_argument(
+    _ = parser.add_argument("input", type=Path, help="source root; manifest paths are relative to it")
+    _ = parser.add_argument("output", type=Path, help="destination root")
+    _ = parser.add_argument(
         "--manifest",
         type=Path,
         action="append",
         required=True,
         help="manifest CSV listing the clips to process (path, subjID, view, clip_start[, crf]); "
-        "repeat the option to process several manifests as one run",
+        + "repeat the option to process several manifests as one run",
     )
 
     # keyword arguments: optional
-    parser.add_argument(
+    _ = parser.add_argument(
         "--studyname",
         type=str,
         default=None,
         help="study-name prefix for the destination day folders; omitted, the folders have no prefix",
     )
-    parser.add_argument(
+    _ = parser.add_argument(
         "--subject_prefix",
         type=str,
         default="subj",
@@ -756,24 +758,26 @@ if __name__ == "__main__":
     )
     add_processing_arguments(parser)
     kwargs = vars(parser.parse_args())
+    source_root, destination_root = cast(Path, kwargs["input"]), cast(Path, kwargs["output"])
+    manifests = cast(list[Path], kwargs["manifest"])
 
     # argument validation
-    if not kwargs["input"].is_dir():
-        raise NotADirectoryError(f"{kwargs['input']} is not a valid directory")
+    if not source_root.is_dir():
+        raise NotADirectoryError(f"{source_root} is not a valid directory")
 
-    if not kwargs["output"].is_dir():
-        raise NotADirectoryError(f"{kwargs['output']} is not a valid directory")
+    if not destination_root.is_dir():
+        raise NotADirectoryError(f"{destination_root} is not a valid directory")
 
-    if kwargs["input"].resolve() == kwargs["output"].resolve():
+    if source_root.resolve() == destination_root.resolve():
         raise ValueError("input and output paths cannot be the same")
 
-    for m in kwargs["manifest"]:
+    for m in manifests:
         if not m.is_file():
             raise FileNotFoundError(f"manifest {m} not found")
 
     # confirm configuration with user
     print("\nconfiguration:")
     pprint(kwargs, sort_dicts=False)
-    input("\n[enter] to continue: ")
+    _ = input("\n[enter] to continue: ")
 
-    main(**kwargs)
+    _ = main(**kwargs)  # pyright: ignore[reportAny]  # argparse hands back Any

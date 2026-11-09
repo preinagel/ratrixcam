@@ -46,9 +46,9 @@ LAST_TYPES = {"status.json": "application/json"}
 
 @final
 class ViewerHandler(SimpleHTTPRequestHandler):
-    def __init__(self, *args: Any, temp_dir: str, **kwargs: Any):
+    def __init__(self, *args: Any, temp_dir: str, **kwargs: Any):  # pyright: ignore[reportExplicitAny, reportAny]  # the base class's own untyped arguments
         self.temp_dir: str = temp_dir
-        super().__init__(*args, directory=GUI_DIR, **kwargs)
+        super().__init__(*args, directory=GUI_DIR, **kwargs)  # pyright: ignore[reportAny]
 
     @override
     def translate_path(self, path: str) -> str:

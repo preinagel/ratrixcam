@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from pprint import pprint
-from typing import Any, Callable
+from typing import Callable, cast
 
 from classify import (
     LOG_FIELDS as BASE_LOG_FIELDS,
@@ -45,7 +45,7 @@ EXTRA_FIELDS = [
 ]
 LOG_FIELDS = BASE_LOG_FIELDS + EXTRA_FIELDS
 DELETION_FIELDS = ["input_path", "output_path", "input_size_bytes", "deleted_at"]
-Row = dict[str, Any]  # one inspection_log.csv line, keyed by LOG_FIELDS
+Row = dict[str, object]  # one inspection_log.csv line, keyed by LOG_FIELDS
 
 
 @dataclass
@@ -123,7 +123,8 @@ def print_summary(
 ) -> None:
     counts: dict[str, int] = {}
     for r in rows:
-        counts[r["status"]] = counts.get(r["status"], 0) + 1
+        status = str(r["status"])
+        counts[status] = counts.get(status, 0) + 1
     n_deletable = sum(1 for r in rows if r["deletable"])
     n_flagged = sum(1 for r in rows if r["action_item"])
     n_missing = counts.get(STATUS_MISSING_SOURCE, 0)
@@ -140,7 +141,7 @@ def print_summary(
                 print(f"    {status}: {count}")
         print(
             f"{n_blocking} clip(s) would block --delete; --delete_partial would delete the {n_deletable} "
-            f"verified one(s) and leave those {n_blocking}"
+            + f"verified one(s) and leave those {n_blocking}"
         )
     else:
         print("every listed clip present at the source is verified: --delete would delete them all")
@@ -252,7 +253,7 @@ def main(
 
         summary = summarize_by_subject_and_view(listed)
         write_summary(run_dir / SUMMARY_FILENAME, summary)
-        append_index_row(destination / "videoproc_run_metadata" / "index.csv", run_id, summary)
+        _ = append_index_row(destination / "videoproc_run_metadata" / "index.csv", run_id, summary)
 
         rows: list[Row] = []
 
@@ -263,6 +264,7 @@ def main(
         for i, listed_row in enumerate(listed, 1):
             input_path = source / listed_row.path
             row = new_row(input_path)
+            age_hours: float | None = None  # set once the destination file has been seen
             row.update(subjID=listed_row.subjID, view=listed_row.view)
             rows.append(row)
             if i % 100 == 0 or i == len(listed):
@@ -295,7 +297,8 @@ def main(
                     row["destination_codec"] = decision.output_codec
                     mtime = output_path.stat().st_mtime
                     row["destination_mtime"] = datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M:%S")
-                    row["age_hours"] = round((now - mtime) / 3600, 1)
+                    age_hours = round((now - mtime) / 3600, 1)
+                    row["age_hours"] = age_hours
                     out_size = output_path.stat().st_size
                     if out_size:
                         row["size_ratio"] = round(input_path.stat().st_size / out_size, 1)
@@ -304,10 +307,11 @@ def main(
                     raise RuntimeError("verify-only classification returned an action")
                 if decision.skip.status != STATUS_ALREADY_DONE:
                     raise decision.skip
-                if row["age_hours"] < min_age_hours:
+                assert age_hours is not None  # already_done means the destination opened, so its age was read
+                if age_hours < min_age_hours:
                     raise SkipFile(
                         STATUS_TOO_RECENT,
-                        f"destination written {row['age_hours']} h ago; --min_age_hours is {min_age_hours}",
+                        f"destination written {age_hours} h ago; --min_age_hours is {min_age_hours}",
                         action_item=True,
                     )
                 row.update(status=STATUS_ALREADY_DONE, skipped_reason=str(decision.skip), deletable=True)
@@ -336,7 +340,7 @@ def main(
         if delete and n_not_deletable and not delete_partial:
             print(
                 f"\nREFUSING to delete: {n_not_deletable} file(s) are not verified deletable "
-                "and --delete_partial is not set. Decode check skipped."
+                + "and --delete_partial is not set. Decode check skipped."
             )
             return outcome()
         if not delete and not decode:
@@ -347,7 +351,7 @@ def main(
         if decode:
             print(f"\ndecoding {len(candidates)} destination file(s) with ffmpeg ...")
             for i, r in enumerate(candidates, 1):
-                ok, err = decode_check(Path(r["output_path"]))
+                ok, err = decode_check(Path(str(r["output_path"])))
                 r["decode_ok"] = ok
                 if not ok:
                     r.update(
@@ -357,7 +361,7 @@ def main(
                         error=err[:500],
                         deletable=False,
                     )
-                    print(f"    FLAGGED {short(r['input_path'])}: decode failed")
+                    print(f"    FLAGGED {short(str(r['input_path']))}: decode failed")
                 if i % 100 == 0 or i == len(candidates):
                     print(f"    decoded {i}/{len(candidates)}")
             write_rows(rows, log_path, action_items_path)
@@ -366,12 +370,12 @@ def main(
         if not delete:
             print("\nReport only: --delete not set, nothing was deleted.")
             return outcome()
-        deletable = [(Path(r["input_path"]), Path(r["output_path"])) for r in rows if r["deletable"]]
+        deletable = [(Path(str(r["input_path"])), Path(str(r["output_path"]))) for r in rows if r["deletable"]]
         n_not_deletable = len(listed) - len(deletable) - n_missing
         if n_not_deletable and not delete_partial:
             print(
                 f"\nREFUSING to delete: {n_not_deletable} file(s) are not verified deletable "
-                "and --delete_partial is not set."
+                + "and --delete_partial is not set."
             )
             return outcome()
         if not deletable:
@@ -380,8 +384,8 @@ def main(
         return outcome(delete_sources(source, deletable, run_dir, short))
 
     finally:
-        sys.stdout.flush()
-        sys.stderr.flush()
+        _ = sys.stdout.flush()
+        _ = sys.stderr.flush()
         sys.stdout = sys.__stdout__
         sys.stderr = sys.__stderr__
         log_file.close()
@@ -391,31 +395,31 @@ def add_processing_arguments(parser: argparse.ArgumentParser) -> None:
     """The options that control the verification and the deletion, shared with the ratrixcam
     wrapper (process_ratrixcam_output.py); the source, destination and manifest arguments are
     the caller's."""
-    parser.add_argument(
+    _ = parser.add_argument(
         "--min_age_hours",
         default=24.0,
         type=float,
         help="a destination file modified more recently than this is not deletable yet -- a proxy for "
-        "'a backup has run'; backups themselves are not checked",
+        + "'a backup has run'; backups themselves are not checked",
     )
-    parser.add_argument(
+    _ = parser.add_argument(
         "--decode",
         action=argparse.BooleanOptionalAction,
         default=None,
         help="fully decode every destination file with ffmpeg to catch corruption the frame-count check cannot. "
-        "Costs roughly 10%% of the original compression run's time (about 1-3 s per 10-minute clip). "
-        "Default: on when --delete is set, off otherwise; --no-decode turns it off",
+        + "Costs roughly 10%% of the original compression run's time (about 1-3 s per 10-minute clip). "
+        + "Default: on when --delete is set, off otherwise; --no-decode turns it off",
     )
-    parser.add_argument(
+    _ = parser.add_argument(
         "--delete",
         action="store_true",
         help="after the report, delete the verified source files (asks for typed confirmation)",
     )
-    parser.add_argument(
+    _ = parser.add_argument(
         "--delete_partial",
         action="store_true",
         help="with --delete: proceed even if some files are not verified deletable (they are left in place). "
-        "Without it, any unverified file blocks all deletion",
+        + "Without it, any unverified file blocks all deletion",
     )
 
 
@@ -424,40 +428,42 @@ if __name__ == "__main__":
         description="verify compressed copies exist and are sound, then optionally delete the raw sources",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument("source", type=Path, help="source root of the raw videos you are considering deleting; manifest paths are relative to it")
-    parser.add_argument(
+    _ = parser.add_argument("source", type=Path, help="source root of the raw videos you are considering deleting; manifest paths are relative to it")
+    _ = parser.add_argument(
         "destination", type=Path, help="destination root (same as compress_drive's output)"
     )
-    parser.add_argument(
+    _ = parser.add_argument(
         "--manifest",
         type=Path,
         action="append",
         required=True,
         help="manifest CSV listing the clips to check (the same one(s) given to compress_drive); repeatable",
     )
-    parser.add_argument(
+    _ = parser.add_argument(
         "--studyname", type=str, default=None, help="study-name prefix of the destination day folders, as given to compress_drive"
     )
-    parser.add_argument(
+    _ = parser.add_argument(
         "--subject_prefix", type=str, default="subj", help="subject prefix of the destination paths, as given to compress_drive"
     )
     add_processing_arguments(parser)
     kwargs = vars(parser.parse_args())
+    source_root, destination_root = cast(Path, kwargs["source"]), cast(Path, kwargs["destination"])
+    manifests = cast(list[Path], kwargs["manifest"])
 
-    if not kwargs["source"].is_dir():
-        raise NotADirectoryError(f"{kwargs['source']} is not a valid directory")
-    if not kwargs["destination"].is_dir():
-        raise NotADirectoryError(f"{kwargs['destination']} is not a valid directory")
-    if destination_inside_source(kwargs["source"], kwargs["destination"]):
+    if not source_root.is_dir():
+        raise NotADirectoryError(f"{source_root} is not a valid directory")
+    if not destination_root.is_dir():
+        raise NotADirectoryError(f"{destination_root} is not a valid directory")
+    if destination_inside_source(source_root, destination_root):
         raise ValueError("destination must not be the source folder or lie inside it")
-    if destination_inside_source(kwargs["source"], kwargs["destination"] / "videoproc_run_metadata"):
+    if destination_inside_source(source_root, destination_root / "videoproc_run_metadata"):
         raise ValueError("the run-metadata folder under destination would lie inside the source folder")
-    for m in kwargs["manifest"]:
+    for m in manifests:
         if not m.is_file():
             raise FileNotFoundError(f"manifest {m} not found")
 
     print("\nconfiguration:")
     pprint(kwargs, sort_dicts=False)
-    input("\n[enter] to continue: ")
+    _ = input("\n[enter] to continue: ")
 
-    main(**kwargs)
+    _ = main(**kwargs)  # pyright: ignore[reportAny]  # argparse hands back Any

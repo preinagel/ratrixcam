@@ -77,7 +77,7 @@ def test_a_failed_write_never_waits(tmp_path, monkeypatch, capsys):
     assert capsys.readouterr().out.count("WARNING") == 2  # the readable line and the tagged line, once each
 
 
-def test_close_writer_still_transfers_the_clip_when_the_manifest_fails(tmp_path, monkeypatch, capsys):
+def test_close_writer_still_transfers_the_clip_when_the_manifest_fails(tmp_path, capsys):
     import ratrixcam_server
 
     class StandInWriter:

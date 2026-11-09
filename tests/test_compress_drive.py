@@ -174,7 +174,7 @@ def test_run3_collision_wins_over_overwrite_compressed(run3):
 def test_motion_detection_off_leaves_motion_columns_blank(tmp_path, clips):
     source_root, dest_root = tmp_path / "source", tmp_path / "dest"
     dest_root.mkdir()
-    place_clip(clips["R30"], source_root, "10-00-00")
+    _ = place_clip(clips["R30"], source_root, "10-00-00")
 
     result = run_compress_drive(source_root, dest_root, extra_args=["--n_threads", "4"])
     assert result.returncode == 0, result.stderr
@@ -195,9 +195,9 @@ def test_motion_detection_off_leaves_motion_columns_blank(tmp_path, clips):
 def test_manifest_crf_is_used_for_motion_clips_and_overridden_for_static_ones(tmp_path, clips):
     source_root, dest_root = tmp_path / "source", tmp_path / "dest"
     dest_root.mkdir()
-    place_clip(clips["R30"], source_root, "10-00-00", crf=28)
-    place_clip(clips["R30_static"], source_root, "10-01-00", crf=28)
-    place_clip(clips["R30"], source_root, "10-02-00")  # no crf column value: DEFAULT_CRF
+    _ = place_clip(clips["R30"], source_root, "10-00-00", crf=28)
+    _ = place_clip(clips["R30_static"], source_root, "10-01-00", crf=28)
+    _ = place_clip(clips["R30"], source_root, "10-02-00")  # no crf column value: DEFAULT_CRF
 
     result = run_compress_drive(source_root, dest_root, extra_args=[
         "--n_threads", "4", "--motion_detection", "--motion_threshold", "0.001", "--motion_percentile", "90",
@@ -212,7 +212,7 @@ def test_manifest_crf_is_used_for_motion_clips_and_overridden_for_static_ones(tm
 def test_listed_file_missing_at_source_is_flagged(tmp_path, clips):
     source_root, dest_root = tmp_path / "source", tmp_path / "dest"
     dest_root.mkdir()
-    place_clip(clips["R30"], source_root, "10-00-00")
+    _ = place_clip(clips["R30"], source_root, "10-00-00")
     add_manifest_row(source_root, "Old Study_subj901_view1_20250101/missing.mp4", "901", "view1", "2025-01-01 10:05:00")
 
     result = run_compress_drive(source_root, dest_root, extra_args=["--n_threads", "4"])
@@ -226,7 +226,7 @@ def test_listed_file_missing_at_source_is_flagged(tmp_path, clips):
 def test_no_studyname_and_blank_prefix_shape_the_destination(tmp_path, clips):
     source_root, dest_root = tmp_path / "source", tmp_path / "dest"
     dest_root.mkdir()
-    place_clip(clips["R30"], source_root, "10-00-00")
+    _ = place_clip(clips["R30"], source_root, "10-00-00")
     import subprocess, sys
     from helpers import VIDEOPROC_DIR
     cmd = [sys.executable, "compress_drive.py", str(source_root), str(dest_root), "--manifest", str(manifest_path(source_root)),
@@ -239,8 +239,8 @@ def test_no_studyname_and_blank_prefix_shape_the_destination(tmp_path, clips):
 def test_manifest_missing_a_required_column_stops_the_run(tmp_path, clips):
     source_root, dest_root = tmp_path / "source", tmp_path / "dest"
     dest_root.mkdir()
-    place_clip(clips["R30"], source_root, "10-00-00")
-    manifest_path(source_root).write_text("path,subjID,clip_start\nx.mp4,901,2025-01-01 10:00:00\n")
+    _ = place_clip(clips["R30"], source_root, "10-00-00")
+    _ = manifest_path(source_root).write_text("path,subjID,clip_start\nx.mp4,901,2025-01-01 10:00:00\n")
     result = run_compress_drive(source_root, dest_root, extra_args=["--n_threads", "4"])
     assert result.returncode == 0, result.stderr
     assert "ERROR" in result.stdout and "missing column(s) view" in result.stdout

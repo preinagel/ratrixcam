@@ -6,10 +6,9 @@ import os
 import platform
 import shutil
 import sys
-from collections import namedtuple
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import TypedDict, cast
 
 import pytest
 
@@ -20,10 +19,20 @@ import ratrixcam_status  # noqa: E402
 from ratrixcam_naming import STATUS_FILENAME  # noqa: E402
 from ratrixcam_status import StatusWriter  # noqa: E402
 from ratrixcam_utils import write_rate  # noqa: E402
-from test_run_metadata import make_config  # noqa: E402
+from test_run_metadata import Usage, make_config  # noqa: E402
 
-Usage = namedtuple("Usage", "total used free")
 STARTED = datetime(2026, 1, 2, 3, 4, 5)
+
+
+class Status(TypedDict):
+    """The status file's shape, as the tests read it."""
+
+    schema: int
+    written: str
+    recording: bool
+    run: dict[str, object]
+    save_drive: dict[str, object]
+    temp_drive: dict[str, object]
 
 
 def writer(tmp_path: Path, **config_changes: object) -> StatusWriter:
@@ -32,12 +41,12 @@ def writer(tmp_path: Path, **config_changes: object) -> StatusWriter:
     return StatusWriter(config, "ratrixcam_20260102_030405_abcdef01", STARTED)
 
 
-def read(w: StatusWriter) -> Any:
-    return json.loads(w.path.read_text())
+def read(w: StatusWriter) -> Status:
+    return cast(Status, json.loads(w.path.read_text()))
 
 
-def snap(w: StatusWriter, cameras_alive: bool) -> Any:
-    return w.snapshot(cameras_alive)
+def snap(w: StatusWriter, cameras_alive: bool) -> Status:
+    return cast(Status, cast(object, w.snapshot(cameras_alive)))
 
 
 def test_the_file_has_every_field_and_no_temporary_name_left(tmp_path: Path, capsys: pytest.CaptureFixture[str]):
@@ -51,9 +60,9 @@ def test_the_file_has_every_field_and_no_temporary_name_left(tmp_path: Path, cap
     assert status["run"]["started"] == "2026-01-02 03:04:05.000"
     assert status["run"]["state"] == "running" and status["run"]["message"] == ""
     assert status["run"]["machine_name"] == platform.node()  # no machine_name in the config
-    for drive in ("save_drive", "temp_drive"):
-        assert sorted(status[drive]) == sorted(["path", "found", "total_bytes", "used_bytes", "free_bytes", "seconds_until_full"] + (["accepting_clips"] if drive == "save_drive" else ["clips_waiting"]))
-        assert status[drive]["found"] is True and status[drive]["free_bytes"] > 0
+    for name, drive in (("save_drive", status["save_drive"]), ("temp_drive", status["temp_drive"])):
+        assert sorted(drive) == sorted(["path", "found", "total_bytes", "used_bytes", "free_bytes", "seconds_until_full"] + (["accepting_clips"] if name == "save_drive" else ["clips_waiting"]))
+        assert drive["found"] is True and cast(int, drive["free_bytes"]) > 0
     assert status["save_drive"]["accepting_clips"] is True
     assert status["temp_drive"]["clips_waiting"] == 0
     assert sorted(p.name for p in Path(w.config.temp_path).iterdir()) == [STATUS_FILENAME, "status"]  # no .tmp beside it
@@ -108,7 +117,7 @@ def test_not_accepting_when_free_space_is_under_the_transfer_rule(tmp_path: Path
     w = writer(tmp_path)
     cam = Path(w.config.temp_path) / "Test_cam"
     cam.mkdir()
-    (cam / "a.mp4").write_bytes(b"x" * 2_000_000)  # the largest clip sets the size a transfer needs ten times over
+    _ = (cam / "a.mp4").write_bytes(b"x" * 2_000_000)  # the largest clip sets the size a transfer needs ten times over
     monkeypatch.setattr(shutil, "disk_usage", lambda _p: Usage(10**12, 10**12 - 19_000_000, 19_000_000))
     assert snap(w, True)["save_drive"]["accepting_clips"] is False
     monkeypatch.setattr(shutil, "disk_usage", lambda _p: Usage(10**12, 10**12 - 20_000_000, 20_000_000))
@@ -129,9 +138,9 @@ def test_clips_waiting_excludes_the_open_clip_of_each_running_camera(tmp_path: P
     cam = Path(w.config.temp_path) / "Test_cam"
     cam.mkdir()
     for name in ("a.mp4", "b.mp4", "c.mp4"):
-        (cam / name).write_bytes(b"x")
+        _ = (cam / name).write_bytes(b"x")
     (Path(w.config.temp_path) / "ratrixcam_run_metadata").mkdir()
-    (Path(w.config.temp_path) / "ratrixcam_run_metadata" / "not_a_clip.mp4").write_bytes(b"x")  # the metadata folder is not a camera folder
+    _ = (Path(w.config.temp_path) / "ratrixcam_run_metadata" / "not_a_clip.mp4").write_bytes(b"x")  # the metadata folder is not a camera folder
     assert snap(w, True)["temp_drive"]["clips_waiting"] == 2
     assert snap(w, False)["temp_drive"]["clips_waiting"] == 3
 

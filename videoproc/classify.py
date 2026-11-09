@@ -6,6 +6,7 @@ import csv
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
 from util import RAW_CODEC, get_codec_nframes
 
@@ -81,11 +82,11 @@ class Logger:
     valid_output: bool | None = None
 
     def __init__(self, log_path: Path, action_items_path: Path):
-        self.fields = list(LOG_FIELDS)
-        self.log_path = log_path
-        self.action_items_path = action_items_path
+        self.fields: list[str] = list(LOG_FIELDS)
+        self.log_path: Path = log_path
+        self.action_items_path: Path = action_items_path
         self.status_counts: Counter[str] = Counter()
-        self.n_action_items = 0
+        self.n_action_items: int = 0
         self.reset()
 
         for path in (self.log_path, self.action_items_path):
@@ -99,7 +100,7 @@ class Logger:
         self.action_item = False
 
     def append(self) -> None:
-        values = [getattr(self, field) for field in self.fields]
+        values = [cast(object, getattr(self, field)) for field in self.fields]
         row = ["" if v is None else str(v) for v in values]
 
         with open(self.log_path, mode="a", newline="") as f:
@@ -117,8 +118,8 @@ class SkipFile(Exception):
 
     def __init__(self, status: str, reason: str, action_item: bool = False):
         super().__init__(reason)
-        self.status = status
-        self.action_item = action_item
+        self.status: str = status
+        self.action_item: bool = action_item
 
 
 @dataclass
@@ -157,10 +158,10 @@ def classify_file(
     output_is_valid = output_codec is not None
     output_is_raw = output_codec == RAW_CODEC
 
-    def decision(action=None, skip=None, note=None):
+    def decision(action: str | None = None, skip: SkipFile | None = None, note: str | None = None) -> Decision:
         return Decision(action, skip, note, input_codec, input_n_frames, output_codec)
 
-    def skipped(status, reason, action_item=False):
+    def skipped(status: str, reason: str, action_item: bool = False) -> Decision:
         return decision(skip=SkipFile(status, reason, action_item))
 
     # an invalid source is never copied. Only a raw video already sitting at the destination

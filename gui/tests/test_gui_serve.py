@@ -3,6 +3,7 @@ folder at /temp/ with JSON folder listings, neither root can be escaped, missing
 answered with 404 without a log line, and the last status file served is offered again at
 /last/."""
 
+import http.client
 import json
 import socket
 import subprocess
@@ -12,6 +13,7 @@ import urllib.error
 import urllib.request
 from collections.abc import Iterator
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -30,9 +32,18 @@ Server = tuple[str, Path]  # base url, path of the server's stderr
 def free_port() -> int:
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
-        port: object = s.getsockname()[1]
+        port = cast(object, s.getsockname()[1])
         assert isinstance(port, int)
         return port
+
+
+def open_url(url: str) -> http.client.HTTPResponse:
+    return cast(http.client.HTTPResponse, urllib.request.urlopen(url))
+
+
+def listing(body: bytes) -> list[dict[str, object]]:
+    """The entries of a folder listing the server answered with."""
+    return cast(dict[str, list[dict[str, object]]], json.loads(body))["entries"]
 
 
 @pytest.fixture(scope="module")
@@ -59,7 +70,7 @@ def server(temp_folder: Path, tmp_path_factory: pytest.TempPathFactory) -> Itera
     base = f"http://127.0.0.1:{port}"
     for _ in range(50):
         try:
-            urllib.request.urlopen(base + "/").close()
+            open_url(base + "/").close()
             break
         except (urllib.error.URLError, ConnectionError):
             time.sleep(0.1)
@@ -74,7 +85,7 @@ def server(temp_folder: Path, tmp_path_factory: pytest.TempPathFactory) -> Itera
 def get(base: str, path: str) -> tuple[int, dict[str, str], bytes]:
     """(status code, lower-cased headers, body) for a GET of path."""
     try:
-        with urllib.request.urlopen(base + path) as r:
+        with open_url(base + path) as r:
             return r.status, {k.lower(): v for k, v in r.headers.items()}, r.read()
     except urllib.error.HTTPError as e:
         return e.code, {k.lower(): v for k, v in e.headers.items()}, e.read()
@@ -104,7 +115,7 @@ def test_temp_folder_listing_is_json(server: Server):
     code, headers, body = get(base, "/temp/")
     assert code == 200
     assert headers["content-type"] == "application/json"
-    entries = {e["name"]: e for e in json.loads(body)["entries"]}
+    entries = {str(e["name"]): e for e in listing(body)}
     assert entries["status"]["is_dir"] is True
     assert entries[LOG_NAME]["is_dir"] is False
     assert entries[LOG_NAME]["size"] == len("ratrixcam run started\n")
@@ -115,7 +126,7 @@ def test_subfolder_listing_without_trailing_slash(server: Server):
     base, _ = server
     code, _, body = get(base, "/temp/status")
     assert code == 200
-    assert [e["name"] for e in json.loads(body)["entries"]] == ["cam_subj901_view1_status.png"]
+    assert [e["name"] for e in listing(body)] == ["cam_subj901_view1_status.png"]
 
 
 def test_status_file_served_and_remembered(server: Server, temp_folder: Path):
@@ -143,7 +154,7 @@ def test_half_written_status_file_is_served_but_not_remembered(server: Server, t
     assert json.loads(get(base, "/last/status.json")[2]) == good
 
 
-def test_terminal_log_is_served_as_a_plain_file_and_not_remembered(server: Server, temp_folder: Path):
+def test_terminal_log_is_served_as_a_plain_file_and_not_remembered(server: Server):
     base, _ = server
     code, _, body = get(base, "/temp/" + LOG_NAME)  # its content type is the platform's guess for .log
     assert code == 200

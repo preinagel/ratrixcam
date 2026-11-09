@@ -9,15 +9,34 @@ import shutil
 import signal
 import threading
 import time
-from collections import namedtuple
 from pathlib import Path
+from typing import TYPE_CHECKING, NamedTuple
 
 import pytest
 
-server = pytest.importorskip("ratrixcam_server")
+if TYPE_CHECKING:  # the real module for the checker; at run time the suite skips without OpenCV
+    import ratrixcam_server as server
+else:
+    server = pytest.importorskip("ratrixcam_server")
+from ratrixcam_utils import flush_to_device  # noqa: E402
 
-Usage = namedtuple("Usage", "total used free")
-Clip = namedtuple("Clip", "temp_file out_file save_root")
+
+class Usage(NamedTuple):
+    """What shutil.disk_usage returns, for the tests that stand in for it."""
+
+    total: int
+    used: int
+    free: int
+
+
+class Clip(NamedTuple):
+    """The three paths move_file takes, as strings."""
+
+    temp_file: str
+    out_file: str
+    save_root: str
+
+
 CLIP = b"x" * 5000
 
 
@@ -37,7 +56,7 @@ def clip(tmp_path: Path) -> Clip:
     temp = tmp_path / "temp" / "cam"
     temp.mkdir(parents=True)
     temp_file = temp / "c.mp4"
-    temp_file.write_bytes(CLIP)
+    _ = temp_file.write_bytes(CLIP)
     save_root = tmp_path / "save"
     save_root.mkdir()
     return Clip(str(temp_file), str(save_root / "day" / "c.mp4"), str(save_root))
@@ -135,7 +154,7 @@ def test_short_of_space_leaves_the_clip_in_temp(clip: Clip, monkeypatch: pytest.
 
 def test_unreachable_destination_leaves_the_clip_in_temp(clip: Clip, capsys: pytest.CaptureFixture[str]):
     blocker = Path(clip.save_root) / "day"
-    blocker.write_bytes(b"")  # a file where the day folder should be: it cannot be created
+    _ = blocker.write_bytes(b"")  # a file where the day folder should be: it cannot be created
     assert server.move_file(*clip) is False
     assert Path(clip.temp_file).read_bytes() == CLIP
     ((_, reason),) = gave_up(capsys.readouterr().out)
@@ -173,7 +192,7 @@ def test_gives_up_after_the_window_and_removes_the_partial_copy(
     monkeypatch.setattr(server, "TRANSFER_RETRY_WINDOW", 0.05)
 
     def partial(src: str, dst: str):
-        Path(dst).write_bytes(CLIP[:100])
+        _ = Path(dst).write_bytes(CLIP[:100])
         raise OSError(28, "No space left on device", src, None, dst)
 
     monkeypatch.setattr(shutil, "copy2", partial)
@@ -192,9 +211,9 @@ def test_partial_copy_never_carries_the_clip_name(clip: Clip, monkeypatch: pytes
     c.mp4.part, never a truncated c.mp4."""
     seen: list[str] = []
 
-    def partial(src: str, dst: str):
+    def partial(_src: str, dst: str):
         seen.append(os.path.basename(dst))
-        Path(dst).write_bytes(CLIP[:100])
+        _ = Path(dst).write_bytes(CLIP[:100])
         raise OSError(5, "Input/output error")
 
     monkeypatch.setattr(shutil, "copy2", partial)
@@ -228,7 +247,7 @@ def test_flush_falls_back_to_fsync_where_full_sync_is_rejected(clip: Clip, monke
     synced: list[int] = []
     monkeypatch.setattr(fcntl, "fcntl", reject)
     monkeypatch.setattr(os, "fsync", lambda fd: synced.append(fd))
-    server.flush_to_device(clip.temp_file)
+    flush_to_device(clip.temp_file)
     assert len(synced) == 1
 
 
@@ -250,7 +269,7 @@ def _sleep(seconds: float) -> None:
 
 def _sleep_ignoring_term(seconds: float) -> None:
     """What a real transfer process looks like: SIGTERM ignored, inherited from the server."""
-    signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    _ = signal.signal(signal.SIGTERM, signal.SIG_IGN)
     time.sleep(seconds)
 
 
@@ -335,7 +354,7 @@ def openable_clip(path: Path, frames: int) -> int:
 def test_an_identical_clip_on_the_drive_means_nothing_to_copy(clip: Clip, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]):
     day = Path(clip.out_file).parent
     day.mkdir()
-    Path(clip.out_file).write_bytes(CLIP)  # transferred earlier; only the temp copy survived
+    _ = Path(clip.out_file).write_bytes(CLIP)  # transferred earlier; only the temp copy survived
     monkeypatch.setattr(shutil, "copy2", lambda *a: pytest.fail("nothing should be copied"))
     assert server.move_file(*clip) is True
     assert not os.path.exists(clip.temp_file)
@@ -349,7 +368,7 @@ def test_an_identical_clip_on_the_drive_means_nothing_to_copy(clip: Clip, monkey
 def test_an_unopenable_file_on_the_drive_is_replaced_by_the_openable_temp_clip(clip: Clip, capsys: pytest.CaptureFixture[str]):
     size = openable_clip(Path(clip.temp_file), frames=5)
     Path(clip.out_file).parent.mkdir()
-    Path(clip.out_file).write_bytes(b"junk that carries the clip's name")
+    _ = Path(clip.out_file).write_bytes(b"junk that carries the clip's name")
     assert server.move_file(*clip) is True
     assert Path(clip.out_file).stat().st_size == size
     assert not os.path.exists(clip.temp_file)

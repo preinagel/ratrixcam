@@ -120,7 +120,7 @@ def main() -> int:
     for name in sorted(os.listdir(meta)):
         if name.endswith(".json"):
             with open(os.path.join(meta, name)) as f:
-                config = json.load(f)
+                config = cast(dict[str, object], json.load(f))
     run_id = "ratrixcam_simulated"
     for name in os.listdir(temp_dir):  # the sample's terminal log names its run
         if name.startswith("terminal_") and name.endswith(".log"):

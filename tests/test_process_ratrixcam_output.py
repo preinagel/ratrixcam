@@ -29,10 +29,10 @@ def add_run(root: Path, clips: dict[str, Path], run_id: str, times, study=STUDY,
             place(clips["R30"], day / fname(t, view=view))
             w.writerow([f"{day.name}/{fname(t, view=view)}", "901", view, clip_start(t), clip_start(t), 25])
     (meta / "stills").mkdir(parents=True)
-    (meta / "camera_config_test.json").write_text(json.dumps({"study_label": study, "subject_prefix": "subj", "cameras": []}))
-    (meta / "notes.txt").write_text("notes\n")
-    (meta / f"terminal_{run_id}.log").write_text("log\n")
-    (meta / "stills" / f"cam_subj901_{view}_status.png").write_bytes(b"png")
+    _ = (meta / "camera_config_test.json").write_text(json.dumps({"study_label": study, "subject_prefix": "subj", "cameras": []}))
+    _ = (meta / "notes.txt").write_text("notes\n")
+    _ = (meta / f"terminal_{run_id}.log").write_text("log\n")
+    _ = (meta / "stills" / f"cam_subj901_{view}_status.png").write_bytes(b"png")
     return manifests
 
 
@@ -41,7 +41,7 @@ def make_drive(root: Path, clips: dict[str, Path], times=("10-00-00", "10-01-00"
     stray video and a stray text file outside the run folders. Returns the manifests folder."""
     manifests = add_run(root, clips, RUN_ID, times)
     place(clips["R30"], root / "not_a_day_folder" / "stray.mp4")
-    (root / "readme.txt").write_text("not a video\n")
+    _ = (root / "readme.txt").write_text("not a video\n")
     return manifests
 
 
@@ -58,7 +58,7 @@ def compression_runs(dest: Path) -> list[Path]:
 def test_compress_processes_listed_clips_and_carries_the_folders(tmp_path, clips):
     root, dest = tmp_path / "drive", tmp_path / "dest"
     dest.mkdir()
-    make_drive(root, clips)
+    _ = make_drive(root, clips)
 
     result = run_wrapper(root, dest)
     assert result.returncode == 0, result.stderr + result.stdout
@@ -92,7 +92,7 @@ def test_compress_processes_listed_clips_and_carries_the_folders(tmp_path, clips
 
 def test_compress_never_overwrites_a_differing_destination_file(tmp_path, clips):
     root, dest = tmp_path / "drive", tmp_path / "dest"
-    make_drive(root, clips)
+    _ = make_drive(root, clips)
     dest_meta = dest / "ratrixcam_run_metadata" / RUN_ID
     dest_meta.mkdir(parents=True)
     (dest_meta / "notes.txt").write_text("a different, longer note\n")
@@ -107,8 +107,8 @@ def test_each_recording_run_is_its_own_compression_run(tmp_path, clips):
     root, dest = tmp_path / "drive", tmp_path / "dest"
     dest.mkdir()
     second = "ratrixcam_20250101_110000_ef567890"
-    add_run(root, clips, RUN_ID, ("10-00-00",))
-    add_run(root, clips, second, ("11-00-00",), study="Pilot", view="view2")
+    _ = add_run(root, clips, RUN_ID, ("10-00-00",))
+    _ = add_run(root, clips, second, ("11-00-00",), study="Pilot", view="view2")
 
     result = run_wrapper(root, dest)
     assert result.returncode == 0, result.stderr + result.stdout
@@ -128,7 +128,7 @@ def test_each_recording_run_is_its_own_compression_run(tmp_path, clips):
 def test_a_run_folder_without_manifests_is_skipped_but_still_carried(tmp_path, clips):
     root, dest = tmp_path / "drive", tmp_path / "dest"
     dest.mkdir()
-    add_run(root, clips, RUN_ID, ("10-00-00",))
+    _ = add_run(root, clips, RUN_ID, ("10-00-00",))
     empty_run = root / "ratrixcam_run_metadata" / "ratrixcam_20250101_120000_00000000"
     empty_run.mkdir()
     (empty_run / "camera_config_test.json").write_text(json.dumps({"study_label": STUDY, "subject_prefix": "subj"}))
@@ -147,7 +147,7 @@ def test_a_run_folder_without_manifests_is_skipped_but_still_carried(tmp_path, c
 def test_compress_without_a_config_copy_skips_the_run(tmp_path, clips):
     root, dest = tmp_path / "drive", tmp_path / "dest"
     dest.mkdir()
-    make_drive(root, clips)
+    _ = make_drive(root, clips)
     (root / "ratrixcam_run_metadata" / RUN_ID / "camera_config_test.json").unlink()
 
     result = run_wrapper(root, dest)
@@ -161,7 +161,7 @@ def test_compress_without_a_config_copy_skips_the_run(tmp_path, clips):
 def test_studyname_and_prefix_arguments_override_the_config_copy(tmp_path, clips):
     root, dest = tmp_path / "drive", tmp_path / "dest"
     dest.mkdir()
-    make_drive(root, clips)
+    _ = make_drive(root, clips)
     (root / "ratrixcam_run_metadata" / RUN_ID / "camera_config_test.json").unlink()  # no config copy at all
 
     result = run_wrapper(root, dest, extra_args=["--studyname", "Pilot", "--subject_prefix", ""])
@@ -195,7 +195,7 @@ def confirm_runs(dest: Path) -> list[Path]:
 def test_confirm_reports_the_listed_clips_of_each_run(tmp_path, clips):
     root, dest = tmp_path / "drive", tmp_path / "dest"
     dest.mkdir()
-    make_drive(root, clips)
+    _ = make_drive(root, clips)
     assert run_wrapper(root, dest).returncode == 0
 
     result = run_confirm(root, dest, extra_args=["--min_age_hours", "0"])
@@ -220,7 +220,7 @@ def test_confirm_reports_the_listed_clips_of_each_run(tmp_path, clips):
 def test_confirm_report_only_lists_what_delete_partial_would_leave(tmp_path, clips):
     root, dest = tmp_path / "drive", tmp_path / "dest"
     dest.mkdir()
-    make_drive(root, clips)  # two clips listed
+    _ = make_drive(root, clips)  # two clips listed
     assert run_wrapper(root, dest).returncode == 0
     (dest / SUBJECT / f"{STUDY}_{SUBJECT}_view1_{DATE}" / fname("10-01-00")).unlink()  # one destination copy gone
 
@@ -237,8 +237,8 @@ def test_confirm_report_only_lists_what_delete_partial_would_leave(tmp_path, cli
 def test_confirm_pauses_between_runs_unless_told_not_to(tmp_path, clips):
     root, dest = tmp_path / "drive", tmp_path / "dest"
     dest.mkdir()
-    add_run(root, clips, RUN_ID, ("10-00-00",))
-    add_run(root, clips, "ratrixcam_20250101_110000_ef567890", ("11-00-00",), view="view2")
+    _ = add_run(root, clips, RUN_ID, ("10-00-00",))
+    _ = add_run(root, clips, "ratrixcam_20250101_110000_ef567890", ("11-00-00",), view="view2")
     assert run_wrapper(root, dest).returncode == 0
     cmd = [sys.executable, "process_ratrixcam_output.py", "confirm", str(root), str(dest), "--min_age_hours", "0"]
     result = subprocess.run(cmd, cwd=VIDEOPROC_DIR, input="\n\nn\n", capture_output=True, text=True, timeout=300)
@@ -250,8 +250,8 @@ def test_confirm_delete_asks_once_per_run_and_deletes_only_listed_clips(tmp_path
     root, dest = tmp_path / "drive", tmp_path / "dest"
     dest.mkdir()
     second = "ratrixcam_20250101_110000_ef567890"
-    make_drive(root, clips, times=("10-00-00",))
-    add_run(root, clips, second, ("11-00-00",), view="view2")
+    _ = make_drive(root, clips, times=("10-00-00",))
+    _ = add_run(root, clips, second, ("11-00-00",), view="view2")
     assert run_wrapper(root, dest).returncode == 0
 
     result = run_confirm(root, dest, extra_args=["--min_age_hours", "0", "--no-decode", "--delete"], n_delete_prompts=4)
@@ -281,7 +281,7 @@ def test_confirm_delete_asks_once_per_run_and_deletes_only_listed_clips(tmp_path
 def test_confirm_keeps_the_run_folder_when_a_listed_clip_remains(tmp_path, clips):
     root, dest = tmp_path / "drive", tmp_path / "dest"
     dest.mkdir()
-    make_drive(root, clips)  # two clips listed
+    _ = make_drive(root, clips)  # two clips listed
     assert run_wrapper(root, dest).returncode == 0
     (dest / SUBJECT / f"{STUDY}_{SUBJECT}_view1_{DATE}" / fname("10-01-00")).unlink()  # one destination copy gone
 
@@ -316,7 +316,7 @@ def test_confirm_keeps_the_run_folder_when_a_listed_clip_remains(tmp_path, clips
 def test_confirm_lists_the_clips_of_a_skipped_run_as_not_checked(tmp_path, clips):
     root, dest = tmp_path / "drive", tmp_path / "dest"
     dest.mkdir()
-    make_drive(root, clips)
+    _ = make_drive(root, clips)
     assert run_wrapper(root, dest).returncode == 0
     (root / "ratrixcam_run_metadata" / RUN_ID / "camera_config_test.json").unlink()  # the run can no longer be read
 
@@ -333,7 +333,7 @@ def test_confirm_lists_the_clips_of_a_skipped_run_as_not_checked(tmp_path, clips
 def test_confirm_keeps_a_run_folder_whose_destination_copy_differs(tmp_path, clips):
     root, dest = tmp_path / "drive", tmp_path / "dest"
     dest.mkdir()
-    make_drive(root, clips)
+    _ = make_drive(root, clips)
     assert run_wrapper(root, dest).returncode == 0
     (dest / "ratrixcam_run_metadata" / RUN_ID / "notes.txt").write_text("edited\n")  # same size, different bytes
 
@@ -347,7 +347,7 @@ def test_confirm_keeps_a_run_folder_whose_destination_copy_differs(tmp_path, cli
 def test_confirm_delete_refuses_when_a_listed_clip_is_not_at_the_destination(tmp_path, clips):
     root, dest = tmp_path / "drive", tmp_path / "dest"
     dest.mkdir()
-    make_drive(root, clips)  # never compressed
+    _ = make_drive(root, clips)  # never compressed
 
     result = run_confirm(root, dest, extra_args=["--min_age_hours", "0", "--delete"], n_delete_prompts=1)
     assert result.returncode == 0, result.stderr + result.stdout  # the run completed; the refusal is the tool's verdict

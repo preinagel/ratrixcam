@@ -40,7 +40,7 @@ except Exception:  # noqa: BLE001  (any import problem: pydantic missing, repo m
 # The per-camera override lists (camera_*) start empty: a camera uses the run's defaults
 # unless the user deliberately adds a value to choose from. Resolutions are one value
 # ("640x480"), written to the file as width and height.
-SHIPPED_OPTIONS: dict[str, list[Any]] = {
+SHIPPED_OPTIONS: dict[str, list[object]] = {
     "machine_name": [socket.gethostname().split(".")[0]],
     "study_label": ["Test"],
     "subject_prefix": ["subj"],
@@ -58,7 +58,7 @@ SHIPPED_OPTIONS: dict[str, list[Any]] = {
     "camera_resolution": [],
 }
 # what the advanced fields are set to on a fresh form
-PRESETS: dict[str, Any] = {
+PRESETS: dict[str, object] = {
     "default_crf": 25,
     "default_fps": 30,
     "default_resolution": "640x480",
@@ -80,22 +80,23 @@ def machine_id() -> str:
     return ":".join(f"{(node >> shift) & 0xFF:02x}" for shift in range(40, -1, -8))
 
 
-def load_options(options_file: str) -> dict[str, Any]:
+def load_options(options_file: str) -> dict[str, object]:
     """The options file, created with the shipped values on first use; a list or preset this
     version knows and the file lacks is added, so an older file keeps working."""
-    data: dict[str, Any]
     try:
         with open(options_file) as f:
-            data = json.load(f)
+            held = cast(object, json.load(f))
     except (OSError, ValueError):
-        data = {
-            "machine_id": machine_id(),
-            "created": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        }
-    loaded = json.loads(json.dumps(data))  # what the file held, to tell a migration from a plain read
-    options = data.setdefault("options", {})
+        held = None
+    data: dict[str, object] = (
+        cast(dict[str, object], held)
+        if isinstance(held, dict)
+        else {"machine_id": machine_id(), "created": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+    )
+    loaded = cast(object, json.loads(json.dumps(data)))  # what the file held, to tell a migration from a plain read
+    options = cast(dict[str, list[object]], data.setdefault("options", {}))
     for key, values in SHIPPED_OPTIONS.items():
-        options.setdefault(key, list(values))
+        _ = options.setdefault(key, list(values))
     old_name = data.pop("machine_name", None)  # an earlier version kept the name here
     if isinstance(old_name, str) and old_name and old_name not in options["machine_name"]:
         options["machine_name"].append(old_name)
@@ -103,9 +104,9 @@ def load_options(options_file: str) -> dict[str, Any]:
         del options[key]  # a list an earlier version of the editor kept
     for key in ("save_path", "temp_path"):
         options[key] = [os.path.expanduser(p) if isinstance(p, str) else p for p in options[key]]
-    presets = data.setdefault("presets", {})
+    presets = cast(dict[str, object], data.setdefault("presets", {}))
     for key, value in PRESETS.items():
-        presets.setdefault(key, value)
+        _ = presets.setdefault(key, value)
     # written back only when something was filled in or migrated: this runs on every read of
     # the options, and a needless rewrite could overwrite a value being saved at the same time
     if data != loaded:
@@ -113,7 +114,7 @@ def load_options(options_file: str) -> dict[str, Any]:
     return data
 
 
-def config_text(data: dict[str, Any]) -> str:
+def config_text(data: dict[str, object]) -> str:
     """The config as written: keys in FILE_KEY_ORDER, one camera per line, like the
     hand-written configs."""
     lines = ["{"]
@@ -122,7 +123,7 @@ def config_text(data: dict[str, Any]) -> str:
         comma = "," if i < len(keys) - 1 else ""
         if key == "cameras":
             cams: list[str] = []
-            for cam in cast(list[dict[str, Any]], data["cameras"]):
+            for cam in cast(list[dict[str, object]], data["cameras"]):
                 ordered = {k: cam[k] for k in CAMERA_KEY_ORDER if k in cam}
                 ordered.update({k: v for k, v in cam.items() if k not in ordered})
                 cams.append("    " + json.dumps(ordered, separators=(", ", ": ")))
@@ -135,7 +136,7 @@ def config_text(data: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def write_json(path: str, data: Any) -> None:
+def write_json(path: str, data: object) -> None:
     """Write pretty JSON through a temporary file in the same folder, then rename, so a
     reader never sees a half-written file."""
     tmp = path + ".tmp"
@@ -197,9 +198,9 @@ def check_config(data: object) -> list[str]:
 
 @final
 class EditorHandler(SimpleHTTPRequestHandler):
-    def __init__(self, *args: Any, options_file: str, **kwargs: Any):
+    def __init__(self, *args: Any, options_file: str, **kwargs: Any):  # pyright: ignore[reportExplicitAny, reportAny]  # the base class's own untyped arguments
         self.options_file: str = options_file
-        super().__init__(*args, directory=GUI_DIR, **kwargs)
+        super().__init__(*args, directory=GUI_DIR, **kwargs)  # pyright: ignore[reportAny]
 
     # ----- helpers -----
 
@@ -213,7 +214,7 @@ class EditorHandler(SimpleHTTPRequestHandler):
 
     def read_body(self) -> object:
         length = int(self.headers.get("Content-Length") or 0)
-        return json.loads(self.rfile.read(length) or b"null")
+        return cast(object, json.loads(self.rfile.read(length) or b"null"))
 
     def query(self) -> dict[str, str]:
         return {k: v[0] for k, v in parse_qs(urlsplit(self.path).query).items()}
@@ -250,7 +251,7 @@ class EditorHandler(SimpleHTTPRequestHandler):
             try:
                 with open(target) as f:
                     text = f.read()
-                data: object = json.loads(text)
+                data = cast(object, json.loads(text))
             except (OSError, ValueError) as e:
                 self.send_json({"path": target, "exists": True, "error": str(e)})
                 return

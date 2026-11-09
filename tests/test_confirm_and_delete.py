@@ -17,9 +17,10 @@ from helpers import (
 
 @pytest.fixture(scope="module")
 def cd_prepared(run3, layout, clips):
+    _ = run3  # requested so that compress_drive's three runs have happened first
     source_root, dest_root, _ = layout
 
-    place_clip(clips["R30"], source_root, T12_TIME)
+    _ = place_clip(clips["R30"], source_root, T12_TIME)
     place(clips["R30"], dest_path(dest_root, T12_TIME))
 
     place(clips["C30_corrupt"], dest_path(dest_root, TIMES["t01"]))
@@ -95,7 +96,7 @@ def test_confirm_a_checks_only_listed_files(confirm_a):
 def test_confirm_listed_file_missing_at_source_is_flagged_but_does_not_block_deletion(tmp_path, clips):
     source_root, dest_root = tmp_path / "source", tmp_path / "dest"
     dest_root.mkdir()
-    place_clip(clips["R30"], source_root, "10-00-00")
+    _ = place_clip(clips["R30"], source_root, "10-00-00")
     assert run_compress_drive(source_root, dest_root, extra_args=["--n_threads", "4"]).returncode == 0
     add_manifest_row(source_root, "Old Study_subj901_view1_20250101/missing.mp4", "901", "view1", "2025-01-01 10:05:00")
     result = run_confirm_and_delete(source_root, dest_root, extra_args=["--min_age_hours", "0", "--no-decode"], delete=True)
@@ -118,6 +119,7 @@ def test_confirm_a_reports_only_nothing_deleted(confirm_a, cd_prepared):
 
 @pytest.fixture(scope="module")
 def confirm_b(cd_prepared, confirm_a):
+    _ = confirm_a  # requested so that scenario A has run first
     source_root, dest_root = cd_prepared
     result = run_confirm_and_delete(source_root, dest_root, delete=True)
     assert result.returncode == 0, result.stderr
@@ -146,7 +148,7 @@ def test_confirm_b_deletes_nothing(confirm_b, cd_prepared):
 def test_confirm_destination_inside_own_source_is_an_error(tmp_path, clips):
     dest2 = tmp_path / "dest2"
     source_c = dest2 / "subj903"
-    place_clip(clips["R30"], source_c, "10-00-00", subj_id="903")
+    _ = place_clip(clips["R30"], source_c, "10-00-00", subj_id="903")
 
     result = run_confirm_and_delete(source_c, dest2, extra_args=["--min_age_hours", "0"])
     assert result.returncode == 0, result.stderr
@@ -183,6 +185,7 @@ def test_destination_inside_source_is_rejected_before_running(tmp_path):
 
 @pytest.fixture(scope="module")
 def confirm_d(cd_prepared, confirm_b):
+    _ = confirm_b  # requested so that scenario B has run first
     source_root, dest_root = cd_prepared
     result = run_confirm_and_delete(source_root, dest_root, extra_args=[
         "--min_age_hours", "0", "--delete_partial", "--decode",

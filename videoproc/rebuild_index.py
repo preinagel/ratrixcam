@@ -10,14 +10,15 @@ import argparse
 import csv
 import shutil
 from pathlib import Path
+from typing import cast
 
 from compress_drive import INDEX_FIELDS, index_row
-from manifest import SUMMARY_FILENAME
+from manifest import SUMMARY_FILENAME, SummaryRow
 from util import file_lock
 
 
 def rebuild(metadata_root: Path) -> int:
-    rows = []
+    rows: list[dict[str, object]] = []
     # chronological: run ids are <kind>_<YYYYMMDD>_<HHMMSS>_<random>
     run_dirs = sorted((p for p in metadata_root.iterdir() if p.is_dir()), key=lambda p: p.name.split("_", 1)[-1])
     for run_dir in run_dirs:
@@ -25,13 +26,13 @@ def rebuild(metadata_root: Path) -> int:
         if not summary_path.exists():
             continue
         with open(summary_path, newline="") as f:
-            summary = [{**r, "file_count": int(r["file_count"])} for r in csv.DictReader(f)]
+            summary: list[SummaryRow] = [{**r, "file_count": int(r["file_count"])} for r in csv.DictReader(f)]
         rows.append(index_row(run_dir.name, summary))
 
     index_path = metadata_root / "index.csv"
     with file_lock(index_path.with_suffix(".csv.lock")):
         if index_path.exists():
-            shutil.copy2(index_path, index_path.with_suffix(".csv.bak"))
+            _ = shutil.copy2(index_path, index_path.with_suffix(".csv.bak"))
         with open(index_path, "w", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=INDEX_FIELDS)
             writer.writeheader()
@@ -41,9 +42,9 @@ def rebuild(metadata_root: Path) -> int:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="rebuild videoproc_run_metadata/index.csv from the run folders")
-    parser.add_argument("destination", type=Path, help="destination root given to compress_drive / confirm_and_delete")
+    _ = parser.add_argument("destination", type=Path, help="destination root given to compress_drive / confirm_and_delete")
     args = parser.parse_args()
-    root = args.destination / "videoproc_run_metadata"
+    root = cast(Path, args.destination) / "videoproc_run_metadata"
     if not root.is_dir():
         raise NotADirectoryError(f"{root} not found")
     n = rebuild(root)

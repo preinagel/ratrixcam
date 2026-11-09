@@ -14,6 +14,7 @@ Other columns are ignored. A path listed twice is processed once (the first row 
 warning). Nothing is inferred from the file names."""
 
 import csv
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -69,7 +70,7 @@ def read_manifest(path: Path) -> list[ManifestRow]:
     return rows
 
 
-def read_manifests(paths) -> list[ManifestRow]:
+def read_manifests(paths: Iterable[Path | str]) -> list[ManifestRow]:
     """The rows of several manifests in order, a path listed more than once kept only the
     first time."""
     rows: list[ManifestRow] = []

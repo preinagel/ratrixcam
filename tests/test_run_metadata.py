@@ -9,9 +9,9 @@ import shutil
 import subprocess
 import sys
 import textwrap
-from collections import namedtuple
 from datetime import datetime
 from pathlib import Path
+from typing import NamedTuple, cast
 
 import pytest
 
@@ -28,6 +28,14 @@ from ratrixcam_run_metadata import STOP_SPACE_FACTOR, RunMetadata, save_drive_pr
 from ratrixcam_utils import BLANK_IMAGE, Config, not_writable, place_offline_stills, stills_dir, temp_is_clear  # noqa: E402
 
 
+class Usage(NamedTuple):
+    """What shutil.disk_usage returns, for the tests that stand in for it."""
+
+    total: int
+    used: int
+    free: int
+
+
 def make_config(tmp_path: Path) -> tuple[Config, Path]:
     temp, save, stills = tmp_path / "temp", tmp_path / "save", tmp_path / "temp" / "status"
     for d in (temp, save, stills):
@@ -38,7 +46,7 @@ def make_config(tmp_path: Path) -> tuple[Config, Path]:
         "time_slice": 60, "preview_interval": 1, "save_path": str(save), "temp_path": str(temp),
     }
     config_path = tmp_path / "camera_config_in_use.json"
-    config_path.write_text(json.dumps(data, indent=2))
+    _ = config_path.write_text(json.dumps(data, indent=2))
     return Config.model_validate(data), config_path
 
 
@@ -147,18 +155,18 @@ def test_collect_at_shutdown_moves_the_run_folder_with_stills_and_loose_files(tm
     run = RunMetadata(config, config_path)
     run.record_start()
     temp = Path(config.temp_path)
-    (run.temp_run_dir / NOTES_FILENAME).write_text("notes edited during the run\n")
-    (Path(stills_dir(config.temp_path)) / "cam_cam1_status.png").write_bytes(b"png")
-    (temp / "Screenshot 2026-01-02.png").write_bytes(b"shot")
+    _ = (run.temp_run_dir / NOTES_FILENAME).write_text("notes edited during the run\n")
+    _ = (Path(stills_dir(config.temp_path)) / "cam_cam1_status.png").write_bytes(b"png")
+    _ = (temp / "Screenshot 2026-01-02.png").write_bytes(b"shot")
     (run.temp_run_dir / "manifests").mkdir()
-    (run.temp_run_dir / "manifests" / "subj001_cam1_manifest.csv").write_text("path,subjID,view,clip_start,row_written,crf\n")
-    (temp / ".DS_Store").write_bytes(b"")
-    run.log_path.write_text("fake terminal log\n")
+    _ = (run.temp_run_dir / "manifests" / "subj001_cam1_manifest.csv").write_text("path,subjID,view,clip_start,row_written,crf\n")
+    _ = (temp / ".DS_Store").write_bytes(b"")
+    _ = run.log_path.write_text("fake terminal log\n")
     empty_cam_dir = temp / "Test_cam1"
     empty_cam_dir.mkdir()
     busy_cam_dir = temp / "Test_cam2"
     busy_cam_dir.mkdir()
-    (busy_cam_dir / "cam2_20260102_03-04-05.mp4").write_bytes(b"not a video, and no manifest row")  # a clip cut off by a kill
+    _ = (busy_cam_dir / "cam2_20260102_03-04-05.mp4").write_bytes(b"not a video, and no manifest row")  # a clip cut off by a kill
 
     run.collect_at_shutdown()
     run.collect_at_shutdown()  # idempotent
@@ -185,16 +193,16 @@ def test_collect_at_shutdown_adds_rows_the_cameras_could_not_write(tmp_path, cap
     run.record_start()
     temp = Path(config.temp_path)
     (run.temp_run_dir / "manifests").mkdir()
-    (run.temp_run_dir / "manifests" / "subj001_cam1_manifest.csv").write_text(
+    _ = (run.temp_run_dir / "manifests" / "subj001_cam1_manifest.csv").write_text(
         "path,subjID,view,clip_start,row_written,crf\nTest_subj001_cam1_20260102/a.mp4,001,cam1,2026-01-02 03:04:05.000,2026-01-02 03:05:05.000,25\n"
     )
-    run.log_path.write_text(
+    _ = run.log_path.write_text(
         "some output\n"
-        "WARNING: could not add b.mp4 to the manifest after 3 attempts: boom\n"
+        + "WARNING: could not add b.mp4 to the manifest after 3 attempts: boom\n"
         + manifest_warning("subj001_cam1_manifest.csv", "Test_subj001_cam1_20260102/b.mp4", "001", "cam1", "2026-01-02 03:05:05.000", 25) + "\n"
         + manifest_warning("subj001_cam1_manifest.csv", "Test_subj001_cam1_20260102/c.mp4", "001", "cam1", "2026-01-02 03:06:05.000", 25) + "\n"
         + manifest_warning("subj002_cam2_manifest.csv", "Test_subj002_cam2_20260102/z.mp4", "002", "cam2", "2026-01-02 03:04:05.000", 30) + "\n"
-        "WARNING: temp folder 'x' still contains files\n"
+        + "WARNING: temp folder 'x' still contains files\n"
     )
 
     run.collect_at_shutdown()
@@ -240,9 +248,9 @@ def test_collect_at_shutdown_removes_an_emptied_temp_folder(tmp_path):
     run = RunMetadata(config, config_path)
     run.record_start()
     temp = Path(config.temp_path)
-    (Path(stills_dir(config.temp_path)) / "cam_cam1_status.png").write_bytes(b"png")
-    (temp / ".DS_Store").write_bytes(b"")
-    run.log_path.write_text("fake terminal log\n")
+    _ = (Path(stills_dir(config.temp_path)) / "cam_cam1_status.png").write_bytes(b"png")
+    _ = (temp / ".DS_Store").write_bytes(b"")
+    _ = run.log_path.write_text("fake terminal log\n")
     (temp / "Test_cam1").mkdir()
 
     run.collect_at_shutdown()
@@ -258,15 +266,15 @@ def start_run_with_a_still(tmp_path):
     run = RunMetadata(config, config_path)
     run.record_start()
     temp = Path(config.temp_path)
-    (Path(stills_dir(config.temp_path)) / "cam_cam1_status.png").write_bytes(b"png")
-    (temp / "Screenshot.png").write_bytes(b"shot")
-    run.log_path.write_text("fake terminal log\n")
+    _ = (Path(stills_dir(config.temp_path)) / "cam_cam1_status.png").write_bytes(b"png")
+    _ = (temp / "Screenshot.png").write_bytes(b"shot")
+    _ = run.log_path.write_text("fake terminal log\n")
     return run, temp
 
 
 def test_abort_adds_manifest_rows_and_touches_nothing_else(tmp_path, capsys):
     run, temp = start_run_with_a_still(tmp_path)
-    run.log_path.write_text(
+    _ = run.log_path.write_text(
         manifest_warning("subj001_cam1_manifest.csv", "Test_subj001_cam1_20260102/b.mp4", "001", "cam1", "2026-01-02 03:05:05.000", 25) + "\n"
     )
 
@@ -286,7 +294,7 @@ def test_abort_adds_manifest_rows_and_touches_nothing_else(tmp_path, capsys):
 
 
 def test_metadata_folder_stays_when_the_save_folder_is_gone(tmp_path, capsys):
-    run, temp = start_run_with_a_still(tmp_path)
+    run, _ = start_run_with_a_still(tmp_path)
     shutil.rmtree(run.config.save_path)  # the drive was pulled
 
     run.collect_at_shutdown()
@@ -301,7 +309,6 @@ def test_metadata_folder_stays_when_the_save_folder_is_gone(tmp_path, capsys):
 
 def test_metadata_folder_is_not_copied_onto_a_drive_short_of_space(tmp_path, monkeypatch, capsys):
     run, _ = start_run_with_a_still(tmp_path)
-    Usage = namedtuple("Usage", "total used free")
     monkeypatch.setattr(shutil, "disk_usage", lambda _p: Usage(10**9, 10**9 - 10, 10))
 
     def no_copy(*_a, **_k):
@@ -338,8 +345,8 @@ def test_a_failed_copy_is_reported_without_the_raw_error_list(tmp_path, monkeypa
 
 def test_a_loose_file_named_like_one_in_the_run_folder_is_renamed_not_written_over(tmp_path, capsys):
     run, temp = start_run_with_a_still(tmp_path)
-    (run.temp_run_dir / NOTES_FILENAME).write_text("the run's notes\n")
-    (temp / NOTES_FILENAME).write_text("a stray notes file at the top of temp\n")
+    _ = (run.temp_run_dir / NOTES_FILENAME).write_text("the run's notes\n")
+    _ = (temp / NOTES_FILENAME).write_text("a stray notes file at the top of temp\n")
 
     run.collect_at_shutdown()
 
@@ -349,17 +356,18 @@ def test_a_loose_file_named_like_one_in_the_run_folder_is_renamed_not_written_ov
 
 
 def test_free_name_numbers_the_fallback_when_it_is_taken_too(tmp_path):
-    (tmp_path / "notes.txt").write_text("")
-    assert ratrixcam_run_metadata._free_name(tmp_path, "notes.txt").name == "notes_from_temp.txt"
-    (tmp_path / "notes_from_temp.txt").write_text("")
-    assert ratrixcam_run_metadata._free_name(tmp_path, "notes.txt").name == "notes_from_temp3.txt"
-    assert ratrixcam_run_metadata._free_name(tmp_path, "cam").name == "cam"  # nothing there: the name itself
+    free_name = ratrixcam_run_metadata._free_name  # pyright: ignore[reportPrivateUsage]  # the helper under test
+    _ = (tmp_path / "notes.txt").write_text("")
+    assert free_name(tmp_path, "notes.txt").name == "notes_from_temp.txt"
+    _ = (tmp_path / "notes_from_temp.txt").write_text("")
+    assert free_name(tmp_path, "notes.txt").name == "notes_from_temp3.txt"
+    assert free_name(tmp_path, "cam").name == "cam"  # nothing there: the name itself
 
 
 def test_a_failed_gathering_skips_the_move(tmp_path, monkeypatch, capsys):
     run, temp = start_run_with_a_still(tmp_path)
 
-    def cannot_move(src, dst):
+    def cannot_move(*_args: object):
         raise OSError(5, "Input/output error")
 
     def no_copy(*_a, **_k):
@@ -402,11 +410,10 @@ def test_save_drive_check_demands_room_for_temp_plus_the_margin(tmp_path, monkey
     config, _ = make_config(tmp_path)
     temp = Path(config.temp_path)
     (temp / "cam").mkdir()
-    (temp / "cam" / "a.mp4").write_bytes(b"x" * 2_000_000)
-    (temp / "cam" / "b.mp4").write_bytes(b"x" * 1_000_000)
-    (temp / "notes.txt").write_bytes(b"x" * 1_000_000)
+    _ = (temp / "cam" / "a.mp4").write_bytes(b"x" * 2_000_000)
+    _ = (temp / "cam" / "b.mp4").write_bytes(b"x" * 1_000_000)
+    _ = (temp / "notes.txt").write_bytes(b"x" * 1_000_000)
     needed = 4_000_000 + STOP_SPACE_FACTOR * 2_000_000
-    Usage = namedtuple("Usage", "total used free")
     monkeypatch.setattr(shutil, "disk_usage", lambda _p: Usage(10**12, 10**12 - needed, needed))
     assert save_drive_problem(config) is None
     monkeypatch.setattr(shutil, "disk_usage", lambda _p: Usage(10**12, 10**12 - needed + 1, needed - 1))
@@ -441,7 +448,7 @@ def start_run_with_a_stranded_clip(tmp_path, with_row=True, openable=True):
         write_clip(clip)
     else:
         clip.parent.mkdir()
-        clip.write_bytes(b"cut off by a kill: no index")
+        _ = clip.write_bytes(b"cut off by a kill: no index")
     if with_row:
         write_row(str(temp_manifests_dir(run.config.temp_path) / "subj001_cam1_manifest.csv"), f"{DAY}/{CLIP}", "001", "cam1", "2026-01-02 03:04:05.000", 25)
     return run, temp, clip
@@ -455,7 +462,7 @@ def no_transfer_waiting(monkeypatch):
 
 
 def test_a_stranded_clip_with_a_manifest_row_is_transferred_at_cleanup(tmp_path, capsys):
-    run, temp, clip = start_run_with_a_stranded_clip(tmp_path)
+    run, temp, _ = start_run_with_a_stranded_clip(tmp_path)
 
     run.collect_at_shutdown()
 
@@ -468,7 +475,7 @@ def test_a_stranded_clip_with_a_manifest_row_is_transferred_at_cleanup(tmp_path,
 
 
 def test_a_rowless_clip_that_opens_is_kept_and_travels_with_its_folder(tmp_path, capsys):
-    run, temp, clip = start_run_with_a_stranded_clip(tmp_path, with_row=False)
+    run, temp, _ = start_run_with_a_stranded_clip(tmp_path, with_row=False)
 
     run.collect_at_shutdown()
 
@@ -493,9 +500,10 @@ def test_a_rowless_clip_that_does_not_open_is_deleted(tmp_path, capsys):
     assert "without a manifest row: 1 deleted, 0 kept" in out
 
 
-def test_a_clip_whose_re_request_fails_travels_with_its_folder(tmp_path, no_transfer_waiting, capsys):
-    run, temp, clip = start_run_with_a_stranded_clip(tmp_path)
-    (Path(run.config.save_path) / DAY).write_bytes(b"")  # a file where the day folder should be
+@pytest.mark.usefixtures("no_transfer_waiting")
+def test_a_clip_whose_re_request_fails_travels_with_its_folder(tmp_path, capsys):
+    run, temp, _ = start_run_with_a_stranded_clip(tmp_path)
+    _ = (Path(run.config.save_path) / DAY).write_bytes(b"")  # a file where the day folder should be
 
     run.collect_at_shutdown()
 
@@ -508,7 +516,7 @@ def test_a_clip_whose_re_request_fails_travels_with_its_folder(tmp_path, no_tran
 
 
 def test_re_requests_are_skipped_as_a_whole_when_the_save_folder_is_gone(tmp_path, capsys):
-    run, temp, clip = start_run_with_a_stranded_clip(tmp_path)
+    run, _, _ = start_run_with_a_stranded_clip(tmp_path)
     shutil.rmtree(run.config.save_path)
 
     run.collect_at_shutdown()  # with the full 15-second window: the test is quick only if no re-request runs
@@ -522,11 +530,10 @@ def test_re_requests_are_skipped_as_a_whole_when_the_save_folder_is_gone(tmp_pat
 def test_re_requests_stop_when_the_drive_runs_short_of_space_mid_pass(tmp_path, monkeypatch, capsys):
     """Two stranded clips; the drive has room for the first re-request only. Checked before each
     clip, so the second costs no retry window."""
-    run, temp, clip = start_run_with_a_stranded_clip(tmp_path)
+    run, _, clip = start_run_with_a_stranded_clip(tmp_path)
     second = clip.parent / "subj001_cam1_20260102_03-05-05.mp4"
     write_clip(second)
     write_row(str(temp_manifests_dir(run.config.temp_path) / "subj001_cam1_manifest.csv"), f"{DAY}/{second.name}", "001", "cam1", "2026-01-02 03:05:05.000", 25)
-    Usage = namedtuple("Usage", "total used free")
     real_usage = shutil.disk_usage
     calls: list[int] = []
 
@@ -546,7 +553,7 @@ def test_re_requests_stop_when_the_drive_runs_short_of_space_mid_pass(tmp_path, 
 
 
 def test_the_metadata_folder_move_flushes_every_file_and_folder(tmp_path, monkeypatch):
-    run, temp = start_run_with_a_still(tmp_path)
+    run, _ = start_run_with_a_still(tmp_path)
     flushed: list[str] = []
     monkeypatch.setattr(ratrixcam_run_metadata, "flush_to_device", lambda p: flushed.append(p))
 
@@ -559,7 +566,7 @@ def test_the_metadata_folder_move_flushes_every_file_and_folder(tmp_path, monkey
 
 
 def test_a_metadata_folder_that_cannot_be_flushed_stays_in_temp(tmp_path, monkeypatch, capsys):
-    run, temp = start_run_with_a_still(tmp_path)
+    run, _ = start_run_with_a_still(tmp_path)
 
     def cannot(_p):
         raise OSError(5, "Input/output error")
@@ -574,9 +581,9 @@ def test_a_metadata_folder_that_cannot_be_flushed_stays_in_temp(tmp_path, monkey
 
 
 def test_nothing_is_deleted_when_a_manifest_cannot_be_read(tmp_path, capsys):
-    run, temp, clip = start_run_with_a_stranded_clip(tmp_path, with_row=False, openable=False)
+    run, _, _ = start_run_with_a_stranded_clip(tmp_path, with_row=False, openable=False)
     temp_manifests_dir(run.config.temp_path).mkdir()
-    (temp_manifests_dir(run.config.temp_path) / "subj001_cam1_manifest.csv").write_text("not,a,manifest\n1,2,3\n")  # no 'path' column
+    _ = (temp_manifests_dir(run.config.temp_path) / "subj001_cam1_manifest.csv").write_text("not,a,manifest\n1,2,3\n")  # no 'path' column
 
     run.collect_at_shutdown()
 
@@ -588,10 +595,10 @@ def test_nothing_is_deleted_when_a_manifest_cannot_be_read(tmp_path, capsys):
 
 
 def test_a_stale_partial_copy_on_the_drive_is_overwritten_by_the_re_request(tmp_path):
-    run, temp, clip = start_run_with_a_stranded_clip(tmp_path)
+    run, _, _ = start_run_with_a_stranded_clip(tmp_path)
     day = Path(run.config.save_path) / DAY
     day.mkdir()
-    (day / (CLIP + ".part")).write_bytes(b"cut short earlier")
+    _ = (day / (CLIP + ".part")).write_bytes(b"cut short earlier")
 
     run.collect_at_shutdown()
 
@@ -604,7 +611,7 @@ def test_a_complete_partial_copy_with_no_temp_copy_is_renamed(tmp_path, monkeypa
     run, temp, clip = start_run_with_a_stranded_clip(tmp_path)
     day = Path(run.config.save_path) / DAY
     day.mkdir()
-    shutil.move(str(clip), str(day / (CLIP + ".part")))  # moves it out of temp as well
+    _ = shutil.move(str(clip), str(day / (CLIP + ".part")))  # moves it out of temp as well
     flushed: list[str] = []
     monkeypatch.setattr(ratrixcam_run_metadata, "flush_to_device", lambda p: flushed.append(p))
 
@@ -617,11 +624,11 @@ def test_a_complete_partial_copy_with_no_temp_copy_is_renamed(tmp_path, monkeypa
 
 
 def test_an_unopenable_partial_copy_with_no_temp_copy_is_left_alone(tmp_path, capsys):
-    run, temp, clip = start_run_with_a_stranded_clip(tmp_path)
+    run, _, clip = start_run_with_a_stranded_clip(tmp_path)
     clip.unlink()
     day = Path(run.config.save_path) / DAY
     day.mkdir()
-    (day / (CLIP + ".part")).write_bytes(b"truncated")
+    _ = (day / (CLIP + ".part")).write_bytes(b"truncated")
 
     run.collect_at_shutdown()
 
@@ -630,7 +637,7 @@ def test_an_unopenable_partial_copy_with_no_temp_copy_is_left_alone(tmp_path, ca
 
 
 def test_abort_neither_transfers_nor_deletes_stranded_clips(tmp_path, capsys):
-    run, temp, clip = start_run_with_a_stranded_clip(tmp_path, with_row=False, openable=False)
+    run, _, clip = start_run_with_a_stranded_clip(tmp_path, with_row=False, openable=False)
     write_clip(clip.parent / "second.mp4")
     write_row(str(temp_manifests_dir(run.config.temp_path) / "subj001_cam1_manifest.csv"), f"{DAY}/second.mp4", "001", "cam1", "2026-01-02 03:05:05.000", 25)
 
@@ -644,13 +651,18 @@ def test_abort_neither_transfers_nor_deletes_stranded_clips(tmp_path, capsys):
 
 # ------------------------------------------------- the status file at the end of the run
 
+def read_status(path: Path) -> dict[str, dict[str, object]]:
+    """The status file's sections ("run", "save_drive", "temp_drive"), as the tests read them."""
+    return cast(dict[str, dict[str, object]], json.loads(path.read_text()))
+
+
 def test_a_normal_end_writes_the_final_status_file_into_the_run_folder_and_clears_temp(tmp_path, capsys):
     run, temp = start_run_with_a_still(tmp_path)
     run.status.write(cameras_alive=True, force=True)  # as the poll does during the run
 
     run.collect_at_shutdown()
 
-    final = json.loads((run.run_dir / STATUS_FILENAME).read_text())
+    final = read_status(run.run_dir / STATUS_FILENAME)
     assert final["run"]["state"] == "ended"
     assert final["run"]["message"] == f"Run metadata saved to <save>/ratrixcam_run_metadata/{run.run_id}; temp folder removed"
     assert final["temp_drive"]["clips_waiting"] == 0
@@ -663,27 +675,28 @@ def test_an_abort_leaves_the_final_status_file_in_temp(tmp_path):
 
     run.collect_at_shutdown(abort=True)
 
-    final = json.loads((temp / STATUS_FILENAME).read_text())
+    final = read_status(temp / STATUS_FILENAME)
     assert final["run"]["state"] == "ended"
     assert final["run"]["message"] == "Run aborted; everything left in <temp>"
     assert not (run.run_dir / STATUS_FILENAME).exists()
 
 
-def test_the_end_message_counts_the_clips_that_did_not_transfer(tmp_path, no_transfer_waiting):
-    run, temp, clip = start_run_with_a_stranded_clip(tmp_path)
-    (Path(run.config.save_path) / DAY).write_bytes(b"")  # a file where the day folder should be: the re-request fails
+@pytest.mark.usefixtures("no_transfer_waiting")
+def test_the_end_message_counts_the_clips_that_did_not_transfer(tmp_path):
+    run, temp, _ = start_run_with_a_stranded_clip(tmp_path)
+    _ = (Path(run.config.save_path) / DAY).write_bytes(b"")  # a file where the day folder should be: the re-request fails
 
     run.collect_at_shutdown()
 
-    final = json.loads((run.run_dir / STATUS_FILENAME).read_text())
-    assert final["run"]["message"].endswith("; temp folder removed; 1 clip(s) not transferred travel inside it")
+    final = read_status(run.run_dir / STATUS_FILENAME)
+    assert str(final["run"]["message"]).endswith("; temp folder removed; 1 clip(s) not transferred travel inside it")
     assert not temp.exists()
 
 
 def test_a_superseded_temp_copy_counts_as_not_transferred_and_travels_with_its_folder(tmp_path, capsys):
     from test_move_file import openable_clip
 
-    run, temp, clip = start_run_with_a_stranded_clip(tmp_path)
+    run, _, clip = start_run_with_a_stranded_clip(tmp_path)
     _ = openable_clip(clip, frames=3)  # the stranded copy, small
     _ = openable_clip(Path(run.config.save_path) / DAY / CLIP, frames=40)  # the drive already holds a larger one
 

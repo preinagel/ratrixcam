@@ -1,11 +1,35 @@
 """The launcher's window-side pieces: the Replace SSD dialog, the stop request, the stopping
 window and its wait, the viewer's server at launch."""
 
+import os
+from multiprocessing import Process
+from multiprocessing.synchronize import Event as ProcessEvent
+from types import SimpleNamespace
+from typing import TYPE_CHECKING, cast, override
+
 import pytest
 
-io = pytest.importorskip("ratrixcam_IO")
+if TYPE_CHECKING:  # the real modules for the checker; at run time the suite skips without Tk
+    import tkinter as tk
 
-RATE = pytest.importorskip("ratrixcam_utils").ASSUMED_WRITE_RATE  # the assumed 8-camera write rate
+    import ratrixcam_IO as io
+else:
+    io = pytest.importorskip("ratrixcam_IO")
+    tk = pytest.importorskip("tkinter")
+
+from ratrixcam_utils import ASSUMED_WRITE_RATE as RATE, Config  # noqa: E402  # the assumed 8-camera write rate
+
+# the stand-ins below are duck-typed doubles; the casts hand them to the typed launcher functions
+def as_config(double: object) -> Config:
+    return cast(Config, double)
+
+
+def as_event(double: object) -> ProcessEvent:
+    return cast(ProcessEvent, double)
+
+
+def as_process(double: object) -> Process:
+    return cast(Process, double)
 
 
 def test_time_left_text_switches_to_hours_at_two_hours():
@@ -20,7 +44,6 @@ def test_time_left_text_switches_to_hours_at_two_hours():
 def no_window_on_screen(monkeypatch):
     """Every Tk window a test makes is created withdrawn, so nothing flashes on the screen
     of whoever runs the suite; the widgets inside behave the same."""
-    tk = pytest.importorskip("tkinter")
 
     class HiddenTk(tk.Tk):
         def __init__(self, *args, **kwargs):
@@ -32,15 +55,15 @@ def no_window_on_screen(monkeypatch):
             super().__init__(*args, **kwargs)
             self.withdraw()
 
+        @override
         def grab_set(self):
             pass  # a withdrawn window cannot take the grab, and the tests do not need it
 
-    monkeypatch.setattr(io.tk, "Tk", HiddenTk)
-    monkeypatch.setattr(io.tk, "Toplevel", HiddenToplevel)
+    monkeypatch.setattr(tk, "Tk", HiddenTk)  # the launcher's tk is this same module
+    monkeypatch.setattr(tk, "Toplevel", HiddenToplevel)
 
 
 def hidden_root():
-    tk = pytest.importorskip("tkinter")
     try:
         root = tk.Tk()
     except tk.TclError:
@@ -65,11 +88,9 @@ def labels_in_dialog(tk, root) -> list[str]:
 PROBLEM = "SSD drive full: 1.0 GB needed for the files in temp, 0.1 GB free"
 
 
-def one_camera(tmp_path):
+def one_camera(tmp_path) -> Config:
     """A stand-in config with one camera and tmp_path as the temp folder."""
-    from types import SimpleNamespace
-
-    return SimpleNamespace(temp_path=str(tmp_path), cameras=[object()])
+    return as_config(SimpleNamespace(temp_path=str(tmp_path), cameras=[object()]))
 
 
 @pytest.fixture
@@ -77,17 +98,19 @@ def no_check_pause(monkeypatch):
     monkeypatch.setattr(io, "CHECK_PAUSE", 0)
 
 
-def test_replace_ssd_dialog_returns_the_choice_pressed(tmp_path, no_check_pause):
+@pytest.mark.usefixtures("no_check_pause")
+def test_replace_ssd_dialog_returns_the_choice_pressed(tmp_path):
     tk, root = hidden_root()
     results = []
     for label in io.REPLACE_SSD_CHOICES:
-        root.after(50, press_in_dialog, tk, root, label)
+        _ = root.after(50, press_in_dialog, tk, root, label)
         results.append(io.replace_ssd_dialog(root, PROBLEM, lambda: None, one_camera(tmp_path)))  # the check passes
     root.destroy()
     assert results == ["ready", "abort", "continue"]
 
 
-def test_ssd_ready_checks_again_in_place_until_the_check_passes(tmp_path, no_check_pause):
+@pytest.mark.usefixtures("no_check_pause")
+def test_ssd_ready_checks_again_in_place_until_the_check_passes(tmp_path):
     """Two failing checks, then a pass: the same window stays up, restating each result with
     a count of the checks, and closes with 'ready' on the third press."""
     tk, root = hidden_root()
@@ -100,9 +123,9 @@ def test_ssd_ready_checks_again_in_place_until_the_check_passes(tmp_path, no_che
         press_in_dialog(tk, root, "SSD Ready")
         if the_dialog(tk, root).winfo_exists():
             seen.append(labels_in_dialog(tk, root))
-            root.after(50, press_and_look)
+            _ = root.after(50, press_and_look)
 
-    root.after(50, press_and_look)
+    _ = root.after(50, press_and_look)
     result = io.replace_ssd_dialog(root, PROBLEM, lambda: next(outcomes), one_camera(tmp_path))
     root.destroy()
     assert result == "ready"
@@ -116,9 +139,9 @@ def test_ssd_ready_checks_again_in_place_until_the_check_passes(tmp_path, no_che
 
 def test_replace_ssd_text_says_how_long_temp_can_go_on(tmp_path, monkeypatch):
     import shutil
-    from collections import namedtuple
 
-    Usage = namedtuple("Usage", "total used free")
+    from test_run_metadata import Usage
+
     free = int(RATE / 8 * 1800)  # 30 minutes at one camera's share of the 8-camera rate
     monkeypatch.setattr(shutil, "disk_usage", lambda _p: Usage(10**12, 10**12 - free, free))
     text = io.replace_ssd_text(PROBLEM, one_camera(tmp_path))
@@ -130,7 +153,7 @@ def test_replace_ssd_text_says_how_long_temp_can_go_on(tmp_path, monkeypatch):
 def test_replace_ssd_dialog_closed_by_its_close_box_means_continue(tmp_path):
     tk, root = hidden_root()
 
-    root.after(50, lambda: the_dialog(tk, root).destroy())  # what the window manager does when the close box is used
+    _ = root.after(50, lambda: the_dialog(tk, root).destroy())  # what the window manager does when the close box is used
     result = io.replace_ssd_dialog(root, "SSD drive not reachable", lambda: None, one_camera(tmp_path))
     root.destroy()
     assert result == "continue"
@@ -138,20 +161,23 @@ def test_replace_ssd_dialog_closed_by_its_close_box_means_continue(tmp_path):
 
 # ------------------------------------------------- the wait while the run stops
 
-class RunningCameras:
+class RunningCameras:  # stands for the camera process; the stop only asks whether it is alive
     def is_alive(self):
         return True
 
 
 def stopping_state(monkeypatch, problem):
     """A state with the cameras running and a save drive check that reports `problem`."""
-    from types import SimpleNamespace
-
     state = io.State()
-    state.config = SimpleNamespace(temp_path="/nowhere")  # only what the stop reads
-    state.camera_process = RunningCameras()
+    state.config = as_config(SimpleNamespace(temp_path="/nowhere"))  # only what the stop reads
+    state.camera_process = as_process(RunningCameras())
     monkeypatch.setattr(io, "save_drive_problem", lambda _c: problem)
     return state
+
+
+def a_window() -> tk.Tk:
+    """Stands for 'a window exists': stop_requested only tests it against None."""
+    return cast(tk.Tk, object())
 
 
 def test_stop_proceeds_when_the_check_passes(monkeypatch, capsys):
@@ -171,10 +197,10 @@ def test_stop_without_a_window_aborts_when_the_check_fails(monkeypatch, capsys):
 def test_stop_with_a_window_follows_the_dialog(monkeypatch, capsys):
     state = stopping_state(monkeypatch, "SSD drive not reachable")
     monkeypatch.setattr(io, "replace_ssd_dialog", lambda *a: "continue")
-    assert io.stop_requested(state, object()) is False
+    assert io.stop_requested(state, a_window()) is False
     assert state.abort is False
     monkeypatch.setattr(io, "replace_ssd_dialog", lambda *a: "abort")
-    assert io.stop_requested(state, object()) is True
+    assert io.stop_requested(state, a_window()) is True
     assert state.abort is True
     out = capsys.readouterr().out
     assert "Continue Run chosen" in out and "Abort Run chosen" in out
@@ -183,7 +209,7 @@ def test_stop_with_a_window_follows_the_dialog(monkeypatch, capsys):
 def test_a_second_window_request_during_the_dialog_is_ignored_but_a_signal_aborts(monkeypatch, capsys):
     state = stopping_state(monkeypatch, "SSD drive not reachable")
     state.stopping = True  # the dialog is up
-    assert io.stop_requested(state, object()) is False
+    assert io.stop_requested(state, a_window()) is False
     assert state.abort is False
     assert io.stop_requested(state, None) is True
     assert state.abort is True
@@ -203,7 +229,7 @@ def test_wait_until_gives_up_at_the_timeout():
 
 
 def test_stopping_window_shows_the_phase_and_the_elapsed_time():
-    tk, root = hidden_root()
+    _, root = hidden_root()
     root.destroy()  # the stopping window makes its own root, as it does after the recording window is gone
     window = io.StoppingWindow("ratrixcam: stopping the run")
     if window.root is None:
@@ -219,12 +245,12 @@ def test_stopping_window_shows_the_phase_and_the_elapsed_time():
 def test_close_window_cancels_the_pending_timers_before_destroying():
     tk, root = hidden_root()
     fired = []
-    root.after(50, lambda: fired.append(1))
-    root.after(50, lambda: fired.append(2))
-    assert len(root.tk.call("after", "info")) == 2
+    _ = root.after(50, lambda: fired.append(1))
+    _ = root.after(50, lambda: fired.append(2))
+    assert len(cast(tuple[str, ...], root.tk.call("after", "info"))) == 2  # Tk returns untyped
     io.close_window(root)
-    with pytest.raises(tk.TclError):
-        root.winfo_exists()  # destroyed
+    with pytest.raises(tk.TclError):  # pyright: ignore[reportAny]  # tkinter's exception class is untyped in the stubs
+        _ = root.winfo_exists()  # destroyed
     assert fired == []
 
 
@@ -232,8 +258,8 @@ def test_an_abort_sets_the_abort_event_before_the_stop_event():
     order = []
 
     class Event:
-        def __init__(self, name):
-            self.name = name
+        def __init__(self, name: str):
+            self.name: str = name
 
         def set(self):
             order.append(self.name)
@@ -243,10 +269,10 @@ def test_an_abort_sets_the_abort_event_before_the_stop_event():
             return False
 
     state = io.State()
-    state.camera_process = Gone()
+    state.camera_process = as_process(Gone())
     state.abort = True
     with pytest.raises(SystemExit):
-        io.graceful_shutdown(state, Event("stop"), Event("abort"))
+        io.graceful_shutdown(state, as_event(Event("stop")), as_event(Event("abort")))
     assert order == ["abort", "stop"]
 
 
@@ -271,7 +297,8 @@ def fake_viewer(tmp_path, monkeypatch):
     return script
 
 
-def test_the_viewer_starts_on_the_first_free_port(tmp_path, fake_viewer):
+@pytest.mark.usefixtures("fake_viewer")
+def test_the_viewer_starts_on_the_first_free_port(tmp_path):
     import socket
 
     taken = socket.socket()
@@ -296,7 +323,8 @@ def test_a_missing_viewer_script_is_a_warning_not_a_stop(tmp_path, monkeypatch, 
     assert "WARNING: viewer not started" in capsys.readouterr().out
 
 
-def test_no_free_port_is_a_warning_not_a_stop(tmp_path, fake_viewer, monkeypatch, capsys):
+@pytest.mark.usefixtures("fake_viewer")
+def test_no_free_port_is_a_warning_not_a_stop(tmp_path, capsys):
     import socket
 
     held = []
@@ -316,15 +344,15 @@ def test_a_second_ctrl_c_sets_both_events_before_the_forced_exit(monkeypatch):
     order = []
 
     class Event:
-        def __init__(self, name):
-            self.name = name
+        def __init__(self, name: str):
+            self.name: str = name
 
         def set(self):
             order.append(self.name)
 
     exits = []
-    monkeypatch.setattr(io.os, "_exit", lambda code: exits.append(code))
+    monkeypatch.setattr(os, "_exit", lambda code: exits.append(code))  # the launcher's os is this same module
     state = io.State()
-    io.forced_exit(state, Event("stop"), Event("abort"))(2, None)
+    io.forced_exit(state, as_event(Event("stop")), as_event(Event("abort")))(2, None)
     assert order == ["abort", "stop"]  # the servers wind down and leave their clips in temp
     assert exits == [130]

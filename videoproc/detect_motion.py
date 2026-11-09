@@ -2,12 +2,17 @@
 
 import argparse
 from pathlib import Path
+from typing import cast
 
 import cv2 as cv
 import numpy as np
+import numpy.typing as npt
+from cv2.typing import MatLike
+
+Scores = npt.NDArray[np.float64]  # one motion score per sampled frame
 
 
-def play_frame(frame):
+def play_frame(frame: MatLike) -> bool:
     """display frame, exit if 'q' is pressed"""
     cv.imshow("motion detection", frame)
     return cv.waitKey(1) & 0xFF == ord("q")
@@ -21,20 +26,24 @@ MOG2_VAR_THRESHOLD = 16  # sensitivity threshold
 OPENING_KERNEL = (3, 3)
 
 
-def motion_scores(path, play_video, return_peak=False):
+def motion_scores(
+    path: Path | str, play_video: bool, return_peak: bool = False
+) -> Scores | tuple[Scores, MatLike | None, int | None]:
     """Per-sampled-frame motion scores for a clip. With return_peak, also returns the
     full-resolution frame that scored highest and its 0-based frame number, for a still
     image of the moment most likely to show an animal."""
-    cap = cv.VideoCapture(path)
+    cap = cv.VideoCapture(str(path))
 
     background_model = cv.createBackgroundSubtractorMOG2(
         history=MOG2_HISTORY, varThreshold=MOG2_VAR_THRESHOLD, detectShadows=False
     )
     kernel = cv.getStructuringElement(cv.MORPH_ELLIPSE, OPENING_KERNEL)
 
-    motion_by_frame = []
+    motion_by_frame: list[float] = []
     frames_read = 0
     peak_value, peak_frame, peak_frame_number = -1.0, None, None
+    peak_frame: MatLike | None
+    peak_frame_number: int | None
 
     while True:
         ret, frame = cap.read()
@@ -47,11 +56,11 @@ def motion_scores(path, play_video, return_peak=False):
             continue
 
         full_frame = frame
-        frame = cv.resize(frame, (frame.shape[1] // RESIZE_DIVISOR, frame.shape[0] // RESIZE_DIVISOR))
+        frame = cv.resize(frame, (frame.shape[1] // RESIZE_DIVISOR, frame.shape[0] // RESIZE_DIVISOR))  # pyright: ignore[reportAny]  # OpenCV frames are untyped arrays
 
         # the first frames only feed the background model
         if frames_read <= N_FRAMES_TO_SKIP:
-            background_model.apply(frame)
+            _ = background_model.apply(frame)
             continue
 
         # (1) background subtraction
@@ -71,17 +80,18 @@ def motion_scores(path, play_video, return_peak=False):
 
     cap.release()
 
+    scores = np.asarray(motion_by_frame, dtype=np.float64)
     if return_peak:
-        return np.asarray(motion_by_frame), peak_frame, peak_frame_number
-    return np.asarray(motion_by_frame)
+        return scores, peak_frame, peak_frame_number
+    return scores
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Detect motion in video.")
-    parser.add_argument("path", type=Path, help="Path to the video file.")
-    parser.add_argument("--play_video", action="store_true", help="Show the motion mask while processing (press 'q' to exit).")
+    _ = parser.add_argument("path", type=Path, help="Path to the video file.")
+    _ = parser.add_argument("--play_video", action="store_true", help="Show the motion mask while processing (press 'q' to exit).")
     args = parser.parse_args()
 
-    result = motion_scores(args.path, args.play_video)
+    result = motion_scores(cast(Path, args.path), cast(bool, args.play_video))
     motion_by_frame = result[0] if isinstance(result, tuple) else result
     print(f"motion-99-perc: {np.percentile(motion_by_frame, 99)}")

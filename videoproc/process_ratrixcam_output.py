@@ -43,7 +43,7 @@ from datetime import datetime
 from fnmatch import fnmatch
 from pathlib import Path
 from pprint import pprint
-from typing import IO, Any, Callable
+from typing import IO, Any, Callable, cast
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # the repo root, where ratrixcam_naming lives
 from ratrixcam_naming import MANIFEST_SUFFIX, MANIFESTS_DIRNAME, NOTES_FILENAME, RUN_METADATA_DIRNAME  # noqa: E402
@@ -90,9 +90,9 @@ def find_runs(root: Path) -> list[RatrixcamRun]:
             print(f"WARNING: run {run_id}: expected one camera config copy in {run_dir}, found {len(configs)}")
         else:
             try:
-                config = json.loads(configs[0].read_text())
-                studyname = config["study_label"]
-                prefix = config.get("subject_prefix", "subj")
+                config = cast(dict[str, object], json.loads(configs[0].read_text()))
+                studyname = str(config["study_label"])
+                prefix = str(config.get("subject_prefix", "subj"))
             except (OSError, ValueError, KeyError) as e:
                 print(f"WARNING: run {run_id}: could not read study label from {configs[0]}: {e}")
         runs.append(RatrixcamRun(run_id, run_dir, manifests, studyname, prefix))
@@ -115,7 +115,8 @@ def compare_sizes(src_dir: Path, dest_dir: Path) -> tuple[list[str], list[str]]:
 
 def compare_bytes(src_dir: Path, dest_dir: Path) -> tuple[list[str], list[str]]:
     """(files missing at the destination, files whose destination copy differs byte for byte)."""
-    missing, differing = [], []
+    missing: list[str] = []
+    differing: list[str] = []
     for rel in sorted(_files(src_dir)):
         target = dest_dir / rel
         if not target.is_file():
@@ -132,7 +133,7 @@ def transfer(src_dir: Path, dest_dir: Path) -> tuple[int, list[str]]:
     for rel in missing:
         target = dest_dir / rel
         target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src_dir / rel, target)
+        _ = shutil.copy2(src_dir / rel, target)
     return len(missing), differing
 
 
@@ -152,7 +153,8 @@ def metadata_destination(folder: Path, destination: Path) -> Path:
 def transfer_folders(label: str, folders: list[Path], destination_of: Callable[[Path], Path]) -> str:
     """Carry each folder to destination_of(folder); print one line per folder and return the
     summary line."""
-    n_files, problems = 0, []
+    n_files = 0
+    problems: list[str] = []
     for folder in folders:
         dest_dir = destination_of(folder)
         n_copied, differing = transfer(folder, dest_dir)
@@ -174,7 +176,8 @@ class AppendedSection:
     appended to it, as well as shown on the terminal; `title` opens the section."""
 
     def __init__(self, run_dir: Path, title: str):
-        self.run_dir, self.title = run_dir, title
+        self.run_dir: Path = run_dir
+        self.title: str = title
         self._log_file: IO[str] | None = None
 
     def __enter__(self):
@@ -183,8 +186,8 @@ class AppendedSection:
         return self
 
     def __exit__(self, *_exc: object) -> None:
-        sys.stdout.flush()
-        sys.stderr.flush()
+        _ = sys.stdout.flush()
+        _ = sys.stderr.flush()
         sys.stdout = sys.__stdout__
         sys.stderr = sys.__stderr__
         if self._log_file is not None:
@@ -211,7 +214,7 @@ def runs_to_process(
             skipped[run.run_id] = "study label and subject prefix unknown"
             problems.append(
                 f"ERROR: run {run.run_id} skipped: study label and subject prefix unknown "
-                "(see WARNING above; --studyname and --subject_prefix override the config copy)"
+                + "(see WARNING above; --studyname and --subject_prefix override the config copy)"
             )
         elif not run.manifests:
             skipped[run.run_id] = f"no manifest in its {MANIFESTS_DIRNAME}/ folder"
@@ -222,7 +225,8 @@ def runs_to_process(
 
 
 def compress(
-    root: Path, destination: Path, studyname: str | None = None, subject_prefix: str | None = None, **options: Any
+    root: Path, destination: Path, studyname: str | None = None, subject_prefix: str | None = None,
+    **options: Any,  # pyright: ignore[reportExplicitAny, reportAny]  # the tool's options as argparse parsed them, passed through
 ) -> int:
     """compress_drive once per run found under root, each followed by its run folder; then
     the run folders that could not be processed, reported on the terminal only. `studyname`
@@ -241,7 +245,7 @@ def compress(
             input=root, output=destination, manifest=run.manifests,
             studyname=run_studyname, subject_prefix=run_prefix,
             call_note=f"processing the manifests of ratrixcam run {run.run_id} (via process_ratrixcam_output.py compress)",
-            **options,
+            **options,  # pyright: ignore[reportAny]  # argparse hands back Any
         )
         if run_dir is None:
             problems.append(f"ERROR: compress_drive stopped before processing run {run.run_id}")
@@ -419,8 +423,8 @@ def report_leftovers(root: Path, leftovers: Leftovers) -> None:
     if leftovers.other_files or leftovers.empty_folders:
         print(
             f"The source folder is not empty. It contains {leftovers.other_files} other file(s) in "
-            f"{len(leftovers.other_folders)} folder(s), {leftovers.other_bytes / 1e9:.2f} GB, not recognized as "
-            f"ratrixcam-related, and {leftovers.empty_folders} empty folder(s)."
+            + f"{len(leftovers.other_folders)} folder(s), {leftovers.other_bytes / 1e9:.2f} GB, not recognized as "
+            + f"ratrixcam-related, and {leftovers.empty_folders} empty folder(s)."
         )
     else:
         print("no other files; empty folders: 0")
@@ -465,7 +469,7 @@ def confirm(
     studyname: str | None = None,
     subject_prefix: str | None = None,
     no_pause: bool = False,
-    **options: Any,
+    **options: Any,  # pyright: ignore[reportExplicitAny, reportAny]  # the tool's options as argparse parsed them, passed through
 ) -> int:
     """confirm_and_delete once per run found under root, on that run's listed clips only,
     pausing for Enter between runs unless `no_pause`; then the runs that could not be
@@ -488,7 +492,7 @@ def confirm(
     for n, (run, run_studyname, run_prefix) in enumerate(ready, 1):
         if n > 1 and not no_pause:
             try:
-                input("\nPress Enter to continue to the next run: ")
+                _ = input("\nPress Enter to continue to the next run: ")
             except EOFError:
                 pass
             print("\n\n")
@@ -497,7 +501,7 @@ def confirm(
             source=root, destination=destination, manifest=run.manifests,
             studyname=run_studyname, subject_prefix=run_prefix,
             call_note=f"processing the manifests of ratrixcam run {run.run_id} (via process_ratrixcam_output.py confirm)",
-            **options,
+            **options,  # pyright: ignore[reportAny]  # argparse hands back Any
         )
         if outcome is None:
             problems.append(f"ERROR: confirm_and_delete stopped before checking run {run.run_id}")
@@ -545,37 +549,38 @@ if __name__ == "__main__":
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     for sub in (compress_parser, confirm_parser):
-        sub.add_argument("root", type=Path, help="folder written by ratrixcam: a save_path drive, or a copy of one")
-        sub.add_argument("destination", type=Path, help="destination root, as for compress_drive")
-        sub.add_argument(
+        _ = sub.add_argument("root", type=Path, help="folder written by ratrixcam: a save_path drive, or a copy of one")
+        _ = sub.add_argument("destination", type=Path, help="destination root, as for compress_drive")
+        _ = sub.add_argument(
             "--studyname", type=str, default=None,
             help="study-name prefix of the destination day folders of every run, in place of each run's config copy",
         )
-        sub.add_argument(
+        _ = sub.add_argument(
             "--subject_prefix", type=str, default=None,
             help="subject prefix of the destination paths of every run, in place of each run's config copy; '' for none",
         )
     compress_drive.add_processing_arguments(compress_parser)
     confirm_and_delete.add_processing_arguments(confirm_parser)
-    confirm_parser.add_argument("--no_pause", action="store_true", help="do not wait for Enter between runs (unattended use)")
+    _ = confirm_parser.add_argument("--no_pause", action="store_true", help="do not wait for Enter between runs (unattended use)")
     kwargs = vars(parser.parse_args())
-    command = kwargs.pop("command")
+    command = cast(str, kwargs.pop("command"))
+    root_folder, destination_root = cast(Path, kwargs["root"]), cast(Path, kwargs["destination"])
 
-    if not kwargs["root"].is_dir():
-        raise NotADirectoryError(f"{kwargs['root']} is not a valid directory")
-    if not kwargs["destination"].is_dir():
-        raise NotADirectoryError(f"{kwargs['destination']} is not a valid directory")
-    if kwargs["root"].resolve() == kwargs["destination"].resolve():
+    if not root_folder.is_dir():
+        raise NotADirectoryError(f"{root_folder} is not a valid directory")
+    if not destination_root.is_dir():
+        raise NotADirectoryError(f"{destination_root} is not a valid directory")
+    if root_folder.resolve() == destination_root.resolve():
         raise ValueError("root and destination cannot be the same")
     if command == "confirm":
-        if confirm_and_delete.destination_inside_source(kwargs["root"], kwargs["destination"]):
+        if confirm_and_delete.destination_inside_source(root_folder, destination_root):
             raise ValueError("destination must not be the root folder or lie inside it")
-        if confirm_and_delete.destination_inside_source(kwargs["root"], kwargs["destination"] / "videoproc_run_metadata"):
+        if confirm_and_delete.destination_inside_source(root_folder, destination_root / "videoproc_run_metadata"):
             raise ValueError("the run-metadata folder under destination would lie inside the root folder")
 
     print(f"\nconfiguration ({command}):")
     pprint(kwargs, sort_dicts=False)
-    input("\n[enter] to continue: ")
+    _ = input("\n[enter] to continue: ")
     print(f"Call: python3 {' '.join(sys.argv)}")
 
-    sys.exit({"compress": compress, "confirm": confirm}[command](**kwargs))
+    sys.exit({"compress": compress, "confirm": confirm}[command](**kwargs))  # pyright: ignore[reportAny]  # argparse hands back Any

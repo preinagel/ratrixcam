@@ -73,7 +73,7 @@ def add_manifest_row(source_root: Path, rel_path: str, subj_id: str, view: str, 
 
 def place(clip: Path, target: Path) -> None:
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_bytes(clip.read_bytes())
+    _ = target.write_bytes(clip.read_bytes())
 
 
 def place_clip(clip: Path, source_root: Path, time: str, subj_id=SUBJ_ID, view=VIEW, date=DATE, crf=None) -> Path:
