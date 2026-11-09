@@ -302,7 +302,7 @@ class RunMetadata:
         partial copies on the drive are renamed. A failure to list temp is reported and the
         shutdown goes on to the terminal log. Returns (transferred, not transferred).
 
-        KNOWN, PENDING (design document item 6): on the 600-second kill path a camera's own
+        KNOWN, PENDING (GitHub #57): on the 600-second kill path a camera's own
         transfer process may still be alive and copying the same clip while this runs. On a
         normal stop there is no overlap: a camera waits for its transfers before exiting."""
         try:
@@ -457,7 +457,7 @@ class RunMetadata:
                         _ = shutil.move(str(entry), str(target))
                         gathered += 1
                 elif entry.is_dir() and not _remove_if_empty(entry):
-                    # BY DESIGN (design document item 4): a camera folder still holding clips
+                    # BY DESIGN: a camera folder still holding clips
                     # travels into the metadata folder and from there onto the drive, where
                     # videoproc does not look for clips; the WARNING is their only trace. The
                     # room check before the move is one times the folder's size; the stop-time

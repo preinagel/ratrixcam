@@ -42,8 +42,8 @@ class Config(BaseModel):
 
 
 def ensure_dir_exists(path: str) -> bool:
-    # if the temp streaming directory doesn't exist create it
-    try:  #  create a new empty one
+    # create the folder if it does not exist; True if it exists afterwards
+    try:
         os.makedirs(path, exist_ok=True)
         return True
     except PermissionError:
@@ -150,8 +150,6 @@ def place_offline_stills(config: Config):
         _ = shutil.copy(BLANK_IMAGE, still_path(folder, name))
 
 
-# -----------------------------------------------------------
-# BEGIN FUNCTION DEFS
 def load_settings(json_path: str) -> Config | None:
     """The config file as a Config, or None after one ERROR line: the file cannot be read, or
     its content fails the checks."""
