@@ -197,7 +197,8 @@ def stop_requested(state: State, window: tk.Tk | None) -> bool:
         print(f"Stop requested, save drive check failed: {problem}")
         # SSD Ready re-runs the check inside the dialog, never the cached result; the
         # dialog returns 'ready' only once a check has passed
-        choice = replace_ssd_dialog(window, problem, lambda: save_drive_problem(config), config)
+        rate = state.run_metadata.status.rate if state.run_metadata is not None else None
+        choice = replace_ssd_dialog(window, problem, lambda: save_drive_problem(config), config, rate)
         if choice == "continue":
             print("Continue Run chosen: recording goes on")
             return False
@@ -211,28 +212,31 @@ def stop_requested(state: State, window: tk.Tk | None) -> bool:
         state.stopping = False
 
 
-def temp_time_left_text(config: Config) -> str:
-    """How long the cameras can go on before the temp drive is full, at the assumed write
-    rate scaled to this rig's camera count, or 'unknown' if the drive cannot be queried."""
+def temp_time_left_text(config: Config, rate: float | None = None) -> str:
+    """How long the cameras can go on before the temp drive is full, at the given write rate
+    (the status writer's), else at the assumed rate for this rig's camera count; 'unknown'
+    if the drive cannot be queried."""
     try:
         free = shutil.disk_usage(config.temp_path).free
     except OSError:
         return "unknown"
-    return time_left_text(seconds_until_full(free, write_rate(len(config.cameras))))
+    return time_left_text(seconds_until_full(free, rate if rate is not None else write_rate(len(config.cameras))))
 
 
-def replace_ssd_text(problem: str, config: Config) -> str:
+def replace_ssd_text(problem: str, config: Config, rate: float | None = None) -> str:
     """The body of the Replace SSD dialog for this problem."""
     return (
         f"{problem}\n\n"
         "This drive cannot take the files waiting in the temp folder. Recording continues while this window is up.\n"
         "Eject it and mount a drive with enough space at the same path, then press SSD Ready.\n"
         "Abort Run ends the run with every file left in the temp folder.\n"
-        f"Continue Run returns to recording; the temp drive has room for {temp_time_left_text(config)} more."
+        f"Continue Run returns to recording; the temp drive has room for {temp_time_left_text(config, rate)} more."
     )
 
 
-def replace_ssd_dialog(window: tk.Tk, problem: str, check: Callable[[], str | None], config: Config) -> str:
+def replace_ssd_dialog(
+    window: tk.Tk, problem: str, check: Callable[[], str | None], config: Config, rate: float | None = None
+) -> str:
     """Block on a small window telling the operator what is wrong with the save drive, with
     three buttons; returns 'ready' once a check has passed, else 'abort' or 'continue'. SSD
     Ready runs the check again from inside the window: the buttons go dead, "Checking the
@@ -253,7 +257,7 @@ def replace_ssd_dialog(window: tk.Tk, problem: str, check: Callable[[], str | No
         dialog.destroy()
 
     dialog.protocol("WM_DELETE_WINDOW", lambda: choose("continue"))
-    message = tk.Label(dialog, text=replace_ssd_text(problem, config), justify="left", wraplength=520, padx=16, pady=12)
+    message = tk.Label(dialog, text=replace_ssd_text(problem, config, rate), justify="left", wraplength=520, padx=16, pady=12)
     message.pack()
     status = tk.Label(dialog, text="", justify="left", wraplength=520, padx=16, fg="#a00000")
     status.pack()
@@ -274,7 +278,7 @@ def replace_ssd_dialog(window: tk.Tk, problem: str, check: Callable[[], str | No
             choose("ready")
             return
         print(f"SSD Ready pressed, save drive check failed again: {found}")
-        _ = message.config(text=replace_ssd_text(found, config))
+        _ = message.config(text=replace_ssd_text(found, config, rate))
         _ = status.config(text=f"Checked {checks['count']} time(s), last at {dt.datetime.now():%H:%M:%S}: still {found}")
         dialog.protocol("WM_DELETE_WINDOW", lambda: choose("continue"))
         for button in buttons:

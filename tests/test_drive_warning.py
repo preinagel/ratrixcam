@@ -148,6 +148,9 @@ def test_replace_ssd_text_says_how_long_temp_can_go_on(tmp_path, monkeypatch):
     assert text.startswith(PROBLEM)
     assert "finish" not in text
     assert text.endswith("Continue Run returns to recording; the temp drive has room for ~30 min more.")
+    # with the status writer's rate given (here twice the assumed one), the time halves
+    text = io.replace_ssd_text(PROBLEM, one_camera(tmp_path), 2 * RATE_PER_CAMERA)
+    assert text.endswith("the temp drive has room for ~15 min more.")
 
 
 def test_replace_ssd_dialog_closed_by_its_close_box_means_continue(tmp_path):
