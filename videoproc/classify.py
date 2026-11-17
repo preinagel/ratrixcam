@@ -81,8 +81,8 @@ class Logger:
     compression_time: float | None = None
     valid_output: bool | None = None
 
-    def __init__(self, log_path: Path, action_items_path: Path):
-        self.fields: list[str] = list(LOG_FIELDS)
+    def __init__(self, log_path: Path, action_items_path: Path, fields: list[str] = LOG_FIELDS):
+        self.fields: list[str] = list(fields)
         self.log_path: Path = log_path
         self.action_items_path: Path = action_items_path
         self.status_counts: Counter[str] = Counter()
@@ -132,7 +132,9 @@ class Decision:
     note: str | None
     input_codec: str | None
     input_n_frames: int | None
+    output_exists: bool  # a file sits at the destination, openable or not
     output_codec: str | None  # None when nothing openable is at the destination
+    output_n_frames: int | None
 
 
 def classify_file(
@@ -159,7 +161,7 @@ def classify_file(
     output_is_raw = output_codec == RAW_CODEC
 
     def decision(action: str | None = None, skip: SkipFile | None = None, note: str | None = None) -> Decision:
-        return Decision(action, skip, note, input_codec, input_n_frames, output_codec)
+        return Decision(action, skip, note, input_codec, input_n_frames, output_exists, output_codec, output_n_frames)
 
     def skipped(status: str, reason: str, action_item: bool = False) -> Decision:
         return decision(skip=SkipFile(status, reason, action_item))

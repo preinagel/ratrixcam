@@ -366,10 +366,11 @@ def print_summary(
     logger: Logger,
     n_listed: int,
     motion_detection: bool,
-    motion_review: bool,
-    n_no_motion: int,
-    flagged_by_view: Counter[str],
+    motion_review: bool = False,
+    n_no_motion: int = 0,
+    flagged_by_view: Counter[str] | None = None,
 ) -> None:
+    flagged_by_view = flagged_by_view or Counter()
     n_rows = sum(logger.status_counts.values())
     print("\n==== run summary ====")
     print(f"clips listed in the manifest(s): {n_listed}")

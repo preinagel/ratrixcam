@@ -45,7 +45,9 @@ const CAMERA_FIELDS = [
   { key: "resolution", label: "Resolution", kind: "resolution", options: "camera_resolution", optional: true },
 ];
 // not on the form, kept in the file: the exposure setting has no effect on macOS (GitHub #51),
-// but the camera code still requires default_cam_exposure, and a loaded file's values are preserved
+// but the camera code still requires default_cam_exposure, and a loaded file's values are preserved.
+// Putting exposure on the form needs a "float" field kind in the validator and the help text,
+// which have no such kind: exposure values are not whole numbers
 const HIDDEN_DEFAULT_CAM_EXPOSURE = 0;  // unsupported feature, kept for future development; matches config_editor.py
 // the file's key order (the server writes the same): run-level, cameras, then the defaults
 const FILE_KEY_ORDER = ["machine_name", "save_path", "temp_path", "study_label", "subject_prefix", "time_slice", "cameras",
@@ -198,10 +200,10 @@ function refreshSelects(optionsKey) {
 
 // ---------- the "Add new..." dialog ----------
 
-function promptNewValue(field, optionsKey) {
+function promptNewValue(field, optionsKey, title) {
   return new Promise((resolve) => {
     const box = el("prompt"), input = el("prompt-input"), err = el("prompt-error");
-    el("prompt-title").textContent = `New legal value for ${field.label || field.key}`;
+    el("prompt-title").textContent = title || `New legal value for ${field.label || field.key}`;
     el("prompt-help").textContent = helpFor(field);
     input.value = "";
     err.textContent = "";
@@ -244,6 +246,12 @@ function buildField(field, container) {
   const sel = makeSelect(field, field.key, () => state.config[field.key], (v) => { state.config[field.key] = v; render(); });
   wrap.appendChild(label);
   wrap.appendChild(sel);
+  if (field.hint) {  // a field may carry a line of help under its control
+    const hint = document.createElement("div");
+    hint.className = "hint";
+    hint.textContent = field.hint;
+    wrap.appendChild(hint);
+  }
   container.appendChild(wrap);
 }
 
