@@ -85,8 +85,7 @@ body { display: flex; flex-direction: column; }
   white-space: nowrap;
   overflow: hidden;
 }
-.tile .title .subj { font-weight: 600; }
-.tile .title .view { color: var(--text-2); }
+.tile .title .subj, .tile .title .view { font-weight: 600; }  /* together they are the camera name: one font for both */
 .tile .title .seen {
   margin-left: 0.3em;
   font-family: var(--mono);
