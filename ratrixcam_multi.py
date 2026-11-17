@@ -15,6 +15,7 @@ import ratrixcam_server
 from ratrixcam_naming import camera_name, still_path
 from ratrixcam_utils import (
     BLANK_IMAGE,
+    CAMERA_LAUNCH_PAUSE,
     Config,
     ensure_dir_exists,
     load_settings,
@@ -127,7 +128,7 @@ def run(config: Config, stop_event: Event, abort_event: Event | None = None):
             # only when all devices are detected, try to re-launch the ones that went offline
             try: 
                 if launched_this_pass:  # another camera was launched within this pass of the loop:
-                    time.sleep(5)  # wait a bit before launching another one
+                    time.sleep(CAMERA_LAUNCH_PAUSE)  # wait a bit before launching another one
                 cam_proc = Process(
                     target=run_without_handlers,
                     args=(config, idx, stop_event, abort_event),

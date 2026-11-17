@@ -120,6 +120,11 @@ def flush_to_device(path: str) -> None:
         os.close(fd)
 
 
+# Seconds the supervisor waits between launching one camera and the next. The camera servers
+# use it to work out when the whole rig has started.
+CAMERA_LAUNCH_PAUSE = 5
+
+
 # Assumed write rate of one camera, used to estimate how long a drive will last. A ballpark
 # constant based on sample 640x480 30fps recordings. It could be replaced by a rate measured
 # from the run's own clips.

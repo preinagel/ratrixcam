@@ -1,5 +1,6 @@
 """measure_camera: what a camera really delivers at launch, counted from its frames, next
-to what the driver reports; the writer is opened with the measured values."""
+to what the driver reports; the writer is opened with the measured values. RateWatch: a
+camera whose clips depart from that rate during the run is reported once."""
 
 import time
 from typing import TYPE_CHECKING, cast
@@ -117,3 +118,41 @@ def test_frames_the_reader_missed_do_not_lower_the_rate():
     m = server.measure_camera(cap, seconds=0.5)
     assert m is not None
     assert 45 <= m.fps <= 55
+
+
+# ------------------------------------------------- the rate of each clip against the launch measurement
+
+def test_the_rig_is_settled_once_the_last_camera_has_started_its_second_clip():
+    from ratrixcam_utils import CAMERA_LAUNCH_PAUSE
+
+    launch = CAMERA_LAUNCH_PAUSE
+    first_clip = server.FIRST_FRAME_WAIT + server.WARM_UP_SECONDS  # what a camera spends before its first clip
+    # the first of seven cameras, 60-s clips: the last camera starts six pauses later
+    assert server.rig_settled_at(1000.0, 0, 7, 60) == 1000.0 + 6 * launch + first_clip + 60
+    # the last camera: nobody launches after it
+    assert server.rig_settled_at(1000.0, 6, 7, 60) == 1000.0 + first_clip + 60
+    # a one-camera rig with 10-minute clips: its own second clip
+    assert server.rig_settled_at(1000.0, 0, 1, 600) == 1000.0 + first_clip + 600
+
+
+def test_rate_watch_leaves_the_clips_before_the_rig_settled_alone():
+    watch = server.RateWatch("cam1", 30, settled_at=1120.0)
+    assert watch.clip_closed(1497, 60.0, clip_started=1000.0) is None  # the ragged launch clips
+    assert watch.clip_closed(1497, 60.0, clip_started=1060.0) is None
+    assert watch.clip_closed(1497, 60.0, clip_started=1120.0) is not None
+
+
+def test_rate_watch_says_a_departure_once_and_the_return_once():
+    watch = server.RateWatch("cam1", 30, settled_at=100.0)
+    assert watch.clip_closed(1777, 60.03, clip_started=120.0) is None  # 29.6 fps: within the tolerance
+    warning = watch.clip_closed(1497, 60.03, clip_started=180.0)
+    assert warning == "WARNING: camera cam1 delivered 24.9 fps over the last clip, not the 30 fps measured at launch"
+    assert watch.clip_closed(1497, 60.03, clip_started=240.0) is None  # still low: silent
+    assert watch.clip_closed(1776, 60.03, clip_started=300.0) == "camera cam1 delivers 30 fps again"
+    assert watch.clip_closed(1777, 60.03, clip_started=360.0) is None
+    assert watch.clip_closed(1497, 60.03, clip_started=420.0) is not None  # a second departure is said again
+
+
+def test_rate_watch_ignores_an_empty_clip():
+    watch = server.RateWatch("cam1", 30, settled_at=0.0)
+    assert watch.clip_closed(0, 0.0, clip_started=120.0) is None

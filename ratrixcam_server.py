@@ -20,7 +20,7 @@ from pydantic import BaseModel
 
 from ratrixcam_manifest import ManifestMetadata
 from ratrixcam_naming import camera_name, clip_filename, still_path
-from ratrixcam_utils import Config, ensure_dir_exists, flush_to_device, load_settings, opens_as_video, stills_dir
+from ratrixcam_utils import CAMERA_LAUNCH_PAUSE, Config, ensure_dir_exists, flush_to_device, load_settings, opens_as_video, stills_dir
 
 video_codec = cv2.VideoWriter.fourcc(*"mp4v")
 
@@ -240,6 +240,43 @@ WARM_UP_SECONDS = 3.0  # frames read and discarded at launch while the camera's 
 FIRST_FRAME_WAIT = 5.0  # seconds a camera is given to deliver its first frame before it is declared dead
 FPS_TOLERANCE = 1  # a measured rate this close to the requested one is the requested one: cameras drift less
                    # than this from nominal, and the standard value is what players expect in the label
+
+
+def rig_settled_at(started: float, device_id: int, n_cameras: int, time_slice: int) -> float:
+    """When every camera of the rig has started its second clip, seen from the server of camera
+    `device_id` that started at `started`: the supervisor launches the cameras in index order
+    CAMERA_LAUNCH_PAUSE apart, each spends up to FIRST_FRAME_WAIT + WARM_UP_SECONDS before its
+    first clip, and its second clip begins one clip length after the first. Until then every
+    camera's clips are ragged with the launch of the others."""
+    last_first_clip = started + (n_cameras - 1 - device_id) * CAMERA_LAUNCH_PAUSE + FIRST_FRAME_WAIT + WARM_UP_SECONDS
+    return last_first_clip + time_slice
+
+
+class RateWatch:
+    """Compares each closed clip's frame rate with the rate measured at launch and says so
+    once when it departs by more than FPS_TOLERANCE, and once when it is back. A camera
+    changes its rate mid-run on its own, for one, when its auto-exposure lengthens the frame
+    in dim light, which nothing on macOS controls (GitHub #51); without this the change is
+    silent. Clips started before `settled_at` (rig_settled_at) are not compared."""
+
+    def __init__(self, name: str, fps: int, settled_at: float):
+        self.name: str = name
+        self.fps: int = fps
+        self.settled_at: float = settled_at
+        self.departed: bool = False
+
+    def clip_closed(self, frames: int, seconds: float, clip_started: float) -> str | None:
+        """The line to print for a clip of this many frames over this many seconds, or None."""
+        if clip_started < self.settled_at or seconds <= 0:
+            return None
+        rate = frames / seconds
+        departed = abs(rate - self.fps) > FPS_TOLERANCE
+        if departed == self.departed:
+            return None
+        self.departed = departed
+        if departed:
+            return f"WARNING: camera {self.name} delivered {rate:.1f} fps over the last clip, not the {self.fps} fps measured at launch"
+        return f"camera {self.name} delivers {self.fps} fps again"
 
 
 class Measured(NamedTuple):
@@ -491,8 +528,10 @@ def run(config: Config, device_id: int, stop_event: Event, abort_event: Event | 
         )
         print(f"WARNING: camera {params.name}'s clips are labelled with the true values, {fps} fps at {measured.width}x{measured.height}")
     params = params.model_copy(update={"fps": fps, "width": measured.width, "height": measured.height})
+    rate_watch = RateWatch(params.name, params.fps, rig_settled_at(time.time(), device_id, len(config.cameras), config.time_slice))
 
     frame_count: int = 0  # frames since the camera started: printed on each frame, paces the still updates
+    clip_first_frame: int = 0  # frame_count when the open clip started
     clip_count: int = 0
     file_transfer_processes: list[Process] = []
     writer_state: WriterState | None = None
@@ -505,13 +544,17 @@ def run(config: Config, device_id: int, stop_event: Event, abort_event: Event | 
         # if not started yet, open first video file
         # or if video slice duration has been exceeded, close video file and initialize new one
         if writer_state is None or current_time - start > config.time_slice:
-            start = current_time # update start time for first frame of new video (time.time() format)
-                                        # note that the next frame captured will be written to the new writer
-
-            # close the old writer, and let go of the transfers that have finished since the last clip
+            # close the old writer, compare its clip's rate with the launch measurement, and let
+            # go of the transfers that have finished since the last clip
             if writer_state is not None:
                 close_writer(writer_state, file_transfer_processes, manifest, config.save_path)
+                message = rate_watch.clip_closed(frame_count - clip_first_frame, current_time - start, start)
+                if message is not None:
+                    print(message)
                 file_transfer_processes = release_finished(file_transfer_processes)
+            start = current_time # update start time for first frame of new video (time.time() format)
+                                        # note that the next frame captured will be written to the new writer
+            clip_first_frame = frame_count
             clip_count += 1
 
             # open a new writer; the clip's destination day folder is created by move_file
