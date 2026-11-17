@@ -281,7 +281,7 @@ class EditorHandler(SimpleHTTPRequestHandler):
                 self.send_json({"error": "options must be an object"}, HTTPStatus.BAD_REQUEST)
                 return
             data["machine_id"] = machine_id()  # saving from this machine binds the file to it
-            for key in ("machine_id_now", "machine_mismatch", "options_file"):  # added by GET, not stored
+            for key in ("machine_id_now", "machine_mismatch", "options_file", "machine_name"):  # added by GET, not stored
                 _ = data.pop(key, None)
             write_json(self.options_file, data)
             self.send_json({"ok": True})

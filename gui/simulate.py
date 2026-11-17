@@ -125,6 +125,8 @@ def main() -> int:
     for name in os.listdir(temp_dir):  # the sample's terminal log names its run
         if name.startswith("terminal_") and name.endswith(".log"):
             run_id = name[len("terminal_"):-len(".log")]
+    log_name = f"terminal_{run_id}.log"
+    open(os.path.join(temp_dir, log_name), "a").close()  # the run's terminal log, as the camera program leaves it
     started = datetime.now()
     stills = [os.path.join(temp_dir, "status", n) for n in os.listdir(os.path.join(temp_dir, "status"))]
     save_total, save_free, temp_free = scenario_drives(scenario)

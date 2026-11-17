@@ -83,7 +83,10 @@ select {
   background-position: right 9px center;
   cursor: pointer;
 }
-select.invalid { border-color: var(--alarm); }
+select.invalid, input.invalid { border-color: var(--alarm); }
+/* status colours, used only for status */
+.warn-text { color: var(--warn); }
+.alarm-text { color: var(--alarm); }
 
 /* status colour, used only for status */
 .ok { color: var(--ok); }
