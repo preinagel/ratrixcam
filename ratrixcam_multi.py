@@ -122,8 +122,6 @@ def run(config: Config, stop_event: Event, abort_event: Event | None = None):
         if counted is None:
             have_all_cameras = False  # unknown this pass: nothing is launched; the cameras are still watched below
         else:
-            if counted < num_cameras:  # only report if not enough cameras to launch
-                print('seeing ', counted, 'devices; was expecting', num_cameras)
             have_all_cameras = counted >= num_cameras  # note if too many will grab the first ones
             if not have_all_cameras and counted != devices:
                 print(

@@ -73,6 +73,7 @@ def test_the_rate_and_size_come_from_the_frames_not_the_driver():
     m = server.measure_camera(cap, seconds=0.5)
     assert m is not None
     assert 45 <= m.fps <= 55
+    assert round(m.rate) == m.fps  # the unrounded rate is kept beside the label
     assert (m.width, m.height) == (64, 48)
     assert (m.reported_fps, m.reported_width, m.reported_height) == (30.0, 640, 480)
     assert m.frames >= 20
@@ -136,23 +137,30 @@ def test_the_rig_is_settled_once_the_last_camera_has_started_its_second_clip():
 
 
 def test_rate_watch_leaves_the_clips_before_the_rig_settled_alone():
-    watch = server.RateWatch("cam1", 30, settled_at=1120.0)
+    watch = server.RateWatch("cam1", 30.0, settled_at=1120.0)
     assert watch.clip_closed(1497, 60.0, clip_started=1000.0) is None  # the ragged launch clips
     assert watch.clip_closed(1497, 60.0, clip_started=1060.0) is None
     assert watch.clip_closed(1497, 60.0, clip_started=1120.0) is not None
 
 
 def test_rate_watch_says_a_departure_once_and_the_return_once():
-    watch = server.RateWatch("cam1", 30, settled_at=100.0)
-    assert watch.clip_closed(1777, 60.03, clip_started=120.0) is None  # 29.6 fps: within the tolerance
+    watch = server.RateWatch("cam1", 29.6, settled_at=100.0)  # a camera measured at 29.6 fps, labelled 30
+    assert watch.clip_closed(1777, 60.03, clip_started=120.0) is None  # 29.6 fps: its own rate
     warning = watch.clip_closed(1497, 60.03, clip_started=180.0)
-    assert warning == "WARNING: camera cam1 delivered 24.9 fps over the last clip, not the 30 fps measured at launch"
+    assert warning == "WARNING: camera cam1 delivered 24.9 fps over the last clip, not the 29.6 fps measured at launch"
     assert watch.clip_closed(1497, 60.03, clip_started=240.0) is None  # still low: silent
-    assert watch.clip_closed(1776, 60.03, clip_started=300.0) == "camera cam1 delivers 30 fps again"
+    assert watch.clip_closed(1776, 60.03, clip_started=300.0) == "camera cam1 delivers 29.6 fps again"
     assert watch.clip_closed(1777, 60.03, clip_started=360.0) is None
     assert watch.clip_closed(1497, 60.03, clip_started=420.0) is not None  # a second departure is said again
 
 
+def test_rate_watch_compares_with_the_measured_rate_not_the_label():
+    # 1729 frames in 60.03 s is 28.8 fps: 0.8 below a camera measured at 29.6, 1.2 below its label of 30
+    assert server.RateWatch("cam1", 29.6, settled_at=0.0).clip_closed(1729, 60.03, clip_started=10.0) is None
+    # 1764 frames is 29.4 fps: 1.0 below the label of 30, but more than 1 below a camera measured at 30.4
+    assert server.RateWatch("cam2", 30.4, settled_at=0.0).clip_closed(1764, 60.03, clip_started=10.0) is not None
+
+
 def test_rate_watch_ignores_an_empty_clip():
-    watch = server.RateWatch("cam1", 30, settled_at=0.0)
+    watch = server.RateWatch("cam1", 30.0, settled_at=0.0)
     assert watch.clip_closed(0, 0.0, clip_started=120.0) is None

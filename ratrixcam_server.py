@@ -253,15 +253,16 @@ def rig_settled_at(started: float, device_id: int, n_cameras: int, time_slice: i
 
 
 class RateWatch:
-    """Compares each closed clip's frame rate with the rate measured at launch and says so
-    once when it departs by more than FPS_TOLERANCE, and once when it is back. A camera
-    changes its rate mid-run on its own, for one, when its auto-exposure lengthens the frame
-    in dim light, which nothing on macOS controls (GitHub #51); without this the change is
-    silent. Clips started before `settled_at` (rig_settled_at) are not compared."""
+    """Compares each closed clip's frame rate with the unrounded rate measured at launch (not
+    the clips' label, which a camera at 29.6 fps shares with one at 30.4) and says so once
+    when it departs by more than FPS_TOLERANCE, and once when it is back. A camera changes
+    its rate mid-run on its own, for one, when its auto-exposure lengthens the frame in dim
+    light, which nothing on macOS controls (GitHub #51); without this the change is silent.
+    Clips started before `settled_at` (rig_settled_at) are not compared."""
 
-    def __init__(self, name: str, fps: int, settled_at: float):
+    def __init__(self, name: str, rate: float, settled_at: float):
         self.name: str = name
-        self.fps: int = fps
+        self.rate: float = rate
         self.settled_at: float = settled_at
         self.departed: bool = False
 
@@ -270,17 +271,18 @@ class RateWatch:
         if clip_started < self.settled_at or seconds <= 0:
             return None
         rate = frames / seconds
-        departed = abs(rate - self.fps) > FPS_TOLERANCE
+        departed = abs(rate - self.rate) > FPS_TOLERANCE
         if departed == self.departed:
             return None
         self.departed = departed
         if departed:
-            return f"WARNING: camera {self.name} delivered {rate:.1f} fps over the last clip, not the {self.fps} fps measured at launch"
-        return f"camera {self.name} delivers {self.fps} fps again"
+            return f"WARNING: camera {self.name} delivered {rate:.1f} fps over the last clip, not the {self.rate:.1f} fps measured at launch"
+        return f"camera {self.name} delivers {self.rate:.1f} fps again"
 
 
 class Measured(NamedTuple):
-    fps: int  # frames per second the camera really delivers, rounded
+    fps: int  # frames per second the camera really delivers, rounded: the clips' label
+    rate: float  # the same, unrounded: what the clips of the run are compared with
     width: int  # of the frames themselves
     height: int
     reported_fps: float  # what the capture reports for the same properties after the settings
@@ -338,9 +340,9 @@ def measure_camera(
     if previous is None:
         return None
     typical = statistics.median(intervals) if intervals else 0.0
-    fps = round(1 / typical) if typical > 0 else 0
+    rate = 1 / typical if typical > 0 else 0.0
     height, width = cast(tuple[int, ...], previous.shape)[:2]
-    return Measured(fps, width, height, reported_fps, reported_width, reported_height, frames)
+    return Measured(round(rate), rate, width, height, reported_fps, reported_width, reported_height, frames)
 
 
 def save_frame_to_writer(
@@ -528,7 +530,7 @@ def run(config: Config, device_id: int, stop_event: Event, abort_event: Event | 
         )
         print(f"WARNING: camera {params.name}'s clips are labelled with the true values, {fps} fps at {measured.width}x{measured.height}")
     params = params.model_copy(update={"fps": fps, "width": measured.width, "height": measured.height})
-    rate_watch = RateWatch(params.name, params.fps, rig_settled_at(time.time(), device_id, len(config.cameras), config.time_slice))
+    rate_watch = RateWatch(params.name, measured.rate, rig_settled_at(time.time(), device_id, len(config.cameras), config.time_slice))
 
     frame_count: int = 0  # frames since the camera started: printed on each frame, paces the still updates
     clip_first_frame: int = 0  # frame_count when the open clip started
