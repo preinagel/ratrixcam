@@ -378,6 +378,21 @@ def close_writer(
     file_transfer_processes.append(p)
 
 
+def release_finished(processes: list[Process]) -> list[Process]:
+    """The transfer processes still running. Each finished one is joined and closed, which
+    releases the pipe descriptors its process object holds; kept for the whole run, those
+    pile up two per clip until the machine's file table is full and nothing can open a
+    file any more. Called at every clip boundary and before the final wait."""
+    running: list[Process] = []
+    for p in processes:
+        if p.is_alive():
+            running.append(p)
+        else:
+            p.join()
+            p.close()
+    return running
+
+
 TRANSFER_POLL = 0.1  # seconds between looks at the transfer processes while a server waits for them
 
 
@@ -493,9 +508,10 @@ def run(config: Config, device_id: int, stop_event: Event, abort_event: Event | 
             start = current_time # update start time for first frame of new video (time.time() format)
                                         # note that the next frame captured will be written to the new writer
 
-            # close the old writer
+            # close the old writer, and let go of the transfers that have finished since the last clip
             if writer_state is not None:
                 close_writer(writer_state, file_transfer_processes, manifest, config.save_path)
+                file_transfer_processes = release_finished(file_transfer_processes)
             clip_count += 1
 
             # open a new writer; the clip's destination day folder is created by move_file
@@ -556,7 +572,7 @@ def run(config: Config, device_id: int, stop_event: Event, abort_event: Event | 
         aborted = abort_event is not None and abort_event.is_set()
         close_writer(writer_state, file_transfer_processes, manifest, config.save_path, transfer=not aborted)
 
-    file_transfer_processes = [p for p in file_transfer_processes if p.is_alive()]
+    file_transfer_processes = release_finished(file_transfer_processes)
     print(
         f"Cam_server Waiting for {len(file_transfer_processes)} file transfer processes to finish"
     )

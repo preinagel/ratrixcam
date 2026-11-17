@@ -454,7 +454,7 @@ def graceful_shutdown(state: State, stop_event: Event, abort_event: Event):
     timeout = 600  # seconds for the supervisor and its cameras to finish or give up their transfers (a
                    # transfer retries for TRANSFER_RETRY_WINDOW on a failing drive) before they are killed.
                    # If on-the-fly transcoding is revived, allow about half the slice duration on top.
-    print("Waiting for child processes to terminate...")
+    print("Waiting for the camera supervisor and its cameras to terminate...")
     phase = (
         f"{verb}.\nStopping the cameras; their pending transfers are being stopped."
         if state.abort

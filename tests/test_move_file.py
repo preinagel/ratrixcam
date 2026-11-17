@@ -273,6 +273,40 @@ def _sleep_ignoring_term(seconds: float) -> None:
     time.sleep(seconds)
 
 
+def _open_descriptors() -> int:
+    return len(os.listdir("/dev/fd"))
+
+
+def test_release_finished_closes_the_finished_transfers_and_keeps_the_running():
+    finished = multiprocessing.Process(target=_sleep, args=(0.05,))
+    running = multiprocessing.Process(target=_sleep, args=(2,))
+    finished.start()
+    running.start()
+    finished.join()
+    remaining = server.release_finished([finished, running])
+    assert remaining == [running]
+    with pytest.raises(ValueError):  # a closed process object can no longer be asked anything
+        _ = finished.is_alive()
+    running.join()
+    running.close()
+
+
+def test_release_finished_frees_the_descriptors_the_finished_transfers_held():
+    warm_up = multiprocessing.Process(target=_sleep, args=(0.01,))  # the first spawn starts helpers that stay
+    warm_up.start()
+    warm_up.join()
+    warm_up.close()
+    baseline = _open_descriptors()
+    processes = [multiprocessing.Process(target=_sleep, args=(0.05,)) for _ in range(5)]
+    for p in processes:
+        p.start()
+    for p in processes:
+        p.join()
+    assert _open_descriptors() == baseline + 2 * len(processes)  # two pipes per finished transfer, still held
+    assert server.release_finished(processes) == []
+    assert _open_descriptors() == baseline  # released
+
+
 def test_wait_for_transfers_waits_for_them_all_without_an_abort(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(server, "TRANSFER_POLL", 0.01)
     processes = [multiprocessing.Process(target=_sleep, args=(0.3,)) for _ in range(2)]

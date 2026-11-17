@@ -29,25 +29,29 @@ from ratrixcam_utils import (
 # RECORDING_TTL = False
 
 
-def count_video_devices():
+DEVICE_COUNT_TIMEOUT = 30  # seconds for system_profiler to answer; it has been seen to hang for days
+
+
+def count_video_devices() -> int | None:
+    """The number of cameras the system reports, of any make (every entry carries one
+    "Unique ID" line), or None when it could not be counted because the query failed or
+    timed out; either is said on the terminal. A query that times out is killed, so a hung
+    one cannot stall the supervisor."""
     try:
         result = subprocess.run(
             ["system_profiler", "SPCameraDataType"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            timeout=DEVICE_COUNT_TIMEOUT,
         )
-        output = result.stdout
-        video_device_count = 0
-        for line in output.splitlines():
-            if "USB Camera:" in line:
-                video_device_count += 1
-
-        return video_device_count
-
+    except subprocess.TimeoutExpired:
+        print(f"WARNING: the camera count timed out after {DEVICE_COUNT_TIMEOUT} s; no camera is launched until it answers")
+        return None
     except Exception as e:
         print(f"Error detecting video devices: {e}")
-        return 0
+        return None
+    return sum(1 for line in result.stdout.splitlines() if "Unique ID:" in line)
 
 
 def run_without_handlers(config: Config, camera_idx: int, stop_event: Event, abort_event: Event | None = None):
@@ -87,19 +91,20 @@ def run(config: Config, stop_event: Event, abort_event: Event | None = None):
     camera_state: list[bool] = [False for _ in range(num_cameras)]
     # p_TTL: Process | None = None  # TTL input, not implemented (see the top of the file)
 
-    devices = 0
+    devices = 0  # the last count that succeeded
     while not stop_event.is_set():
-        prev_devices = devices
-        devices = count_video_devices()
-        if devices < num_cameras:#only report if not enough cameras to launch
-            print('seeing ',devices,'devices; was expecting',num_cameras)
-        
-        have_all_cameras = devices >= num_cameras #note if too many will grab the first ones
-        if not have_all_cameras:
-            if prev_devices != devices:
+        counted = count_video_devices()
+        if counted is None:
+            have_all_cameras = False  # unknown this pass: nothing is launched; the cameras are still watched below
+        else:
+            if counted < num_cameras:  # only report if not enough cameras to launch
+                print('seeing ', counted, 'devices; was expecting', num_cameras)
+            have_all_cameras = counted >= num_cameras  # note if too many will grab the first ones
+            if not have_all_cameras and counted != devices:
                 print(
-                    f"Only detected {devices}/{num_cameras} camera(s), waiting for all to be connected"
+                    f"Only detected {counted}/{num_cameras} camera(s), waiting for all to be connected"
                 )
+            devices = counted
 
         launched_this_pass = False
         for idx, (process, was_alive, camera_config) in enumerate(
@@ -152,7 +157,8 @@ def run(config: Config, stop_event: Event, abort_event: Event | None = None):
     timeout = 600  # seconds for the cameras to finish or give up their transfers (a transfer retries for
                    # TRANSFER_RETRY_WINDOW on a failing drive) before they are killed. If on-the-fly
                    # transcoding is revived, allow about half the slice duration on top.
-    print("Waiting for child processes to terminate...")
+    running = sum(1 for process in camera_processes if process is not None and process.is_alive())
+    print(f"Waiting for {running} camera process(es) to terminate...")
     for _ in range(int(timeout / 0.1)):
         all_cameras_terminated = all(
             process is None or not process.is_alive() for process in camera_processes
