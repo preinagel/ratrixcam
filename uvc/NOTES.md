@@ -7,6 +7,8 @@ camera developer in `uvc/FRAME_DROPS.md`, and the tooling in `uvc/probe.py` and
 in this session's permissions, so these notes are the persistent record.
 
 ## How the user wants to work
+- **"Write to memory" / "update your memory" means: update this file, `uvc/NOTES.md`**, and
+  commit it. It does not mean the Claude memory folder (that one is not writable here anyway).
 - **I never run anything that opens or talks to a camera.** I write the command as a
   "RUN THIS:" fenced block (from `~/Desktop/ratrixcam-uvc`), with `2>&1 | tee
   uvc/logs/<sub-command>-<kind>-runN.log`. The user runs it and tells me; I read the log
