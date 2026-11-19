@@ -307,7 +307,7 @@ def cmd_q1(args):
             changed.pop()
             after = watch(reader, "after restore", 2.0)
             drop = (before - during) / before if before and before == before else 0.0
-            verdict = "THIS is the streamed camera" if drop > 0.2 else "no clear brightness change"
+            verdict = "write changed the stream" if drop > 0.2 else "no stream change (not the streamed camera, or no effect)"
             print(f"    brightness before/during/after = {before:.1f}/{during:.1f}/{after:.1f} "
                   f"(drop {drop * 100:.0f}%): {verdict}")
     finally:

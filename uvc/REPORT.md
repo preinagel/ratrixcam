@@ -83,8 +83,10 @@ uvc/.venv/bin/python uvc/probe.py q1 --index 0
   30 fps, and streamed 89 frames in 3.0 s (29.6 fps, 0 failed reads, mean brightness 132.1).
   No permission dialog was reported. The same requests failed with the same error (0.2-0.6 ms).
 - Phase C, stream released: same error.
-- No SET_CUR was sent: the script only writes after a successful read. So the index-0 to
-  USB-port mapping was not learned.
+- No SET_CUR was sent: the script only writes after a successful read.
+- Method note: no viewer runs during probes. Visual effects are measured as numbers in the
+  output (per-window frame count, failed reads, fps, mean frame brightness). With only
+  target cameras attached, which index maps to which USB port does not matter here.
 
 This matches public reports that on macOS 12 and later, non-root libusb control requests
 to a camera held by Apple's UVC driver are refused. That explanation is not verified here.
