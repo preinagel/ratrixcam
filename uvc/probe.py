@@ -8,9 +8,11 @@ RUN THIS (in your own Terminal, from anywhere; not inside the Claude sandbox):
 Sub-commands:
     list      enumerate 0x0c45:0x6369 devices and parse their VideoControl descriptors
     controls  read every GET_* of the exposure/gain controls, no stream open
-    q1        question 1: control requests before and while a cv2.VideoCapture streams;
-              changes AE mode and exposure time on each target in turn, watches the
-              stream's brightness, then restores AE mode to auto and reads it back
+    q1        question 1: control requests before and while a cv2.VideoCapture streams.
+              On each target in turn, while streaming: reads every control (goal 1);
+              clears AE priority, then restores it (goal 2); sets manual exposure at
+              4 ms, then restores auto (goal 3 preview). Every write is restored and
+              read back; fps and mean brightness are printed per window.
 
 Safety: refuses to run if ~/Desktop/temp exists (a recording is in progress). Never claims an
 interface, detaches a driver or sets a configuration: only class requests on endpoint 0,
@@ -47,6 +49,8 @@ CONTROLS = {
     "gain":        ("PU", 0x04, 2, False, 9, "unitless"),
 }
 AE_MANUAL, AE_AUTO, AE_APERTURE = 0x01, 0x02, 0x08
+EXPOSURE_LIMIT = 50  # 5 ms in 100 us units: the analysis needs exposure under this
+TEST_EXPOSURE = 40   # 4 ms, the manual value tried in q1 (clamped to the camera's range)
 
 
 def now():
@@ -173,6 +177,10 @@ def read_all(dev, lay, name, reqs=(GET_INFO, GET_MIN, GET_MAX, GET_RES, GET_DEF,
     for req in reqs:
         res, err, ms = xfer(dev, lay, name, req)
         extra = info_bits(res) if req == GET_INFO and not err else ""
+        if name == "exposure" and not err and req in (GET_MIN, GET_MAX, GET_RES, GET_DEF, GET_CUR):
+            extra = f"({res / 10:.1f} ms)"
+            if req == GET_CUR:
+                extra += " OVER 5 ms" if res >= EXPOSURE_LIMIT else " under 5 ms"
         parts.append(f"{REQ_NAME[req]}={fmt(res, err, ms)}{extra}")
     print(f"    {name:12s} " + "  ".join(parts))
 
@@ -271,7 +279,8 @@ def cmd_q1(args):
             read_all(dev, lay, name, (GET_INFO, GET_CUR))
         mode, err, _ = xfer(dev, lay, "ae_mode", GET_CUR)
         expo, _e2, _ = xfer(dev, lay, "exposure", GET_CUR)
-        original.append((mode, expo))
+        prio, _e3, _ = xfer(dev, lay, "ae_priority", GET_CUR)
+        original.append((mode, expo, prio))
         if err is None:
             print(f"    no-op write ae_mode:=current {mode}: {fmt(*xfer(dev, lay, 'ae_mode', SET_CUR, mode))}")
 
@@ -288,10 +297,10 @@ def cmd_q1(args):
           f"@ {cap.get(cv2.CAP_PROP_FPS):.1f} fps")
     reader = Reader(cap)
     reader.start()
-    changed = []  # (dev, lay, mode_to_restore, exposure_to_restore)
+    changed = []  # restore callables for writes in flight, run in the finally if anything fails
     try:
         watch(reader, "warm-up", 3.0)
-        for (dev, lay), (mode0, expo0) in zip(zip(devs, lays), original):
+        for (dev, lay), (mode0, expo0, prio0) in zip(zip(devs, lays), original):
             print(f"  {label(dev)} while streaming")
             for name in CONTROLS:
                 read_all(dev, lay, name, (GET_INFO, GET_CUR))
@@ -300,29 +309,45 @@ def cmd_q1(args):
                 print("    ae_mode unreadable while streaming; skipping writes on this device")
                 continue
             print(f"    no-op write ae_mode:=current {mode}: {fmt(*xfer(dev, lay, 'ae_mode', SET_CUR, mode))}")
+
+            # Goal 2: clear AE priority (camera may no longer lower its frame rate).
+            prio, p_err, _ = xfer(dev, lay, "ae_priority", GET_CUR)
+            if p_err:
+                print("    ae_priority unreadable; skipping the AE-priority test")
+            else:
+                restore_p = prio0 if prio0 is not None else prio
+                watch(reader, "before ae_priority change", 2.0)
+                changed.append(lambda d=dev, l=lay, v=restore_p: restore_priority(d, l, v))
+                print(f"    write ae_priority:=0: {fmt(*xfer(dev, lay, 'ae_priority', SET_CUR, 0))}")
+                read_all(dev, lay, "ae_priority", (GET_CUR,))
+                watch(reader, "ae_priority=0", 3.0)
+                changed.pop()()
+                watch(reader, "after ae_priority restore", 2.0)
+
+            # Goal 3 preview: manual exposure at 4 ms (gain untouched; compensation comes later).
             emin, e_err, _ = xfer(dev, lay, "exposure", GET_MIN)
-            if e_err:
-                print("    exposure GET_MIN failed; skipping the manual-exposure test on this device")
+            emax, e_err2, _ = xfer(dev, lay, "exposure", GET_MAX)
+            if e_err or e_err2:
+                print("    exposure range unreadable; skipping the manual-exposure test")
                 continue
+            target = min(max(TEST_EXPOSURE, emin), emax)
             restore_mode = mode0 if mode0 in (AE_AUTO, AE_APERTURE) else auto_mode_for(dev, lay)
-            restore_expo = expo0 if expo0 is not None else None
-            before = watch(reader, "before change", 1.5)
-            changed.append((dev, lay, restore_mode, restore_expo))
+            before = watch(reader, "before exposure change", 2.0)
+            changed.append(lambda d=dev, l=lay, m=restore_mode, e=expo0: restore_one(d, l, m, e))
             print(f"    write ae_mode:=manual(1): {fmt(*xfer(dev, lay, 'ae_mode', SET_CUR, AE_MANUAL))}")
-            print(f"    write exposure:=min({emin}): {fmt(*xfer(dev, lay, 'exposure', SET_CUR, emin))}")
+            print(f"    write exposure:={target} ({target / 10:.1f} ms): "
+                  f"{fmt(*xfer(dev, lay, 'exposure', SET_CUR, target))}")
             read_all(dev, lay, "ae_mode", (GET_CUR,))
             read_all(dev, lay, "exposure", (GET_CUR,))
-            during = watch(reader, "manual, min exposure", 2.0)
-            restore_one(dev, lay, restore_mode, restore_expo)
-            changed.pop()
-            after = watch(reader, "after restore", 2.0)
-            drop = (before - during) / before if before and before == before else 0.0
-            verdict = "write changed the stream" if drop > 0.2 else "no stream change (not the streamed camera, or no effect)"
+            during = watch(reader, f"manual, exposure {target / 10:.1f} ms", 3.0)
+            changed.pop()()
+            after = watch(reader, "after exposure restore", 2.0)
+            change = (during - before) / before * 100 if before and before == before else float("nan")
             print(f"    brightness before/during/after = {before:.1f}/{during:.1f}/{after:.1f} "
-                  f"(drop {drop * 100:.0f}%): {verdict}")
+                  f"(change during {change:+.0f}%)")
     finally:
-        for dev, lay, m, e in changed:
-            restore_one(dev, lay, m, e)
+        for undo in changed:
+            undo()
         reader.stop_evt.set()
         reader.join(timeout=3)
         cap.release()
@@ -334,6 +359,12 @@ def cmd_q1(args):
             read_all(dev, lay, name, (GET_CUR,))
         usb.util.dispose_resources(dev)
     print(f"[{now()}] done")
+
+
+def restore_priority(dev, lay, value):
+    print(f"    restore ae_priority:={value}: {fmt(*xfer(dev, lay, 'ae_priority', SET_CUR, value))}")
+    res, err, ms = xfer(dev, lay, "ae_priority", GET_CUR)
+    print(f"    read-back ae_priority={fmt(res, err, ms)} {'OK' if res == value else 'MISMATCH'}")
 
 
 def restore_one(dev, lay, mode, expo):

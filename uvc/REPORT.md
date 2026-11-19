@@ -4,6 +4,11 @@ Status: Q1 run 1 refused, but the refusal was traced to the probe (pyusb's impli
 interface claim); run 2 pending. No control has been changed on any
 camera, so nothing has needed restoring.
 
+Goals in the order the brief values them (since 2026-11-19): (1) read exposure time and gain,
+(2) clear AE priority, (3) exposure under 5 ms with gain compensation, sticking across stream
+start and re-enumeration. `probe.py controls` covers (1) read-only; `probe.py q1` tests (1)
+and (2) while streaming and previews (3) at 4 ms without gain compensation.
+
 ## Rig inventory (system_profiler SPUSBDataType, 2026-11-18)
 
 Target cameras (vendor 0x0c45, product 0x6369, "USB 2.0 Camera", manufacturer Sonix):
