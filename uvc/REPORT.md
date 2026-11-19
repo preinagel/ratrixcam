@@ -53,10 +53,10 @@ kind C port 7 were never written to. Per-run details are in Restored.
   | 0 | 1 | A | 640x480 @ 30 | MJPEG 30, YUY2 30 |
   | 1 | 2 | B | 640x480 @ 30 | MJPEG 30, YUY2 30 |
   | 2 | 3 | A | 640x480 @ 30 | MJPEG 30, YUY2 30 |
-  | 3 | 4 | C | **352x288 @ 30** | MJPEG 30, YUY2 30 (640x480 would be YUY2 15) |
+  | 3 | 4 | C | 640x480 @ 30 (was 352x288 until 2026-11-19 12:45) | MJPEG 30; YUY2 15 |
   | 4 | 5 | A | 640x480 @ 30 | MJPEG 30, YUY2 30 |
   | 5 | 6 | B | 640x480 @ 30 | MJPEG 30, YUY2 30 |
-  | 6 | 7 | C | **352x288 @ 30** | MJPEG 30, YUY2 30 (640x480 would be YUY2 15) |
+  | 6 | 7 | C | 640x480 @ 30 (was 352x288 until 2026-11-19 12:45) | MJPEG 30; YUY2 15 |
   | 7 | 8 | B | 640x480 @ 30 | MJPEG 30, YUY2 30 |
 
   The config has 8 entries, one per port, added at the user's request (positions F-H, views
@@ -413,6 +413,27 @@ config entry 1, 640x480 @ 30.
 - Goal 3 compensation: gain 40 at 4.0 ms nearest the auto brightness, in the room's light at
   12:26 (gainsweep-B run 1).
 - Wire format at 640x480: MJPEG (camera-side commit), as on A.
+
+## Format change for kind C, and the evidence that the wire format is MJPEG (2026-11-19)
+
+Kind C's config entries (ports 4 and 7) were changed from 352x288 to **640x480 @ 30**, the
+same size as kinds A and B, at the code critic's recommendation.
+- C's descriptors list MJPEG 640x480 at 30 fps; only its uncompressed 640x480 is limited to
+  15 fps. 352x288 had been chosen only to be safe in both formats.
+- **Every camera-side commit read in the logs is MJPEG**: 9 reads, on kinds A, B and C, at
+  640x480, 352x288 and (left over from the user's trial) 800x600. They are in persist-run2,
+  q1-B-run1, gainsweep-B-run1, persist-B-run1, q1-C-run1, gainsweep-C-run1 and
+  persist-C-run2. That includes every case where uncompressed would also have given 30 fps
+  (A and B at 640x480, C at 352x288), so AVFoundation picked MJPEG even when it had an
+  equal choice. This supports the critic's view that MJPEG is what is used in this
+  context; nothing in the code requests it.
+- Not yet shown: kind C at 640x480, the one case where the uncompressed format would drop to
+  15 fps. The kind C reruns at 640x480 (q1-C, gainsweep-C, persist-C, run 2 or 3) read the
+  commit and measure fps directly. They are pending while the rig is on loan.
+- The kind C results below (q1-C run 1, gainsweep-C run 1, persist-C runs 1 and 2) are at
+  352x288 and stay as recorded. Kind C's entry in "The three kinds compared" will be
+  updated from the 640x480 reruns, which also make C's brightness figures comparable in
+  format, though not in scene, with A and B.
 
 ## Kind C (0x6366 "USB Camera"): port 4, cv2 index 3
 
