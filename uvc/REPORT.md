@@ -1,20 +1,31 @@
 # UVC exposure/gain control on macOS: prototype report
 
-Status: Q1 answered yes, at 1920x1080 (q1 run 2) and at the recorder's 640x480 (q1 run 3).
-Reads and writes work without root, with and without an AVFoundation stream. **Goal 1 by
-the UVC exposure read: no.** In auto mode the camera returns the stored manual value, not
-the exposure its AE loop uses (aetrack run 1). **Goal 3 compensation: at 4.0 ms, gain 50
-matches the auto brightness in the room's light** (gainsweep run 1). Q3 is answered yes for
-all three controls. Open: Q2 (stream start, re-enumeration), and compensation in dim light.
+Status: Q1 answered yes, at 1920x1080 (q1 run 2) and at 640x480 (q1 run 3). Reads and
+writes work without root, with and without an AVFoundation stream. **Goal 1 by the UVC
+exposure read: no.** In auto mode the camera returns the stored manual value, not the
+exposure its AE loop uses (aetrack run 1). **Goal 3 compensation: at 4.0 ms, gain 50 matched
+the auto brightness in the room's light at 640x480** (gainsweep run 1). Q3 is answered yes
+for all three controls. **Q2, stream start and stop: settings held** (persist run 1, at
+640x480). Open: Q2 re-enumeration (the unplug step did not happen in persist run 1),
+compensation in dim light, and repeats at the user's format (below).
 
-**Rig state: restored** (restore run 1, 2026-11-19 09:21:33; again after gainsweep run 1, 09:28:22). All three cameras read ae_mode 8
-(auto), exposure 157 (15.7 ms), gain 0 and ae_priority 0. These are the cameras' defaults
-and the values found at the start. aetrack run 1 had left the stored exposure at 40; see
-Restored.
+**Rig state: restored** (restore run 1, 2026-11-19 09:21:33; again after gainsweep run 1 at
+09:28:22 and persist run 1 at 09:32:34). All three cameras read ae_mode 8 (auto), exposure 157
+(15.7 ms), gain 0 and ae_priority 0. These are the cameras' defaults and the values found at
+the start. aetrack run 1 had left the stored exposure at 40; see Restored.
 
-Runs up to and including track run 1 streamed at the camera default, 1920x1080. From
-aetrack run 1 on, the probes stream at the recorder's format, 640x480 @ 30 fps
-(`~/Desktop/camera_config.json` defaults).
+**Stream format, and a correction.**
+- Runs up to and including track run 1 streamed at the camera default, 1920x1080.
+- From aetrack run 1 to persist run 1, the probes requested 640x480 @ 30. That came from
+  `~/Desktop/camera_config.json`, which I picked as "the recorder's format" because the
+  repo's `cam_start.applescript` and the GUI editor name that path. I read it without asking
+  the user, and the user had not chosen it for this prototype. Those 640x480 runs are
+  therefore **not at the format the user intends**.
+- The user then supplied `camera_config_5.json` at the clone's root: 800x600 @ 30, 5 camera
+  entries. The probe now takes its format from that file only.
+- The config is used for the format only. Cameras are always selected by USB id; every run
+  found the same 3 targets. The config's 5 entries do not match the rig's 3 cameras, which
+  does not affect the probe.
 
 Goals in the order the brief values them (since 2026-11-19): (1) read exposure time and gain,
 (2) clear AE priority, (3) exposure under 5 ms with gain compensation, sticking across stream
@@ -111,7 +122,10 @@ Observations:
    The streamed camera's image responded to manual 4 ms (brightness -68% at 1080p, -44% at
    480p), with 0 failed reads and no fps change. Run 1's refusals were caused by the probe
    itself: pyusb's implicit interface claim, now removed.
-2. Settings persistence across stream start and re-enumeration: not yet tested.
+2. **Stream start and stop: YES, settings held** (persist run 1, 640x480): manual exposure 4.0 ms
+   and gain 10, set by USB location before any capture existed, read back unchanged after
+   AVFoundation opened, streamed and released the camera, and the image was darker
+   accordingly. **Re-enumeration (unplug/replug): not yet tested.**
 3. **YES: AE mode, exposure time and gain are all writable**, with a visible effect on the
    image. AE mode is manual (1) or aperture-priority auto (8). Exposure time absolute is
    0.1-500 ms in 0.1 ms steps, default 15.7 ms. Gain is 0-100, unitless, step 1, default 0.
@@ -162,7 +176,7 @@ This run raised the goal 1 question: exposure read 157 (15.7 ms), exactly GET_DE
 three cameras with and without a stream. aetrack run 1 settles it: in auto mode the read is
 the stored value.
 
-### Goal 1: aetrack run 1 (2026-11-19 09:12:07; stream 640x480 @ 30, the recorder's format)
+### Goal 1: aetrack run 1 (2026-11-19 09:12:07; stream 640x480 @ 30, from the Desktop config, not the user's format)
 
 `uvc/.venv/bin/python uvc/probe.py aetrack` (`uvc/logs/aetrack-run1.log`). The capture was
 opened as the recorder opens it: it requested, reported and measured 640x480 @ 30. On each
@@ -194,7 +208,29 @@ for 5 s.
   read-back shows exposure 40 on all three. Fixed: restores now select manual, write
   exposure and gain defaults, then AE mode, and read back every control.
 
-### Goal 3: gainsweep run 1 (2026-11-19 09:27:16; stream 640x480 @ 30, the recorder's format)
+### Q2: persist run 1 (2026-11-19 09:30:22; stream 640x480 @ 30, from the Desktop config, not the user's format)
+
+`uvc/.venv/bin/python uvc/probe.py persist` (`uvc/logs/persist-run1.log`).
+
+1. Auto baseline: index 0 streamed at 640x480 @ 30 (requested, reported and measured), mean
+   brightness 140.5. Then the stream was released.
+2. With **no stream open**, all three cameras were set to ae_mode 1, exposure 40 (4.0 ms)
+   and gain 10. All read back MATCHES.
+3. **Stream start:** the capture was reopened as the recorder opens it (1061 ms). All three
+   cameras read back ae_mode 1 / exposure 40 / gain 10, MATCHES, right after the open and
+   again after 4 s of streaming. The streamed image measured 89.5 vs the 140.5 auto
+   baseline: darker, so the manual exposure was in force on the capture. That fits gain
+   10's 88.2 in gainsweep run 1. There were 0 failed reads, at 29.6 fps.
+4. **Stream stop:** all three cameras still read MATCHES after the release.
+5. **Unplug/replug: not tested.** No camera disappeared within the 120 s wait, so the step
+   was skipped.
+6. Restore: all three cameras restored to defaults, read back OK.
+
+**Q2, partial answer: YES, the manual settings survive stream start and stream stop.**
+They were set by USB location before any capture existed, and AVFoundation's open did not
+reset them. Re-enumeration after an unplug is still untested.
+
+### Goal 3: gainsweep run 1 (2026-11-19 09:27:16; stream 640x480 @ 30, from the Desktop config, not the user's format)
 
 `uvc/.venv/bin/python uvc/probe.py gainsweep` (`uvc/logs/gainsweep-run1.log`). Requested,
 reported and measured 640x480 @ 30. On each camera while index 0 streamed:
@@ -226,7 +262,7 @@ On the capture (0x01141000; auto reference 139.2), mean brightness at exposure 4
   - The cost in image noise of high gain was not measured: the probe records mean
     brightness only.
 
-### Q1, run 3 (2026-11-19 09:12:45; stream 640x480 @ 30, the recorder's format)
+### Q1, run 3 (2026-11-19 09:12:45; stream 640x480 @ 30, from the Desktop config, not the user's format)
 
 `uvc/.venv/bin/python uvc/probe.py q1` (`uvc/logs/q1-run3.log`). It ran straight after
 aetrack, so every camera started with stored exposure 40 (the leftover above).
@@ -349,3 +385,7 @@ It read every second for 40 s while streaming index 0, with cues to cover all le
   gain 0, then ae_mode 8, with read-back OK on all three. After the stream was released,
   the final read-back on all three cameras matched the defaults (ae_mode 8, exposure 157,
   gain 0). ae_priority was not touched.
+- **persist run 1 (2026-11-19 09:30:22)**: all three cameras set to ae_mode 1, exposure 40,
+  gain 10 with no stream open. They were held through stream start and stop, then restored
+  at 09:32:34: manual, exposure 157, gain 0, then ae_mode 8, read back OK on all three
+  ("restore OK on all targets present"). ae_priority was not touched.

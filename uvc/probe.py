@@ -33,7 +33,8 @@ Every sub-command that writes restores each target to its defaults in a finally 
 
 Streaming sub-commands (q1, track, aetrack, gainsweep, persist) open the capture as the recorder does
 (ratrixcam_server.py:487-492): VideoCapture(index) on the default backend, then width,
-height and fps from ~/Desktop/camera_config.json's defaults (read only; --width/--height/
+height and fps from camera_config_5.json's defaults (at the clone's root, supplied by the
+user; read only; --width/--height/
 --fps override). Each prints the requested, reported and measured format.
 
 Safety: refuses to run if ~/Desktop/temp exists (a recording is in progress). Never claims an
@@ -54,7 +55,9 @@ import time
 VID, PID = 0x0C45, 0x6369
 LIBUSB = "/opt/homebrew/lib/libusb-1.0.dylib"
 RECORDING_FLAG = os.path.expanduser("~/Desktop/temp")
-RECORDER_CONFIG = os.path.expanduser("~/Desktop/camera_config.json")  # read only
+# The config the user supplied for this prototype, at the clone's root (read only). Used for
+# the stream format only; cameras are always selected by USB vendor/product id.
+RECORDER_CONFIG = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "camera_config_5.json")
 
 # UVC 1.1 constants
 CS_INTERFACE = 0x24
@@ -241,7 +244,9 @@ def recorder_format(args):
         with open(args.config) as fh:
             cfg = json.load(fh)
         src = args.config
-        overrides = [{k: c[k] for k in ("width", "height", "fps") if c.get(k) is not None}
+        print(f"  config {args.config}: lists {len(cfg.get('cameras', []))} camera(s); used for the format only "
+              f"(cameras are selected by USB id 0x{VID:04x}:0x{PID:04x})")
+        overrides =[{k: c[k] for k in ("width", "height", "fps") if c.get(k) is not None}
                      for c in cfg.get("cameras", [])]
         if any(overrides):
             print(f"  NOTE: per-camera format overrides in the config: {overrides}; probe uses the defaults")

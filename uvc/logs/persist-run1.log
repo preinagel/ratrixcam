@@ -1,0 +1,74 @@
+[2026-11-19 09:30:22] probe.py persist  python 3.13.5  pid 6074
+[2026-11-19 09:30:22] recording check: /Users/rat_hub_01/Desktop/temp absent, ok
+[2026-11-19 09:30:22] 3 target(s); manual setting under test: exposure 4.0 ms, gain 10
+
+[2026-11-19 09:30:22] PHASE 1: auto baseline brightness (stream at the recorder's format)
+  cv2 4.11.0 VideoCapture(0) isOpened=True backend=AVFOUNDATION open+set took 1174 ms
+  FORMAT requested 640x480 @ 30 fps (from /Users/rat_hub_01/Desktop/camera_config.json); capture reports 640x480 @ 30.0 fps
+    stream [warm-up] 3.0s: frames=88 failed_reads=0 fps=29.6 mean_brightness=140.0
+  FORMAT measured frame size: 640x480
+    stream [auto baseline] 2.0s: frames=58 failed_reads=0 fps=29.3 mean_brightness=140.5
+
+[2026-11-19 09:30:29] PHASE 2: set manual with NO stream open
+  loc 0x01143000 (bus 1 addr 6 ports (1, 4, 3))
+    write ae_mode:=manual(1): 1 [4.8 ms]
+    write exposure:=40 (4.0 ms): 40 [4.6 ms]
+    write gain:=10: 10 [5.7 ms]
+    [after write] 01143000 ae_mode=1 exposure=40 (4.0 ms) gain=10: MATCHES (expected ae_mode=1 exposure=40 gain=10)
+  loc 0x01141000 (bus 1 addr 5 ports (1, 4, 1))
+    write ae_mode:=manual(1): 1 [4.7 ms]
+    write exposure:=40 (4.0 ms): 40 [4.6 ms]
+    write gain:=10: 10 [5.7 ms]
+    [after write] 01141000 ae_mode=1 exposure=40 (4.0 ms) gain=10: MATCHES (expected ae_mode=1 exposure=40 gain=10)
+  loc 0x00141000 (bus 0 addr 5 ports (1, 4, 1))
+    write ae_mode:=manual(1): 1 [4.7 ms]
+    write exposure:=40 (4.0 ms): 40 [4.6 ms]
+    write gain:=10: 10 [5.6 ms]
+    [after write] 00141000 ae_mode=1 exposure=40 (4.0 ms) gain=10: MATCHES (expected ae_mode=1 exposure=40 gain=10)
+
+[2026-11-19 09:30:29] PHASE 3: stream start (opened as the recorder opens it)
+  cv2 4.11.0 VideoCapture(0) isOpened=True backend=AVFOUNDATION open+set took 1061 ms
+  FORMAT requested 640x480 @ 30 fps (from /Users/rat_hub_01/Desktop/camera_config.json); capture reports 640x480 @ 30.0 fps
+    [right after open] 01143000 ae_mode=1 exposure=40 (4.0 ms) gain=10: MATCHES (expected ae_mode=1 exposure=40 gain=10)
+    [right after open] 01141000 ae_mode=1 exposure=40 (4.0 ms) gain=10: MATCHES (expected ae_mode=1 exposure=40 gain=10)
+    [right after open] 00141000 ae_mode=1 exposure=40 (4.0 ms) gain=10: MATCHES (expected ae_mode=1 exposure=40 gain=10)
+    stream [streaming with manual set beforehand] 3.0s: frames=89 failed_reads=0 fps=29.6 mean_brightness=89.5
+    [after 4 s streaming] 01143000 ae_mode=1 exposure=40 (4.0 ms) gain=10: MATCHES (expected ae_mode=1 exposure=40 gain=10)
+    [after 4 s streaming] 01141000 ae_mode=1 exposure=40 (4.0 ms) gain=10: MATCHES (expected ae_mode=1 exposure=40 gain=10)
+    [after 4 s streaming] 00141000 ae_mode=1 exposure=40 (4.0 ms) gain=10: MATCHES (expected ae_mode=1 exposure=40 gain=10)
+    brightness: auto baseline 140.5, after stream start with manual 89.5: darker, consistent with the manual exposure being in force
+    [after stream stop] 01143000 ae_mode=1 exposure=40 (4.0 ms) gain=10: MATCHES (expected ae_mode=1 exposure=40 gain=10)
+    [after stream stop] 01141000 ae_mode=1 exposure=40 (4.0 ms) gain=10: MATCHES (expected ae_mode=1 exposure=40 gain=10)
+    [after stream stop] 00141000 ae_mode=1 exposure=40 (4.0 ms) gain=10: MATCHES (expected ae_mode=1 exposure=40 gain=10)
+
+[2026-11-19 09:30:34] PHASE 4: unplug and replug
+>>> UNPLUG ONE target camera now (any one), wait about 5 s, then plug it back into the SAME port.
+    waiting up to 120 s for it to disappear...
+    no camera disappeared; skipping the replug test
+
+[2026-11-19 09:32:34] RESTORE every target to its defaults
+  loc 0x01143000 (bus 1 addr 6 ports (1, 4, 3))
+    restore: ae_mode:=manual(1) first, so exposure accepts the write: 1 [0.7 ms]
+    restore exposure:=157 (default): 157 [4.5 ms]
+    restore gain:=0 (default): 0 [5.7 ms]
+    restore ae_mode:=8 (default): 8 [4.8 ms]
+    read-back exposure=157 [1.0 ms] OK
+    read-back gain=0 [0.9 ms] OK
+    read-back ae_mode=8 [1.9 ms] OK
+  loc 0x01141000 (bus 1 addr 5 ports (1, 4, 1))
+    restore: ae_mode:=manual(1) first, so exposure accepts the write: 1 [0.9 ms]
+    restore exposure:=157 (default): 157 [4.8 ms]
+    restore gain:=0 (default): 0 [5.6 ms]
+    restore ae_mode:=8 (default): 8 [4.7 ms]
+    read-back exposure=157 [1.1 ms] OK
+    read-back gain=0 [0.8 ms] OK
+    read-back ae_mode=8 [0.7 ms] OK
+  loc 0x00141000 (bus 0 addr 5 ports (1, 4, 1))
+    restore: ae_mode:=manual(1) first, so exposure accepts the write: 1 [1.2 ms]
+    restore exposure:=157 (default): 157 [4.7 ms]
+    restore gain:=0 (default): 0 [5.6 ms]
+    restore ae_mode:=8 (default): 8 [4.6 ms]
+    read-back exposure=157 [1.1 ms] OK
+    read-back gain=0 [0.8 ms] OK
+    read-back ae_mode=8 [0.8 ms] OK
+[2026-11-19 09:32:34] restore OK on all targets present
