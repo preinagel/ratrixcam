@@ -3,10 +3,7 @@
 
 RUN THIS (in your own Terminal, from anywhere; not inside the Claude sandbox):
 
-    cd ~/Desktop/ratrixcam-uvc && uvc/.venv/bin/python uvc/probe.py replug 2>&1 | tee uvc/logs/replug-run3.log
-
-    (when told, unplug the camera on PORT 1 and plug it back into port 1; then leave the
-    rig alone for about 3 minutes while it checks at 3, 30, 60 and 120 s)
+    cd ~/Desktop/ratrixcam-uvc && uvc/.venv/bin/python uvc/probe.py q1 --kind B --port 2 --index 1 2>&1 | tee uvc/logs/q1-B-run1.log
 
 Sub-commands:
     list      read-only, no device opened: full descriptors of every 0x0c45 camera (all
@@ -48,7 +45,12 @@ Safety: refuses to run if ~/Desktop/temp exists (a recording is in progress). Ne
 interface, detaches a driver or sets a configuration: only class requests on endpoint 0,
 sent on the device handle without pyusb's implicit interface claim (run 1 did claim; see
 REPORT.md).
-Devices are selected by vendor and product id only.
+Kinds (brief, 2026-11-19): A = 0x6369 "USB 2.0 Camera", B = 0x6366 "USB 2.0 Camera",
+C = 0x6366 "USB Camera". Cameras are selected by vendor id, product id and name string
+(--kind, default A), optionally narrowed to one rig port (--port); never by list position.
+Every streaming sub-command first identifies which selected camera is behind the index it
+opens (marker brightness response; "index N is kind K at port P"), and stops before any
+experiment write if that fails. Writes go only to the selected cameras.
 """
 
 import argparse
@@ -59,7 +61,11 @@ import sys
 import threading
 import time
 
-VID, PID = 0x0C45, 0x6369
+VID, PID = 0x0C45, 0x6369  # PID: kind A, the product the prototype was developed on
+# The three kinds on the rig (brief, "Which cameras", 2026-11-19): product id and USB product
+# name string. B and C share every USB id field; only the name string tells them apart.
+KINDS = {"A": (0x6369, "USB 2.0 Camera"), "B": (0x6366, "USB 2.0 Camera"), "C": (0x6366, "USB Camera")}
+KIND_OF = {}  # location id -> kind, filled by find_kind, used to label read-backs
 LIBUSB = "/opt/homebrew/lib/libusb-1.0.dylib"
 RECORDING_FLAG = os.path.expanduser("~/Desktop/temp")
 # The probe's own copy of the user's camera_config_5.json, next to this script, with the
@@ -108,9 +114,51 @@ def usb_backend():
     return be
 
 
-def find_targets(be):
+def product_string(dev):
+    """The USB product name string: a standard GET_DESCRIPTOR(string) request to the device
+    (device recipient, so pyusb claims no interface). None if it cannot be read."""
+    import usb.util
+    try:
+        s = usb.util.get_string(dev, dev.iProduct)
+        return s.strip() if s else None
+    except Exception:
+        return None
+
+
+def find_kind(be, kind, port=None):
+    """Cameras of `kind`, by vendor id, product id and name string, optionally only the one on
+    rig `port`; sorted by location. Never by position in a list."""
     import usb.core
-    return list(usb.core.find(find_all=True, idVendor=VID, idProduct=PID, backend=be))
+    pid, name = KINDS[kind]
+    out = []
+    for dev in usb.core.find(find_all=True, idVendor=VID, idProduct=pid, backend=be):
+        if product_string(dev) != name:
+            continue
+        if port is not None and rig_port(dev) != str(port):
+            continue
+        KIND_OF[location_id(dev)] = kind
+        out.append(dev)
+    return sorted(out, key=location_id)
+
+
+def find_selected(be, args):
+    """The cameras a run may write to: --kind, narrowed to --port when given."""
+    devs = find_kind(be, args.kind, getattr(args, "port", None))
+    pid, name = KINDS[args.kind]
+    what = f"kind {args.kind} (0x{VID:04x}:0x{pid:04x} \"{name}\")" + (f" on port {args.port}" if getattr(args, "port", None) else "")
+    if not devs:
+        sys.exit(f"no camera of {what}")
+    print(f"[{now()}] selected {len(devs)} camera(s) of {what}: ports {', '.join(rig_port(d) for d in devs)}")
+    return devs
+
+
+def kind_label(dev):
+    return f"kind {KIND_OF.get(location_id(dev), '?')} port {rig_port(dev)}"
+
+
+def find_targets(be):
+    """Kind A only; kept for the read-only `controls` sub-command's default."""
+    return find_kind(be, "A")
 
 
 def location_id(dev):
@@ -537,13 +585,12 @@ def cmd_q1(args):
     guard()
     import usb.util
     be = usb_backend()
-    devs = find_targets(be)
-    print(f"[{now()}] {len(devs)} target(s) 0x{VID:04x}:0x{PID:04x}")
-    if not devs:
-        sys.exit("no target camera found")
+    devs = find_selected(be, args)
     lays = [vc_layout(d) for d in devs]
     for dev, lay in zip(devs, lays):
         print_layout(dev, lay)
+    cv2 = import_cv2()
+    identified_or_exit(cv2, args, devs)
 
     print(f"\n[{now()}] PHASE A: no stream open")
     original = []
@@ -558,7 +605,6 @@ def cmd_q1(args):
         if err is None:
             print(f"    no-op write ae_mode:=current {mode}: {fmt(*xfer(dev, lay, 'ae_mode', SET_CUR, mode))}")
 
-    cv2 = import_cv2()
     print(f"\n[{now()}] PHASE B: stream open")
     cap = open_capture(cv2, args)
     if not cap.isOpened():
@@ -638,12 +684,13 @@ def cmd_track(args):
     """Read-only: does exposure GET_CUR follow the auto-exposure loop when the light changes?"""
     guard()
     be = usb_backend()
-    devs = find_targets(be)
+    devs = find_selected(be, args)
     lays = [vc_layout(d) for d in devs]
     print(f"[{now()}] {len(devs)} target(s); reading every {args.interval:.1f}s for {args.seconds:.0f}s")
     print(f"  cue: at t={args.cover:.0f}s COVER ALL LENSES (or switch off the room light); "
           f"at t={args.uncover:.0f}s UNCOVER")
     cv2 = import_cv2()
+    identified_or_exit(cv2, args, devs)
     cap = open_capture(cv2, args)
     if not cap.isOpened():
         sys.exit("capture did not open")
@@ -684,10 +731,11 @@ def cmd_aetrack(args):
     without resetting the exposure value, and read it while AE re-converges."""
     guard()
     be = usb_backend()
-    devs = find_targets(be)
+    devs = find_selected(be, args)
     lays = [vc_layout(d) for d in devs]
     print(f"[{now()}] {len(devs)} target(s)")
     cv2 = import_cv2()
+    identified_or_exit(cv2, args, devs)
     cap = open_capture(cv2, args)
     if not cap.isOpened():
         sys.exit("capture did not open")
@@ -737,17 +785,22 @@ def cmd_aetrack(args):
             read_all(dev, lay, name, (GET_CUR,))
 
 
-def cmd_restore(_args):
-    """Safety net: every target to its own defaults (exposure, gain, then AE mode = auto)."""
+def cmd_restore(args):
+    """Safety net: cameras of --kind (A, B, C or all; narrowed by --port) to their own defaults
+    (each camera's GET_DEF: exposure, gain, then AE mode = auto), read back per kind."""
     guard()
     be = usb_backend()
+    kinds = list(KINDS) if args.kind == "all" else [args.kind]
     results = []
-    for dev in find_targets(be):
-        lay = vc_layout(dev)
-        print(f"  {label(dev)}")
-        results.append(restore_defaults(dev, lay))
-        read_all(dev, lay, "ae_priority", (GET_CUR,))
-    print(f"[{now()}] restore {'OK on all targets' if all(results) else 'INCOMPLETE: see MISMATCH lines'}")
+    for kind in kinds:
+        devs = find_kind(be, kind, args.port)
+        print(f"[{now()}] kind {kind}: {len(devs)} camera(s), ports {', '.join(rig_port(d) for d in devs) or '-'}")
+        for dev in devs:
+            lay = vc_layout(dev)
+            print(f"  {kind_label(dev)}  {label(dev)}")
+            results.append(restore_defaults(dev, lay))
+            read_all(dev, lay, "ae_priority", (GET_CUR,))
+    print(f"[{now()}] restore {'OK on every camera restored' if all(results) else 'INCOMPLETE: see MISMATCH lines'}")
 
 
 def restore_defaults(dev, lay):
@@ -760,7 +813,7 @@ def restore_defaults(dev, lay):
         if err and name == "ae_mode":
             d, err = auto_mode_for(dev, lay), None
         defs[name] = None if err else d
-    print(f"    restore: ae_mode:=manual(1) first, so exposure accepts the write: "
+    print(f"    restore [{kind_label(dev)}]: ae_mode:=manual(1) first, so exposure accepts the write: "
           f"{fmt(*xfer(dev, lay, 'ae_mode', SET_CUR, AE_MANUAL))}")
     ok = True
     for name in ("exposure", "gain", "ae_mode"):
@@ -775,7 +828,7 @@ def restore_defaults(dev, lay):
         got, err, ms = xfer(dev, lay, name, GET_CUR)
         good = got == want
         ok = ok and good
-        print(f"    read-back {name}={fmt(got, err, ms)} {'OK' if good else f'MISMATCH (want {want})'}")
+        print(f"    read-back [{kind_label(dev)}] {name}={fmt(got, err, ms)} {'OK' if good else f'MISMATCH (want {want})'}")
     return ok
 
 
@@ -792,8 +845,66 @@ def readback_line(dev, lay, want, when):
     got = tuple(xfer(dev, lay, n, GET_CUR)[0] for n in ("ae_mode", "exposure", "gain"))
     verdict = ("MATCHES" if got == want else "DIFFERS") + f" (expected ae_mode={want[0]} exposure={want[1]} gain={want[2]})"
     exp_s = f"{got[1] / 10:.1f} ms" if got[1] is not None else "ERR"
-    print(f"    [{when}] {location_id(dev):08x} ae_mode={got[0]} exposure={got[1]} ({exp_s}) gain={got[2]}: {verdict}")
+    print(f"    [{when}] {kind_label(dev)} {location_id(dev):08x} ae_mode={got[0]} exposure={got[1]} ({exp_s}) gain={got[2]}: {verdict}")
     return got == want
+
+
+def defaults_of(dev, lay):
+    """(ae_mode, exposure, gain) defaults from the camera's own GET_DEF (kind B's exposure
+    default is 156, A's and C's 157)."""
+    mode = xfer(dev, lay, "ae_mode", GET_DEF)[0]
+    if mode is None:
+        mode = auto_mode_for(dev, lay)
+    return (mode, xfer(dev, lay, "exposure", GET_DEF)[0], xfer(dev, lay, "gain", GET_DEF)[0])
+
+
+def identify_index(cv2, args, devs):
+    """Which selected camera is behind cv2 index args.index? Opens the index as the recorder
+    would, measures brightness, then for each candidate in turn sets the marker (manual,
+    exposure 0.1 ms, gain 0) for 2 s, restores that camera to its defaults with read-back,
+    and checks whether the stream went dark. Prints "index N is kind K at port P" and
+    returns (dev, lay) for the first camera that darkens it; None if none does or a restore
+    fails. Writes only to the candidates, which are the cameras named in the run."""
+    print(f"\n[{now()}] IDENTIFY: which of the {len(devs)} selected camera(s) is behind index {args.index}")
+    cap = open_capture(cv2, args)
+    if not cap.isOpened():
+        print(f"IDENTIFICATION FAILED: index {args.index} did not open")
+        return None
+    reader = Reader(cap)
+    reader.start()
+    try:
+        watch(reader, "identify: warm-up", 2.0)
+        base = watch(reader, "identify: baseline", 1.5)
+        if not base == base or base < 25:
+            print(f"IDENTIFICATION FAILED: baseline brightness {base:.1f} is too dark (or no frames) to see a marker")
+            return None
+        for dev in devs:
+            lay = vc_layout(dev)
+            print(f"  candidate {kind_label(dev)} {label(dev)}")
+            set_manual(dev, lay, 1, 0)
+            dark = watch(reader, f"identify: marker on port {rig_port(dev)}", 1.5, settle=0.5)
+            if not restore_defaults(dev, lay):
+                print("IDENTIFICATION FAILED: the candidate's restore did not read back")
+                return None
+            if dark == dark and (dark < 0.4 * base or dark < 25):
+                kind = KIND_OF.get(location_id(dev), "?")
+                print(f"index {args.index} is kind {kind} at port {rig_port(dev)} "
+                      f"(0x{location_id(dev):08x}): brightness {base:.1f} -> {dark:.1f} with the marker")
+                return dev, lay
+            print(f"    port {rig_port(dev)}: stream brightness {base:.1f} -> {dark:.1f}, not this camera")
+        print(f"IDENTIFICATION FAILED: no selected camera darkened index {args.index}; stopping before any experiment write")
+        return None
+    finally:
+        reader.stop_evt.set()
+        reader.join(timeout=3)
+        cap.release()
+
+
+def identified_or_exit(cv2, args, devs):
+    found = identify_index(cv2, args, devs)
+    if found is None:
+        sys.exit(f"[{now()}] stopped: index {args.index} not identified as a selected camera")
+    return found
 
 
 def cmd_gainsweep(args):
@@ -801,10 +912,11 @@ def cmd_gainsweep(args):
     to find the gain that matches the brightness auto-exposure gives at the same moment."""
     guard()
     be = usb_backend()
-    devs = find_targets(be)
+    devs = find_selected(be, args)
     lays = [vc_layout(d) for d in devs]
     print(f"[{now()}] {len(devs)} target(s); exposure fixed at {TEST_EXPOSURE / 10:.1f} ms, gain step {args.step}")
     cv2 = import_cv2()
+    identified_or_exit(cv2, args, devs)
     cap = open_capture(cv2, args)
     if not cap.isOpened():
         sys.exit("capture did not open")
@@ -854,31 +966,32 @@ def cmd_gainsweep(args):
         cap.release()
     print(f"\n[{now()}] final read-back, stream released")
     for dev, lay in zip(devs, lays):
-        readback_line(dev, lay, (AE_APERTURE, 157, 0), "final, expected = defaults")
+        readback_line(dev, lay, defaults_of(dev, lay), "final, expected = this camera's defaults")
 
 
-def wait_for_count(be, want, timeout, poll=0.5):
-    """Poll until the number of targets equals `want`; return the targets, or None on timeout."""
+def wait_for_count(finder, want, timeout, poll=0.5):
+    """Poll finder() until it returns `want` cameras; return them, or None on timeout."""
     end = time.monotonic() + timeout
     while time.monotonic() < end:
-        devs = find_targets(be)
+        devs = finder()
         if len(devs) == want:
             return devs
         time.sleep(poll)
     return None
-
 
 def cmd_persist(args):
     """Q2: do manual settings survive stream start, stream stop, and unplug/replug?"""
     guard()
     import usb.util
     be = usb_backend()
-    state = {"devs": find_targets(be)}
+    state = {"devs": find_selected(be, args)}
     state["lays"] = [vc_layout(d) for d in state["devs"]]
     n = len(state["devs"])
+    finder = lambda: find_kind(be, args.kind, args.port)
     want = (AE_MANUAL, TEST_EXPOSURE, args.gain)
-    print(f"[{now()}] {n} target(s); manual setting under test: exposure {TEST_EXPOSURE / 10:.1f} ms, gain {args.gain}")
+    print(f"[{now()}] manual setting under test: exposure {TEST_EXPOSURE / 10:.1f} ms, gain {args.gain}")
     cv2 = import_cv2()
+    identified_or_exit(cv2, args, state["devs"])
 
     print(f"\n[{now()}] PHASE 1: auto baseline brightness (stream at the recorder's format)")
     cap = open_capture(cv2, args)
@@ -925,20 +1038,21 @@ def cmd_persist(args):
             usb.util.dispose_resources(dev)
         before = {location_id(d) for d in state["devs"]}
         target_ports = ", ".join(rig_port(d) for d in sorted(state["devs"], key=lambda d: int(rig_port(d)) if rig_port(d).isdigit() else 99))
-        print(f">>> UNPLUG ONE camera of the target product 0x{PID:04x} now: port {target_ports} "
-              f"(other ports are not watched). Wait about 5 s, then plug it back into the SAME port.")
+        print(f">>> UNPLUG the kind {args.kind} camera on PORT {target_ports} now"
+              + (" (one of them)" if n > 1 else "")
+              + ". Other ports are not watched. Wait about 5 s, then plug it back into the SAME port.")
         print(f"    waiting up to {args.timeout:.0f} s for it to disappear...")
-        gone = wait_for_count(be, n - 1, args.timeout)
+        gone = wait_for_count(finder, n - 1, args.timeout)
         if gone is None:
             print("    no camera disappeared; skipping the replug test")
             return
         missing = before - {location_id(d) for d in gone}
         print(f"[{now()}] disappeared: {', '.join(f'0x{m:08x}' for m in missing)}. Now plug it back in.")
-        back = wait_for_count(be, n, args.timeout)
+        back = wait_for_count(finder, n, args.timeout)
         if back is None:
             state["devs"], state["lays"] = gone, [vc_layout(d) for d in gone]
             print(f"!!! the camera did not come back within {args.timeout:.0f} s. Plug it in, then run "
-                  "`uvc/.venv/bin/python uvc/probe.py restore` (it may still be in manual).")
+                  f"`uvc/.venv/bin/python uvc/probe.py restore --kind {args.kind}`.")
             return
         time.sleep(args.settle_after_replug)
         state["devs"], state["lays"] = back, [vc_layout(d) for d in back]
@@ -957,12 +1071,12 @@ def cmd_persist(args):
         reader.join(timeout=3)
         cap.release()
     finally:
-        print(f"\n[{now()}] RESTORE every target to its defaults")
+        print(f"\n[{now()}] RESTORE every camera written to, to its own defaults")
         results = []
         for dev, lay in zip(state["devs"], state["lays"]):
-            print(f"  {label(dev)}")
+            print(f"  {kind_label(dev)}  {label(dev)}")
             results.append(restore_defaults(dev, lay))
-        print(f"[{now()}] restore {'OK on all targets present' if all(results) else 'INCOMPLETE: see MISMATCH lines'}")
+        print(f"[{now()}] restore {'OK on every camera written to' if all(results) else 'INCOMPLETE: see MISMATCH lines'}")
 
 
 def scan_index(cv2, config_path, idx, seconds):
@@ -1026,6 +1140,16 @@ def scan_fresh_process(args, label_):
     return result
 
 
+def dark_indices(result):
+    """Indices whose stream delivered and was far darker than the median of those delivering."""
+    live = {i: v[3] for i, v in result.items() if v[0] and v[1] > 0 and v[3] is not None}
+    if not live:
+        return []
+    vals = sorted(live.values())
+    median = vals[len(vals) // 2]
+    return sorted(i for i, b in live.items() if b < 0.4 * median or b < 25)
+
+
 def marker_verdict(result):
     """Which index shows the dark marker: delivering, and far darker than the median."""
     live = {i: v[3] for i, v in result.items() if v[0] and v[1] > 0 and v[3] is not None}
@@ -1033,7 +1157,7 @@ def marker_verdict(result):
         return "no index delivered frames"
     vals = sorted(live.values())
     median = vals[len(vals) // 2]
-    dark = [i for i, b in live.items() if b < 0.4 * median or b < 25]
+    dark = dark_indices(result)
     silent = [i for i, v in result.items() if v[0] and v[1] == 0]
     text = (f"delivering indices {sorted(live)}; dark marker at index {dark if dark else 'none'}"
             f" (median brightness {median:.1f})")
@@ -1080,8 +1204,13 @@ def cmd_replug(args):
     import usb.util
     be = usb_backend()
     cv2 = import_cv2()
-    state = {"devs": find_targets(be)}
+    if args.port is None:
+        if args.kind != "A":
+            sys.exit("replug needs --port for kinds B and C (it writes to that one camera only)")
+        args.port = 1
+    state = {"devs": find_selected(be, args)}  # the one camera on --port
     state["lays"] = [vc_layout(d) for d in state["devs"]]
+    finder = lambda: find_kind(be, args.kind, args.port)
 
     def marked():
         for d, l in zip(state["devs"], state["lays"]):
@@ -1091,8 +1220,8 @@ def cmd_replug(args):
 
     dev, lay = marked()
     if dev is None:
-        sys.exit(f"no target camera (0x{PID:04x}) on port {args.port}")
-    print(f"[{now()}] CLEAN START: every target to its defaults, read back, before anything else")
+        sys.exit(f"no kind {args.kind} camera on port {args.port}")
+    print(f"[{now()}] CLEAN START: the camera on port {args.port} to its defaults, read back, before anything else")
     clean = [restore_defaults(d, l) for d, l in zip(state["devs"], state["lays"])]
     if not all(clean):
         sys.exit("clean start incomplete (see MISMATCH lines); not starting the test")
@@ -1103,22 +1232,28 @@ def cmd_replug(args):
         in_process_index(cv2, args, "before")
         readback_line(dev, lay, MARK, "before: after same-process open")
         fresh_hold(args, dev, lay, "before")
-        scan_fresh_process(args, "before")
+        before = scan_fresh_process(args, "before")
         readback_line(dev, lay, MARK, "before: after fresh-process scan")
+        if dark_indices(before) != [args.index]:
+            print(f"IDENTIFICATION FAILED: the marked camera (port {args.port}) is dark at indices "
+                  f"{dark_indices(before)}, not exactly [{args.index}]; stopping before the replug")
+            return
+        print(f"index {args.index} is kind {args.kind} at port {args.port} (0x{location_id(dev):08x}): "
+              f"the only dark index in the fresh-process scan")
 
         for d in state["devs"]:
             usb.util.dispose_resources(d)
         n = len(state["devs"])
-        print(f"\n>>> UNPLUG the camera on PORT {args.port} now, wait about 5 s, then plug it back into port {args.port}.")
-        gone = wait_for_count(be, n - 1, args.timeout)
+        print(f"\n>>> UNPLUG the kind {args.kind} camera on PORT {args.port} now, wait about 5 s, then plug it back into port {args.port}.")
+        gone = wait_for_count(finder, n - 1, args.timeout)
         if gone is None:
-            print("    no target camera disappeared; stopping")
+            print(f"    the camera on port {args.port} did not disappear; stopping")
             return
         print(f"[{now()}] disappeared: {sorted(f'0x{location_id(d):08x}' for d in state['devs'] if location_id(d) not in {location_id(g) for g in gone})}")
-        back = wait_for_count(be, n, args.timeout)
+        back = wait_for_count(finder, n, args.timeout)
         if back is None:
             state["devs"], state["lays"] = gone, [vc_layout(d) for d in gone]
-            print(f"!!! not back within {args.timeout:.0f} s; plug it in, then run `uvc/.venv/bin/python uvc/probe.py restore`")
+            print(f"!!! not back within {args.timeout:.0f} s; plug it in, then run `uvc/.venv/bin/python uvc/probe.py restore --kind {args.kind} --port {args.port}`")
             return
         t_back = time.monotonic()
         state["devs"], state["lays"] = back, [vc_layout(d) for d in back]
@@ -1127,7 +1262,7 @@ def cmd_replug(args):
         if dev is None:
             print(f"    port {args.port} not among the re-enumerated targets; stopping")
             return
-        readback_line(dev, lay, (AE_APERTURE, 157, 0), "after replug, expected = defaults")
+        readback_line(dev, lay, defaults_of(dev, lay), "after replug, expected = this camera's defaults")
         set_manual(dev, lay, 1, 0)
 
         for at in args.checks:
@@ -1142,10 +1277,10 @@ def cmd_replug(args):
             scan_fresh_process(args, f"t+{at:g}s")
             readback_line(dev, lay, MARK, f"t+{at:g}s: after fresh-process scan")
     finally:
-        print(f"\n[{now()}] RESTORE every target to its defaults")
+        print(f"\n[{now()}] RESTORE every camera written to, to its own defaults")
         results = []
         for d, l in zip(state["devs"], state["lays"]):
-            print(f"  {label(d)}")
+            print(f"  {kind_label(d)}  {label(d)}")
             results.append(restore_defaults(d, l))
         print(f"[{now()}] restore {'OK on all targets present' if all(results) else 'INCOMPLETE: see MISMATCH lines'}")
 
@@ -1170,6 +1305,9 @@ def main():
     stream.add_argument("--width", type=int, help="override the config's default_width")
     stream.add_argument("--height", type=int, help="override the config's default_height")
     stream.add_argument("--fps", type=int, help="override the config's default_fps")
+    stream.add_argument("--kind", choices=sorted(KINDS), default="A",
+                        help="camera kind to select and write to (A 0x6369, B/C 0x6366 by name string); default A")
+    stream.add_argument("--port", type=int, help="limit the run to the camera of --kind on this rig port")
     q1 = sub.add_parser("q1", parents=[stream])
     q1.set_defaults(fn=cmd_q1)
     tr = sub.add_parser("track", parents=[stream])
@@ -1200,14 +1338,16 @@ def main():
     sc.add_argument("--seconds", type=float, default=1.0)
     sc.set_defaults(fn=cmd_scan)
     rp = sub.add_parser("replug", parents=[stream])
-    rp.add_argument("--port", type=int, default=1, help="rig port of the target camera to mark and replug")
     rp.add_argument("--checks", type=float, nargs="+", default=[3, 30, 60, 120],
                     help="seconds after re-enumeration at which to check")
     rp.add_argument("--scan-last", type=int, default=9, help="highest index in the fresh-process scans")
     rp.add_argument("--scan-seconds", type=float, default=1.0)
     rp.add_argument("--timeout", type=float, default=120.0)
     rp.set_defaults(fn=cmd_replug)
-    sub.add_parser("restore").set_defaults(fn=cmd_restore)
+    rs = sub.add_parser("restore")
+    rs.add_argument("--kind", choices=sorted(KINDS) + ["all"], default="A")
+    rs.add_argument("--port", type=int, help="only the camera on this rig port")
+    rs.set_defaults(fn=cmd_restore)
     args = ap.parse_args()
     sys.stdout.reconfigure(line_buffering=True)  # cues must appear live through tee
     print(f"[{now()}] probe.py {args.cmd}  python {sys.version.split()[0]}  pid {os.getpid()}")
