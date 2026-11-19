@@ -399,6 +399,67 @@ config entry 1, 640x480 @ 30.
   12:26 (gainsweep-B run 1).
 - Wire format at 640x480: MJPEG (camera-side commit), as on A.
 
+## Kind C (0x6366 "USB Camera"): port 4, cv2 index 3
+
+Selected by vendor id, product id and name string; writes went only to port 4. Format is
+config entry 3, **352x288 @ 30**: C's uncompressed 640x480 runs at 15 fps, so 352x288 is the
+largest size at 30 fps in both formats. Results are not comparable in brightness with
+kinds A and B: different format, different camera, different scene.
+
+### Q1, kind C: q1-C run 1 (2026-11-19 12:29:00; `uvc/logs/q1-C-run1.log`)
+
+`uvc/.venv/bin/python uvc/probe.py q1 --kind C --port 4 --index 3`
+- **Identification:** `index 3 is kind C at port 4 (0x01144000): brightness 100.2 -> 7.8 with the
+  marker`, restored and read back OK.
+- No stream: ae_mode 8, ae_priority 0, exposure 157 (15.7 ms), gain 0; exposure INFO 15.
+  The no-op write `ae_mode:=8` was accepted.
+- Stream: `VideoCapture(3)` opened in 1122 ms; requested, reported and measured 352x288 @ 30.
+  **Camera-side commit: MJPEG (format 1), 352x288 (frame 8), 30.0 fps, max payload 800 B.**
+
+| Kind C, port 4, while streaming | Result |
+|---|---|
+| Reads (INFO, CUR of the four controls) | all OK |
+| ae_priority:=0 (already 0) | accepted, read back 0; no-op; brightness 100.8 -> 100.9 |
+| ae_mode:=manual, exposure:=4.0 ms | accepted, read back 1 / 40 |
+| Stream brightness before / during / 2 s after restore | **101.0 / 193.1 / 92.1 (+91%, BRIGHTER)** |
+| fps during | 29.3, 0 failed reads in every window |
+
+- **Q1 for kind C: YES.** Requests are answered while streaming, and the image responds.
+- **Manual 4 ms made kind C's image brighter, not darker** (A: -44%, B: -42%). In this scene,
+  C's auto-exposure was therefore working below 4 ms of exposure (at gain 0). C's auto
+  brightness (about 100) is lower than A's or B's (135-155); whether that is C's AE target or
+  its scene cannot be separated here.
+- Restored to C's defaults (exposure 157, gain 0, ae_mode 8), read back OK; Phase C equals
+  Phase A.
+
+### Goal 3, kind C: gainsweep-C run 1 (2026-11-19 12:29:43; `uvc/logs/gainsweep-C-run1.log`)
+
+`uvc/.venv/bin/python uvc/probe.py gainsweep --kind C --port 4 --index 3`
+- Identification: `index 3 is kind C at port 4: brightness 100.4 -> 7.8`, restored OK.
+- Auto reference 101.0; then manual, exposure 40, gain 0-100; all 11 gain writes read back
+  equal.
+
+| gain | 0 | 10 | 20 | 30 | 40 | 50 | 60 | 70 | 80 | 90 | 100 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| brightness (kind C, 4.0 ms, 352x288) | 197.4 | 213.5 | 223.7 | 229.8 | 233.8 | 236.4 | 238.5 | 239.8 | 241.0 | 242.2 | 243.2 |
+
+- **At 4.0 ms, no gain is needed in this scene: gain 0 already gives about 2x the auto
+  brightness (197.4 vs 101.0).** Gain only pushes toward white. A match to auto would need
+  a shorter exposure, which was not tested. The sweep's "nearest is gain 0" is an edge of
+  the range, not a match.
+- fps 29.2-30.3, 0 failed reads.
+- Restored to C's defaults and read back OK; final read-back after release MATCHES.
+
+### Q2, kind C: persist-C run 1 (2026-11-19 12:30:23; `uvc/logs/persist-C-run1.log`), stopped at identification
+
+`uvc/.venv/bin/python uvc/probe.py persist --kind C --port 4 --index 3`
+- `VideoCapture(3)` opened (1287 ms, 352x288 @ 30). The warm-up got 32 frames (92.7), then
+  the **baseline window got 0 frames with 2 failed reads**: the stream stalled after about
+  1 s. The identification check stopped the run ("baseline brightness nan"). **No control
+  was written**: the stop came before the marker, so nothing needed restoring.
+- The gain sweep had released the same camera 8 s earlier (12:30:15). The cause of the
+  stall is not known. Pending: whether port 4 was touched before the prompt, and a rerun.
+
 ## Hook recommendation
 
 **A pass in the supervisor, by USB id, run before every launch and every relaunch of a camera
@@ -849,3 +910,12 @@ It read every second for 40 s while streaming index 0, with cues to cover all le
   restored and read back OK; then ae_mode 1, exposure 40, gain 10 with no stream. The camera
   reverted to its defaults by itself on its replug. Restored at 12:28:16 (manual, exposure
   156, gain 0, ae_mode 8) and read back OK. No other camera was written to.
+- **q1-C run 1 (2026-11-19 12:29:00), kind C port 4 (0x01144000) only**: identification marker,
+  restored to C's defaults (exposure 157, gain 0, ae_mode 8) and read back OK. Then
+  ae_priority 0 (no-op) restored, OK; ae_mode 1 + exposure 40, restored and read back OK.
+  Final read-back: ae_mode 8, ae_priority 0, exposure 157, gain 0.
+- **gainsweep-C run 1 (2026-11-19 12:29:43), kind C port 4 only**: identification marker,
+  restored OK; then manual, exposure 40, gain 0-100, restored (manual, exposure 157, gain 0,
+  ae_mode 8) and read back OK. Final read-back after release MATCHES.
+- **persist-C run 1 (2026-11-19 12:30:23)**: stopped at identification before any write;
+  nothing written, nothing to restore.

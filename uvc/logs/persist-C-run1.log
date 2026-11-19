@@ -1,0 +1,13 @@
+[2026-11-19 12:30:23] probe.py persist  python 3.13.5  pid 9488
+[2026-11-19 12:30:23] recording check: /Users/rat_hub_01/Desktop/temp absent, ok
+[2026-11-19 12:30:23] selected 1 camera(s) of kind C (0x0c45:0x6366 "USB Camera") on port 4: ports 4
+[2026-11-19 12:30:23] manual setting under test: exposure 4.0 ms, gain 10
+
+[2026-11-19 12:30:23] IDENTIFY: which of the 1 selected camera(s) is behind index 3
+  config /Users/rat_hub_01/Desktop/ratrixcam-uvc/uvc/camera_config_5.json: 8 camera entries; entry 3 = {'subjID': '999', 'view': 'view4', 'position': 'D', 'width': 352, 'height': 288, 'fps': 30} (format only; control requests select cameras by kind: vendor id, product id and name string)
+  cv2 4.11.0 VideoCapture(3) isOpened=True backend=AVFOUNDATION open+set took 1287 ms
+  FORMAT requested 352x288 @ 30 fps (from /Users/rat_hub_01/Desktop/ratrixcam-uvc/uvc/camera_config_5.json, entry 3); capture reports 352x288 @ 30.0 fps
+    stream [identify: warm-up] 2.0s: frames=32 failed_reads=0 fps=29.3 mean_brightness=92.7
+    stream [identify: baseline] 1.5s: frames=0 failed_reads=2 fps=0.0 mean_brightness=nan
+IDENTIFICATION FAILED: baseline brightness nan is too dark (or no frames) to see a marker
+[2026-11-19 12:30:28] stopped: index 3 not identified as a selected camera

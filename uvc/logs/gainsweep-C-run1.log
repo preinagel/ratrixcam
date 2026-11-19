@@ -1,0 +1,62 @@
+[2026-11-19 12:29:43] probe.py gainsweep  python 3.13.5  pid 9478
+[2026-11-19 12:29:43] recording check: /Users/rat_hub_01/Desktop/temp absent, ok
+[2026-11-19 12:29:43] selected 1 camera(s) of kind C (0x0c45:0x6366 "USB Camera") on port 4: ports 4
+[2026-11-19 12:29:43] 1 camera(s) selected; exposure fixed at 4.0 ms, gain step 10
+
+[2026-11-19 12:29:43] IDENTIFY: which of the 1 selected camera(s) is behind index 3
+  config /Users/rat_hub_01/Desktop/ratrixcam-uvc/uvc/camera_config_5.json: 8 camera entries; entry 3 = {'subjID': '999', 'view': 'view4', 'position': 'D', 'width': 352, 'height': 288, 'fps': 30} (format only; control requests select cameras by kind: vendor id, product id and name string)
+  cv2 4.11.0 VideoCapture(3) isOpened=True backend=AVFOUNDATION open+set took 1278 ms
+  FORMAT requested 352x288 @ 30 fps (from /Users/rat_hub_01/Desktop/ratrixcam-uvc/uvc/camera_config_5.json, entry 3); capture reports 352x288 @ 30.0 fps
+    stream [identify: warm-up] 2.0s: frames=59 failed_reads=0 fps=29.3 mean_brightness=95.7
+    stream [identify: baseline] 1.5s: frames=44 failed_reads=0 fps=29.6 mean_brightness=100.4
+  candidate kind C port 4 loc 0x01144000 (bus 1 addr 7 ports (1, 4, 4))
+    write ae_mode:=manual(1): 1 [0.8 ms]
+    write exposure:=1 (0.1 ms): 1 [0.5 ms]
+    write gain:=0: 0 [0.7 ms]
+    [after write] kind C port 4 01144000 ae_mode=1 exposure=1 (0.1 ms) gain=0: MATCHES (expected ae_mode=1 exposure=1 gain=0)
+    stream [identify: marker on port 4] 1.5s: frames=43 failed_reads=0 fps=29.6 mean_brightness=7.8
+    restore [kind C port 4]: ae_mode:=manual(1) first, so exposure accepts the write: 1 [0.5 ms]
+    restore exposure:=157 (default): 157 [0.5 ms]
+    restore gain:=0 (default): 0 [0.6 ms]
+    restore ae_mode:=8 (default): 8 [0.5 ms]
+    read-back [kind C port 4] exposure=157 [0.5 ms] OK
+    read-back [kind C port 4] gain=0 [0.5 ms] OK
+    read-back [kind C port 4] ae_mode=8 [0.6 ms] OK
+index 3 is kind C at port 4 (0x01144000): brightness 100.4 -> 7.8 with the marker
+  config /Users/rat_hub_01/Desktop/ratrixcam-uvc/uvc/camera_config_5.json: 8 camera entries; entry 3 = {'subjID': '999', 'view': 'view4', 'position': 'D', 'width': 352, 'height': 288, 'fps': 30} (format only; control requests select cameras by kind: vendor id, product id and name string)
+  cv2 4.11.0 VideoCapture(3) isOpened=True backend=AVFOUNDATION open+set took 1121 ms
+  FORMAT requested 352x288 @ 30 fps (from /Users/rat_hub_01/Desktop/ratrixcam-uvc/uvc/camera_config_5.json, entry 3); capture reports 352x288 @ 30.0 fps
+    stream [warm-up] 3.0s: frames=88 failed_reads=0 fps=29.6 mean_brightness=92.3
+  FORMAT measured frame size: 352x288
+  FORMAT cv2 CAP_PROP_FOURCC: 0 '' (what the backend reports; may be its output, not the wire format)
+  FORMAT camera-side commit, port 4 (0x01144000): format 1 = MJPEG, frame 8 = 352x288, 30.0 fps; max frame 203341 B, max payload 800 B
+  loc 0x01144000 (bus 1 addr 7 ports (1, 4, 4))
+    stream [auto (reference)] 2.0s: frames=60 failed_reads=0 fps=29.8 mean_brightness=101.0
+    write ae_mode:=manual(1): 1 [0.8 ms]
+    write exposure:=40 (4.0 ms): 40 [0.5 ms]
+    write gain:=0: 0 [0.6 ms]
+    [after write] kind C port 4 01144000 ae_mode=1 exposure=40 (4.0 ms) gain=0: MATCHES (expected ae_mode=1 exposure=40 gain=0)
+    stream [gain 0 (write 0 [0.5 ms], read back 0)] 1.0s: frames=30 failed_reads=0 fps=29.3 mean_brightness=197.4
+    stream [gain 10 (write 10 [16.6 ms], read back 10)] 1.0s: frames=29 failed_reads=0 fps=29.3 mean_brightness=213.5
+    stream [gain 20 (write 20 [0.8 ms], read back 20)] 1.0s: frames=30 failed_reads=0 fps=29.3 mean_brightness=223.7
+    stream [gain 30 (write 30 [18.9 ms], read back 30)] 1.0s: frames=29 failed_reads=0 fps=29.3 mean_brightness=229.8
+    stream [gain 40 (write 40 [0.7 ms], read back 40)] 1.0s: frames=30 failed_reads=0 fps=29.3 mean_brightness=233.8
+    stream [gain 50 (write 50 [16.2 ms], read back 50)] 1.0s: frames=30 failed_reads=0 fps=29.3 mean_brightness=236.4
+    stream [gain 60 (write 60 [0.8 ms], read back 60)] 1.0s: frames=29 failed_reads=0 fps=29.3 mean_brightness=238.5
+    stream [gain 70 (write 70 [18.2 ms], read back 70)] 1.0s: frames=30 failed_reads=0 fps=29.3 mean_brightness=239.8
+    stream [gain 80 (write 80 [0.8 ms], read back 80)] 1.0s: frames=29 failed_reads=0 fps=30.3 mean_brightness=241.0
+    stream [gain 90 (write 90 [14.4 ms], read back 90)] 1.0s: frames=30 failed_reads=0 fps=29.3 mean_brightness=242.2
+    stream [gain 100 (write 100 [0.7 ms], read back 100)] 1.0s: frames=29 failed_reads=0 fps=29.2 mean_brightness=243.2
+    restore [kind C port 4]: ae_mode:=manual(1) first, so exposure accepts the write: 1 [0.6 ms]
+    restore exposure:=157 (default): 157 [0.4 ms]
+    restore gain:=0 (default): 0 [0.5 ms]
+    restore ae_mode:=8 (default): 8 [0.5 ms]
+    read-back [kind C port 4] exposure=157 [0.5 ms] OK
+    read-back [kind C port 4] gain=0 [0.4 ms] OK
+    read-back [kind C port 4] ae_mode=8 [0.9 ms] OK
+    stream [after restore] 2.0s: frames=59 failed_reads=0 fps=29.3 mean_brightness=92.7
+    gain sweep on the capture: auto reference 101.0; at 4.0 ms the nearest is gain 0 -> 197.4
+    table gain:brightness 0:197.4 10:213.5 20:223.7 30:229.8 40:233.8 50:236.4 60:238.5 70:239.8 80:241.0 90:242.2 100:243.2
+
+[2026-11-19 12:30:15] final read-back, stream released
+    [final, expected = this camera's defaults] kind C port 4 01144000 ae_mode=8 exposure=157 (15.7 ms) gain=0: MATCHES (expected ae_mode=8 exposure=157 gain=0)
