@@ -247,10 +247,23 @@ What this means (B and C are not developed for; recorded for the user's decision
 
 **Format and MJPG at the test format, 640x480 @ 30:** A offers 640x480 at 30 fps both as
 MJPEG and uncompressed, so the format AVFoundation picks does not limit A's frame rate in
-these tests. It does matter for C, whose uncompressed 640x480 runs at 15 fps. The user says
-the recorder requests MJPG through cv2. This clone's capture code sets only width, height and
-fps (`ratrixcam_server.py:487-492`); its only FOURCC is the writer's `mp4v`
-(`ratrixcam_server.py:25`). The probe does not request MJPG; it mirrors the clone.
+these tests. It does matter for C, whose uncompressed 640x480 runs at 15 fps.
+
+**Nothing in the recorder pins the camera's format.** The user first understood the recorder
+to request MJPG. The camera code's developer confirmed (2026-11-19, via the user) that it
+does not. The capture sets only width, height and fps (`ratrixcam_server.py:490-492`), with no
+`CAP_PROP_FOURCC`. The only FOURCC in the code is the clip writer's `mp4v`
+(`ratrixcam_server.py:25`), the Mac-side encoding, not the camera's output. So the wire format
+is whatever AVFoundation negotiates from the camera's descriptor list. The developer's
+inference that it is MJPEG comes from bandwidth (four 640x480 @ 30 YUY2 streams, about 590
+Mb/s, exceed one hub's 480 Mb/s), not from an observation. The probe mirrors the recorder and
+requests no format. From now on every streaming run also prints:
+- cv2's `CAP_PROP_FOURCC` read back after opening (this may be the backend's output format
+  rather than the wire format);
+- each target camera's own **VS_COMMIT_CONTROL GET_CUR**: the format index, frame index and
+  frame interval the camera was committed to stream, decoded against its descriptors
+  (format 1 = MJPEG, 2 = uncompressed on kind A). This is a read-only class request on the
+  VideoStreaming interface, and the firm answer to which format is in use.
 
 ## Answers
 

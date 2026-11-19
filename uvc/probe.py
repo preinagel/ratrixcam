@@ -275,9 +275,67 @@ def open_capture(cv2, args):
     return cap
 
 
-def print_measured_size(reader):
+VS_COMMIT_CONTROL = 0x02
+
+
+def vs_formats(dev):
+    """(interface number, {format index: (type, {frame index: (w, h)})}) of the first
+    VideoStreaming interface, from the cached descriptors (no request)."""
+    for intf in dev[0]:
+        if intf.bInterfaceClass == 0x0E and intf.bInterfaceSubClass == 0x02 and intf.bAlternateSetting == 0:
+            formats, current = {}, None
+            ex = bytes(intf.extra_descriptors)
+            i = 0
+            while i + 2 < len(ex) and ex[i]:
+                d = ex[i:i + ex[i]]
+                i += ex[i]
+                if d[1] != CS_INTERFACE:
+                    continue
+                if d[2] in VS_SUBTYPES:
+                    current = formats.setdefault(d[3], (VS_SUBTYPES[d[2]], {}))
+                elif d[2] in VS_FRAME_SUBTYPES and current is not None:
+                    current[1][d[3]] = (int.from_bytes(d[5:7], "little"), int.from_bytes(d[7:9], "little"))
+            return intf.bInterfaceNumber, formats
+    return None, {}
+
+
+def vs_commit(dev):
+    """GET_CUR of VS_COMMIT_CONTROL: the format, frame size and interval the camera was told
+    to stream. Read-only, like the GETs on the controls. UVC 1.0 commit block is 26 bytes."""
+    import usb.core
+    ifnum, formats = vs_formats(dev)
+    if ifnum is None:
+        return "no VideoStreaming interface"
+    ctx = dev._ctx
+    try:
+        ctx.managed_open()
+        buf = array.array("B", bytes(26))
+        n = ctx.backend.ctrl_transfer(ctx.handle, 0xA1, GET_CUR, VS_COMMIT_CONTROL << 8, ifnum, buf, 1000)
+    except usb.core.USBError as e:
+        return f"ERR USBError errno={e.errno}: {e}"
+    raw = bytes(buf[:n])
+    fmt_i, frame_i = raw[2], raw[3]
+    interval = int.from_bytes(raw[4:8], "little")
+    kind, frames = formats.get(fmt_i, ("unknown format", {}))
+    w, h = frames.get(frame_i, (0, 0))
+    rate = f"{1e7 / interval:.1f} fps" if interval else "interval 0"
+    max_frame = int.from_bytes(raw[18:22], "little") if n >= 22 else 0
+    payload = int.from_bytes(raw[22:26], "little") if n >= 26 else 0
+    return (f"format {fmt_i} = {kind}, frame {frame_i} = {w}x{h}, {rate}; "
+            f"max frame {max_frame} B, max payload {payload} B")
+
+
+def print_measured_size(reader, devs=()):
+    """Frame size measured from the frames; what cv2 reports as FOURCC; and what each target
+    camera says it was committed to stream (the camera's own record of the negotiated format)."""
     shape = reader.shape
     print(f"  FORMAT measured frame size: {f'{shape[1]}x{shape[0]}' if shape else 'no frame yet'}")
+    import cv2
+    code = int(reader.cap.get(cv2.CAP_PROP_FOURCC))
+    text = "".join(chr((code >> 8 * k) & 0xFF) for k in range(4)) if code else ""
+    print(f"  FORMAT cv2 CAP_PROP_FOURCC: {code} {text!r} (what the backend reports; may be its output, not the wire format)")
+    for dev in devs:
+        print(f"  FORMAT camera-side commit, port {rig_port(dev)} (0x{location_id(dev):08x}): {vs_commit(dev)}")
 
 
 class Reader(threading.Thread):
@@ -503,7 +561,7 @@ def cmd_q1(args):
     changed = []  # restore callables for writes in flight, run in the finally if anything fails
     try:
         watch(reader, "warm-up", 3.0)
-        print_measured_size(reader)
+        print_measured_size(reader, devs)
         for (dev, lay), (mode0, expo0, prio0) in zip(zip(devs, lays), original):
             print(f"  {label(dev)} while streaming")
             for name in CONTROLS:
@@ -586,7 +644,7 @@ def cmd_track(args):
     start, cued = time.monotonic(), set()
     try:
         time.sleep(1.0)
-        print_measured_size(reader)
+        print_measured_size(reader, devs)
         start = time.monotonic()
         while (elapsed := time.monotonic() - start) < args.seconds:
             for at, msg in ((args.cover, "COVER ALL LENSES NOW"), (args.uncover, "UNCOVER NOW")):
@@ -630,7 +688,7 @@ def cmd_aetrack(args):
     changed = []
     try:
         watch(reader, "warm-up", 3.0)
-        print_measured_size(reader)
+        print_measured_size(reader, devs)
         for dev, lay in zip(devs, lays):
             print(f"  {label(dev)}")
             mode0, m_err, _ = xfer(dev, lay, "ae_mode", GET_CUR)
@@ -747,7 +805,7 @@ def cmd_gainsweep(args):
     changed = []
     try:
         watch(reader, "warm-up", 3.0)
-        print_measured_size(reader)
+        print_measured_size(reader, devs)
         for dev, lay in zip(devs, lays):
             print(f"  {label(dev)}")
             gmin, e1, _ = xfer(dev, lay, "gain", GET_MIN)
@@ -821,7 +879,7 @@ def cmd_persist(args):
     reader = Reader(cap)
     reader.start()
     watch(reader, "warm-up", 3.0)
-    print_measured_size(reader)
+    print_measured_size(reader, state["devs"])
     b_auto = watch(reader, "auto baseline", 2.0)
     reader.stop_evt.set()
     reader.join(timeout=3)
