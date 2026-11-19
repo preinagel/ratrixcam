@@ -97,7 +97,10 @@ Building, installing into the venv, and editing under uvc/ you do yourself.
 
 ## Rules for this folder
 - Everything under uvc/; nothing outside it is touched. The camera modules, gui/, videoproc/,
-  tests/ and docs/ are read-only reference.
+  tests/ and docs/ are read-only reference. So are the inputs the user places at the clone's
+  root for you (2026-11-19): camera_config_5.json, uvc_developer_frame_drop_investigation.md
+  and the folder for_uvc_developer/ (the camera developer's test recording and log). Read
+  them freely; never edit, move or delete them; write your findings under uvc/.
 - Python standard library plus pyusb in a virtual environment under uvc/; no other packages
   without asking. Homebrew is not yours to run.
 - Never request anything outside the sandbox; report a sandbox failure instead.
