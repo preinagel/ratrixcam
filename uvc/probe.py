@@ -20,6 +20,11 @@ Sub-commands:
               Restores exposure and AE mode and reads them back.
     restore   safety net: exposure, gain and AE mode to each camera's own defaults
 
+Streaming sub-commands (q1, track, aetrack) open the capture as the recorder does
+(ratrixcam_server.py:487-492): VideoCapture(index) on the default backend, then width,
+height and fps from ~/Desktop/camera_config.json's defaults (read only; --width/--height/
+--fps override). Each prints the requested, reported and measured format.
+
 Safety: refuses to run if ~/Desktop/temp exists (a recording is in progress). Never claims an
 interface, detaches a driver or sets a configuration: only class requests on endpoint 0,
 sent on the device handle without pyusb's implicit interface claim (run 1 did claim; see
@@ -29,6 +34,7 @@ Devices are selected by vendor and product id only.
 
 import argparse
 import array
+import json
 import os
 import sys
 import threading
@@ -37,6 +43,7 @@ import time
 VID, PID = 0x0C45, 0x6369
 LIBUSB = "/opt/homebrew/lib/libusb-1.0.dylib"
 RECORDING_FLAG = os.path.expanduser("~/Desktop/temp")
+RECORDER_CONFIG = os.path.expanduser("~/Desktop/camera_config.json")  # read only
 
 # UVC 1.1 constants
 CS_INTERFACE = 0x24
@@ -215,14 +222,56 @@ def import_cv2():
     return cv2
 
 
+def recorder_format(args):
+    """Width, height, fps as the recorder requests them: the config's defaults
+    (ratrixcam_server.py:464-466), unless given on the command line."""
+    src, w, h, f = "command line", args.width, args.height, args.fps
+    if None in (w, h, f):
+        with open(args.config) as fh:
+            cfg = json.load(fh)
+        src = args.config
+        overrides = [{k: c[k] for k in ("width", "height", "fps") if c.get(k) is not None}
+                     for c in cfg.get("cameras", [])]
+        if any(overrides):
+            print(f"  NOTE: per-camera format overrides in the config: {overrides}; probe uses the defaults")
+        w = w or cfg["default_width"]
+        h = h or cfg["default_height"]
+        f = f or cfg["default_fps"]
+    return w, h, f, src
+
+
+def open_capture(cv2, args):
+    """Open exactly as ratrixcam_server.py:487-492 does: default backend, then width, height, fps."""
+    width, height, fps, src = recorder_format(args)
+    t0 = time.perf_counter()
+    cap = cv2.VideoCapture(args.index)
+    _ = cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+    _ = cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+    _ = cap.set(cv2.CAP_PROP_FPS, fps)
+    ms = (time.perf_counter() - t0) * 1000
+    print(f"  cv2 {cv2.__version__} VideoCapture({args.index}) isOpened={cap.isOpened()} "
+          f"backend={cap.getBackendName() if cap.isOpened() else '-'} open+set took {ms:.0f} ms")
+    print(f"  FORMAT requested {width}x{height} @ {fps} fps (from {src}); capture reports "
+          f"{cap.get(cv2.CAP_PROP_FRAME_WIDTH):.0f}x{cap.get(cv2.CAP_PROP_FRAME_HEIGHT):.0f} "
+          f"@ {cap.get(cv2.CAP_PROP_FPS):.1f} fps")
+    return cap
+
+
+def print_measured_size(reader):
+    shape = reader.shape
+    print(f"  FORMAT measured frame size: {f'{shape[1]}x{shape[0]}' if shape else 'no frame yet'}")
+
+
 class Reader(threading.Thread):
     def __init__(self, cap):
         super().__init__(daemon=True)
-        self.cap, self.samples, self.stop_evt = cap, [], threading.Event()
+        self.cap, self.samples, self.stop_evt, self.shape = cap, [], threading.Event(), None
 
     def run(self):
         while not self.stop_evt.is_set():
             ok, frame = self.cap.read()
+            if ok and self.shape is None:
+                self.shape = frame.shape[:2]
             self.samples.append((time.monotonic(), ok, float(frame.mean()) if ok else None))
 
     def window(self, t0, t1):
@@ -291,21 +340,17 @@ def cmd_q1(args):
             print(f"    no-op write ae_mode:=current {mode}: {fmt(*xfer(dev, lay, 'ae_mode', SET_CUR, mode))}")
 
     cv2 = import_cv2()
-    print(f"\n[{now()}] PHASE B: cv2 {cv2.__version__} VideoCapture({args.index}, CAP_AVFOUNDATION)")
-    t0 = time.perf_counter()
-    cap = cv2.VideoCapture(args.index, cv2.CAP_AVFOUNDATION)
-    print(f"  isOpened={cap.isOpened()} backend={cap.getBackendName() if cap.isOpened() else '-'} "
-          f"open took {(time.perf_counter() - t0) * 1000:.0f} ms")
+    print(f"\n[{now()}] PHASE B: stream open")
+    cap = open_capture(cv2, args)
     if not cap.isOpened():
         print("  Capture did not open. If macOS showed a camera-permission dialog for Terminal, allow it and rerun.")
         return
-    print(f"  reported {cap.get(cv2.CAP_PROP_FRAME_WIDTH):.0f}x{cap.get(cv2.CAP_PROP_FRAME_HEIGHT):.0f} "
-          f"@ {cap.get(cv2.CAP_PROP_FPS):.1f} fps")
     reader = Reader(cap)
     reader.start()
     changed = []  # restore callables for writes in flight, run in the finally if anything fails
     try:
         watch(reader, "warm-up", 3.0)
+        print_measured_size(reader)
         for (dev, lay), (mode0, expo0, prio0) in zip(zip(devs, lays), original):
             print(f"  {label(dev)} while streaming")
             for name in CONTROLS:
@@ -381,13 +426,16 @@ def cmd_track(args):
     print(f"  cue: at t={args.cover:.0f}s COVER ALL LENSES (or switch off the room light); "
           f"at t={args.uncover:.0f}s UNCOVER")
     cv2 = import_cv2()
-    cap = cv2.VideoCapture(args.index, cv2.CAP_AVFOUNDATION)
+    cap = open_capture(cv2, args)
     if not cap.isOpened():
         sys.exit("capture did not open")
     reader = Reader(cap)
     reader.start()
     start, cued = time.monotonic(), set()
     try:
+        time.sleep(1.0)
+        print_measured_size(reader)
+        start = time.monotonic()
         while (elapsed := time.monotonic() - start) < args.seconds:
             for at, msg in ((args.cover, "COVER ALL LENSES NOW"), (args.uncover, "UNCOVER NOW")):
                 if elapsed >= at and at not in cued:
@@ -422,7 +470,7 @@ def cmd_aetrack(args):
     lays = [vc_layout(d) for d in devs]
     print(f"[{now()}] {len(devs)} target(s)")
     cv2 = import_cv2()
-    cap = cv2.VideoCapture(args.index, cv2.CAP_AVFOUNDATION)
+    cap = open_capture(cv2, args)
     if not cap.isOpened():
         sys.exit("capture did not open")
     reader = Reader(cap)
@@ -430,6 +478,7 @@ def cmd_aetrack(args):
     changed = []
     try:
         watch(reader, "warm-up", 3.0)
+        print_measured_size(reader)
         for dev, lay in zip(devs, lays):
             print(f"  {label(dev)}")
             mode0, m_err, _ = xfer(dev, lay, "ae_mode", GET_CUR)
@@ -509,18 +558,21 @@ def main():
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("list").set_defaults(fn=cmd_list)
     sub.add_parser("controls").set_defaults(fn=cmd_controls)
-    q1 = sub.add_parser("q1")
-    q1.add_argument("--index", type=int, default=0, help="cv2 camera index to stream (any index is a target)")
+    stream = argparse.ArgumentParser(add_help=False)
+    stream.add_argument("--index", type=int, default=0, help="cv2 camera index to stream (any index is a target)")
+    stream.add_argument("--config", default=RECORDER_CONFIG, help="recorder config to take the format from")
+    stream.add_argument("--width", type=int, help="override the config's default_width")
+    stream.add_argument("--height", type=int, help="override the config's default_height")
+    stream.add_argument("--fps", type=int, help="override the config's default_fps")
+    q1 = sub.add_parser("q1", parents=[stream])
     q1.set_defaults(fn=cmd_q1)
-    tr = sub.add_parser("track")
-    tr.add_argument("--index", type=int, default=0)
+    tr = sub.add_parser("track", parents=[stream])
     tr.add_argument("--seconds", type=float, default=40.0)
     tr.add_argument("--interval", type=float, default=1.0)
     tr.add_argument("--cover", type=float, default=10.0, help="seconds in: cue to cover the lenses")
     tr.add_argument("--uncover", type=float, default=25.0, help="seconds in: cue to uncover")
     tr.set_defaults(fn=cmd_track)
-    at = sub.add_parser("aetrack")
-    at.add_argument("--index", type=int, default=0)
+    at = sub.add_parser("aetrack", parents=[stream])
     at.add_argument("--seconds", type=float, default=5.0, help="how long to follow AE after handing back")
     at.add_argument("--interval", type=float, default=0.25)
     at.set_defaults(fn=cmd_aetrack)

@@ -2,8 +2,10 @@
 
 Status: Q1 answered yes (q1 run 2). Reads and writes work without root, with and without
 an AVFoundation stream. Open: whether the exposure read tracks auto-exposure (goal 1),
-gain writes, and Q2 (stream start, re-enumeration). No control has been changed on any
-camera, so nothing has needed restoring.
+gain writes, and Q2 (stream start, re-enumeration). Controls were changed in q1 run 2 and
+all were restored and read back (see Restored). Runs up to and including track run 1
+streamed at the camera default, 1920x1080. From aetrack on, the probes stream at the
+recorder's format, 640x480 @ 30 fps (`~/Desktop/camera_config.json` defaults).
 
 Goals in the order the brief values them (since 2026-11-19): (1) read exposure time and gain,
 (2) clear AE priority, (3) exposure under 5 ms with gain compensation, sticking across stream
@@ -99,9 +101,10 @@ Observations:
 
 ## Evidence
 
-### Q1, run 2 (2026-11-19 08:45:26, user's Terminal, not root)
+### Q1, run 2 (2026-11-19 08:45:26, user's Terminal, not root; stream 1920x1080 @ 30, camera default, not the recorder's format)
 
-`uvc/.venv/bin/python uvc/probe.py q1 --index 0` (full output in `uvc/logs/q1-run2.log`).
+`uvc/.venv/bin/python uvc/probe.py q1 --index 0` (full output in `uvc/logs/q1-run2.log`). The
+probe then opened with `VideoCapture(0, CAP_AVFOUNDATION)` and set no format.
 
 - No stream: all reads OK (0.7-1.0 ms). The no-op write `ae_mode:=8` was accepted (0.7-0.9 ms).
 - `VideoCapture(0, CAP_AVFOUNDATION)` opened in 672 ms and reported 1920x1080 @ 30 fps. The
@@ -118,19 +121,29 @@ Observations:
   After the restore it had recovered to 127.1 within 2 s, as auto-exposure re-converged.
   Writes took 4.5-4.9 ms; a few on the streamed camera took 20-27 ms. No frame was lost
   in any window.
+- **Brightness is measured on the one stream (index 0) only.** The ~0% rows for 0x01143000
+  and 0x00141000 mean those cameras were not the capture. They do not mean the writes had
+  no effect: on those two cameras the writes were accepted and read back, but no image was
+  watched.
+- **Mapping found as a side effect (relevant to GitHub #60):** the brightness response
+  identifies cv2 index 0 as USB location 0x01141000 (bus 1, ports 1-4-1) on this rig.
+  Writing a control by USB location and watching which index's stream responds is a
+  working index-to-device method. Not pursued further: with a target-only rig, the mapping
+  does not matter for this prototype.
 - AE priority read 0 before the stream and while streaming: stream start does not set it
   to 1. The write of 0 was a no-op, so a change to AE priority has not been demonstrated.
 - After the stream was released, all three cameras read ae_mode 8, ae_priority 0,
   exposure 157 and gain 0, identical to Phase A.
 
 **Open problem for goal 1: in auto mode, exposure GET_CUR may not be the camera's live
-exposure.** It read 157 (15.7 ms) on all three cameras, with and without a stream, in
-scenes of different brightness (131 vs 142). That is exactly the GET_DEF value. So in
-aperture-priority mode the camera may return the stored manual value, not the exposure
-its AE loop is actually using. If so, a read cannot warn of long exposures. `probe.py
-track` tests this by reading exposure every 0.5 s while the light changes.
+exposure.** It read 157 (15.7 ms) on all three cameras, with and without a stream, which
+is exactly the GET_DEF value. So in aperture-priority mode the camera may return the
+stored manual value, not the exposure its AE loop is actually using. If so, a read cannot
+warn of long exposures. (Only one camera's image was measured, so the run cannot show
+whether the three cameras saw different light.) `probe.py track` (read every 1 s while the
+light changes) and `probe.py aetrack` (AE forced to re-converge) test this.
 
-### Q1, run 1 (2026-11-18 16:56:59, user's Terminal, not sandboxed, not root)
+### Q1, run 1 (2026-11-18 16:56:59, user's Terminal, not sandboxed, not root; stream 1920x1080 @ 30, camera default)
 
 Command (full output in `uvc/logs/q1-run1.log`):
 
@@ -177,7 +190,7 @@ LIBUSB_DEBUG=4 uvc/.venv/bin/python uvc/probe.py controls
   and the stream in run 1 was unaffected (0 failed reads). The probe now calls the libusb
   backend directly on the device handle, with no claim.
 
-### Goal 1 follow-up: track run 1 (2026-11-19 08:56:53), inconclusive
+### Goal 1 follow-up: track run 1 (2026-11-19 08:56:53; stream 1920x1080 @ 30, camera default), inconclusive
 
 `uvc/.venv/bin/python uvc/probe.py track` (`uvc/logs/track-run1.log`). This was read-only.
 It read every second for 40 s while streaming index 0, with cues to cover all lenses at
