@@ -347,6 +347,30 @@ config entry 1, 640x480 @ 30.
 - Restored to B's own defaults (exposure 156, gain 0, ae_mode 8), read back OK; the Phase C
   read-back after release equals Phase A.
 
+### Goal 3, kind B: gainsweep-B run 1 (2026-11-19 12:26:11; `uvc/logs/gainsweep-B-run1.log`)
+
+`uvc/.venv/bin/python uvc/probe.py gainsweep --kind B --port 2 --index 1`
+- Identification: `index 1 is kind B at port 2 (0x01142000): brightness 129.3 -> 1.4 with the
+  marker`, restored and read back OK.
+- Stream: 640x480 measured; camera-side commit MJPEG 640x480 @ 30, max payload 800 B.
+- Auto reference 152.9. Then manual, exposure 40 (4.0 ms), and gain stepped 0-100; every one
+  of the 11 gain writes read back equal.
+
+| gain | 0 | 10 | 20 | 30 | **40** | 50 | 60 | 70 | 80 | 90 | 100 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| brightness (kind B, 4.0 ms) | 85.9 | 101.4 | 118.0 | 134.2 | **150.0** | 162.9 | 176.5 | 185.7 | 193.3 | 200.8 | 208.9 |
+
+- **At 4.0 ms, gain 40 comes nearest the auto brightness (150.0 vs 152.9)**, in the room's light
+  at 12:26. Brightness rises about 16 per 10 gain up to 40, then about 8 per 10 above 70. No
+  step saturated.
+- fps 30.3-30.4 at every step, 0 failed reads.
+- Not comparable with kind A's gain 50 (gainsweep run 1, 09:27): the auto references differ
+  (152.9 vs 139.2), so the scene's light differed. B's brightness at 4 ms is higher than A's at
+  every gain (gain 0: 85.9 vs 75.6; gain 100: 208.9 vs 188.5). That suggests different
+  sensitivity or processing, but the light also differed, so it is not shown.
+- Restored to B's defaults (exposure 156, gain 0, ae_mode 8) and read back OK; final read-back
+  after release MATCHES the defaults.
+
 ## Hook recommendation
 
 **A pass in the supervisor, by USB id, run before every launch and every relaunch of a camera
@@ -789,3 +813,7 @@ It read every second for 40 s while streaming index 0, with cues to cover all le
   read back OK. Then ae_priority 0 (no-op) restored to 0, OK; ae_mode 1 + exposure 40, restored
   (manual, exposure 156, gain 0, ae_mode 8) and read back OK. Final read-back: ae_mode 8,
   ae_priority 0, exposure 156, gain 0. No other camera was written to.
+- **gainsweep-B run 1 (2026-11-19 12:26:11), kind B port 2 only**: identification marker,
+  restored and read back OK; then manual, exposure 40, gain 0-100, restored (manual, exposure
+  156, gain 0, ae_mode 8) and read back OK. Final read-back after release: ae_mode 8, exposure
+  156, gain 0, MATCHES. No other camera was written to.

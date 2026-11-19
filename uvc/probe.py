@@ -914,7 +914,7 @@ def cmd_gainsweep(args):
     be = usb_backend()
     devs = find_selected(be, args)
     lays = [vc_layout(d) for d in devs]
-    print(f"[{now()}] {len(devs)} target(s); exposure fixed at {TEST_EXPOSURE / 10:.1f} ms, gain step {args.step}")
+    print(f"[{now()}] {len(devs)} camera(s) selected; exposure fixed at {TEST_EXPOSURE / 10:.1f} ms, gain step {args.step}")
     cv2 = import_cv2()
     identified_or_exit(cv2, args, devs)
     cap = open_capture(cv2, args)
