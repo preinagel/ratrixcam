@@ -1,7 +1,8 @@
 # UVC exposure/gain control on macOS: prototype report
 
-Status: Q1 run 1 refused, but the refusal was traced to the probe (pyusb's implicit
-interface claim); run 2 pending. No control has been changed on any
+Status: reads work without root (goal 1, no stream open). Q1 run 1's refusal was traced
+to the probe (pyusb's implicit interface claim) and fixed. q1 run 2, the first while-streaming
+reads and first writes, is pending. No control has been changed on any
 camera, so nothing has needed restoring.
 
 Goals in the order the brief values them (since 2026-11-19): (1) read exposure time and gain,
@@ -57,6 +58,31 @@ cv2 opens AVFoundation devices by index only. With the camera report empty, noth
 index to vendor/product 0x0c45:0x6369. Opening an index would select by position, which
 the brief forbids, and could open a sibling 0x6366, which is off limits. Stopped to ask.
 
+## Goal 1 (read exposure and gain): YES, with no stream open, as an ordinary user
+
+`probe.py controls`, run 2, 2026-11-19 08:41:33 (`uvc/logs/controls-run2.log`). All three
+cameras gave identical values; each request took 0.5-0.9 ms. libusb printed no warnings.
+
+| Control | INFO | MIN | MAX | RES | DEF | CUR |
+|---|---|---|---|---|---|---|
+| AE mode (CT 0x02) | 3 (get, set) | stall | stall | 9 = manual + aperture-priority | 8 (aperture-priority = auto) | 8 |
+| AE priority (CT 0x03) | 3 (get, set) | stall | stall | stall | stall | **0** (constant frame rate) |
+| Exposure time absolute (CT 0x04), 100 us units | 3 (get, set) | 1 (0.1 ms) | 5000 (500 ms) | 1 (0.1 ms) | 157 (15.7 ms) | **157 (15.7 ms), over the 5 ms limit** |
+| Gain (PU 0x04), unitless | 3 (get, set) | 0 | 100 | 1 | 0 | 0 |
+
+"Stall" is `USBError errno=32 code=-9 Pipe error`, the camera rejecting a request that the
+UVC spec does not require for that control (AE mode and AE priority are not ranged). It is
+not an access problem.
+
+Observations:
+- AE priority already reads 0 with no stream open. If it stays 0 while streaming, the
+  frame-rate drops the recorder sees are not explained by this control: either the firmware
+  ignores it, or something sets it to 1 at stream start. q1 run 2 reads it while streaming.
+- Exposure's INFO does not set the "disabled due to automatic mode" bit (D2) while AE mode
+  is auto (8), even though the camera chooses the value itself.
+- Exposure 15.7 ms equals the default. With no stream open the value may be stale; the
+  while-streaming reads in q1 will show whether it tracks the scene.
+
 ## Answers
 
 1. **UVC requests while AVFoundation streams: open again.** Run 1's refusals were caused by
@@ -64,7 +90,11 @@ the brief forbids, and could open a sibling 0x6366, which is off limits. Stopped
    and macOS refused because Apple's UVC driver holds it exclusively (controls-debug run). The
    probe now sends requests on the open device handle without claiming; run 2 tests that.
 2. Settings persistence across stream start and re-enumeration: not yet tested.
-3. Exposure mode, exposure time and gain as writable controls: not yet tested.
+3. **Exposed and reported settable: yes. Actually writable: not yet shown.** AE mode
+   (manual or aperture-priority), exposure time absolute (0.1-500 ms in 0.1 ms steps,
+   default 15.7 ms) and gain (0-100, unitless, step 1, default 0) all report get+set in
+   GET_INFO; ranges are in the goal 1 table. No SET_CUR has been sent yet; q1 run 2 is the
+   first write.
 
 ## Evidence
 

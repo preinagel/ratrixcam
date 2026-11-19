@@ -315,7 +315,11 @@ def cmd_q1(args):
             if p_err:
                 print("    ae_priority unreadable; skipping the AE-priority test")
             else:
-                restore_p = prio0 if prio0 is not None else prio
+                # Restore to the value read just before this write (the streaming value), which
+                # may differ from the no-stream value prio0 if stream start changes it.
+                restore_p = prio
+                if prio != prio0:
+                    print(f"    NOTE ae_priority changed from {prio0} (no stream) to {prio} (streaming)")
                 watch(reader, "before ae_priority change", 2.0)
                 changed.append(lambda d=dev, l=lay, v=restore_p: restore_priority(d, l, v))
                 print(f"    write ae_priority:=0: {fmt(*xfer(dev, lay, 'ae_priority', SET_CUR, 0))}")
