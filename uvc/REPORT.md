@@ -455,7 +455,9 @@ new process streaming index 0 for 6 s while this process reads the controls at a
 
 ### Replug follow-up: replug run 1 (2026-11-19 11:29:15; 640x480 @ 30 per config entry)
 
-`uvc/.venv/bin/python uvc/probe.py replug` (`uvc/logs/replug-run1.log`). This is the reproduction
+`uvc/.venv/bin/python uvc/probe.py replug` (`uvc/logs/replug-run1.log`). The log is the user's
+second attempt: in the first, the camera was not plugged back in before the probe's 120 s
+timeout, and `tee` overwrote that attempt's log. This is the reproduction
 of persist run 2's empty stream that the user asked for. Port 1 (0x01141000, cv2 index 0) was
 marked by setting it to manual, exposure 1 (0.1 ms), gain 0, which gives a near-black image.
 Same-process reopens of index 0 were compared with fresh-process scans of indices 0-9 (one new
