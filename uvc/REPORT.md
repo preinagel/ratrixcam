@@ -5,9 +5,9 @@ writes work without root, with and without an AVFoundation stream. **Goal 1 by t
 exposure read: no.** In auto mode the camera returns the stored manual value, not the
 exposure its AE loop uses (aetrack run 1). **Goal 3 compensation: at 4.0 ms, gain 50 matched
 the auto brightness in the room's light at 640x480** (gainsweep run 1). Q3 is answered yes
-for all three controls. **Q2, stream start and stop: settings held** (persist run 1, at
-640x480). Open: Q2 re-enumeration (the unplug step did not happen in persist run 1),
-and compensation in dim light. Format: every run since aetrack run 1 is at the test format, 640x480 @ 30 (below).
+for all three controls. **Q2: settings survive stream start and stop, but NOT unplug/replug**
+(persist runs 1 and 2). The wire format at 640x480 is MJPEG (camera-side commit, persist
+run 2). Open: compensation in dim light, and the empty stream from index 0 after a replug. Format: every run since aetrack run 1 is at the test format, 640x480 @ 30 (below).
 
 **Rig state: restored** (restore run 1, 2026-11-19 09:21:33; again after gainsweep run 1 at
 09:28:22 and persist run 1 at 09:32:34). All three cameras read ae_mode 8 (auto), exposure 157
@@ -296,10 +296,14 @@ requests no format. From now on every streaming run also prints:
    The streamed camera's image responded to manual 4 ms (brightness -68% at 1080p, -44% at
    480p), with 0 failed reads and no fps change. Run 1's refusals were caused by the probe
    itself: pyusb's implicit interface claim, now removed.
-2. **Stream start and stop: YES, settings held** (persist run 1, 640x480): manual exposure 4.0 ms
-   and gain 10, set by USB location before any capture existed, read back unchanged after
-   AVFoundation opened, streamed and released the camera, and the image was darker
-   accordingly. **Re-enumeration (unplug/replug): not yet tested.**
+2. **Stream start and stop: YES. Unplug/replug: NO.** (persist runs 1 and 2, 640x480 @ 30.)
+   Manual exposure 4.0 ms and gain 10, set by USB location with no stream open, read back
+   unchanged after AVFoundation opened, streamed and released the camera, and the image was
+   darker accordingly (both runs). After the camera was **unplugged and replugged, it came
+   back at its defaults**: ae_mode 8 (auto), exposure 157, gain 0. That held both before and
+   after a new stream start (persist run 2, port 1). Cameras that stayed plugged in kept the
+   manual settings. So the settings live in volatile camera state: a power cycle cannot
+   leave a camera stuck in manual, but every re-enumeration needs the settings reapplied.
 3. **YES: AE mode, exposure time and gain are all writable**, with a visible effect on the
    image. AE mode is manual (1) or aperture-priority auto (8). Exposure time absolute is
    0.1-500 ms in 0.1 ms steps, default 15.7 ms. Gain is 0-100, unitless, step 1, default 0.
@@ -381,6 +385,40 @@ for 5 s.
   The restore's read-back checked only ae_mode (8, "OK"), which hid the failure. The final
   read-back shows exposure 40 on all three. Fixed: restores now select manual, write
   exposure and gain defaults, then AE mode, and read back every control.
+
+### Q2: persist run 2 (2026-11-19 10:35:14; stream 640x480 @ 30 from uvc/camera_config_5.json entry 0, the test format)
+
+`uvc/.venv/bin/python uvc/probe.py persist` (`uvc/logs/persist-run2.log`). The user first
+unplugged port 4 (kind C, 0x6366), which the probe does not watch, because the prompt said
+"any one". That wording is my error; the prompt now names the target ports. The user then
+unplugged **port 1** (0x01141000), the camera behind cv2 index 0.
+
+1. Auto baseline: requested, reported and measured 640x480 @ 30; 29.6 fps; brightness 135.4.
+   - **Camera-side format (VS_COMMIT GET_CUR), port 1, the capture: MJPEG (format 1),
+     640x480 (frame 2), 30.0 fps, max frame 614989 B, max payload 800 B.** This is the
+     first direct observation of the wire format: MJPEG, as the developer inferred from
+     bandwidth. The 800 B payload corresponds to the 0x0320 alternate setting, a small
+     share of a USB 2 bus.
+   - Ports 3 and 5, not streaming, reported MJPEG 800x600 @ 30. That is presumably the
+     last commit from an earlier session (the user's 800x600 trial), not current activity.
+     A camera's commit state persists after its stream stops.
+   - cv2 `CAP_PROP_FOURCC` read 0: the AVFoundation backend does not report a FOURCC, so it
+     cannot tell the wire format.
+2. With no stream open, all three cameras were set to manual, exposure 40, gain 10: MATCHES.
+3. Stream start (1051 ms): all three cameras MATCH right after the open and after 4 s.
+   Brightness was 85.4 vs 135.4 auto, at 29.6 fps, 0 failed reads. After the stream stopped,
+   all three still MATCH.
+4. Unplug/replug: port 1 disappeared at 10:37:19 and was back at 10:37:29.
+   - **Port 1 (the replugged camera): ae_mode 8, exposure 157, gain 0, which DIFFERS from
+     the manual settings: reverted to defaults**, both before and after a stream start.
+   - Ports 3 and 5 (left plugged in): still MATCH.
+5. **Stream after re-enumeration: `VideoCapture(0)` reported open (2057 ms, 640x480 @ 30),
+   but delivered 0 frames, with 2 failed reads in 3 s.** Before the replug, index 0 streamed
+   normally. Possible causes, not distinguished: AVFoundation's device list had not yet
+   caught up 7 s after re-enumeration, or index 0 no longer referred to port 1 after it
+   re-enumerated. Either way it bears on the recorder's index = port assumption and on
+   GitHub #60. A replugged camera may need a delay, or a re-lookup, before reopening.
+6. Restore: all three cameras restored to defaults and read back OK.
 
 ### Q2: persist run 1 (2026-11-19 09:30:22; stream 640x480 @ 30, the test format)
 
@@ -563,3 +601,8 @@ It read every second for 40 s while streaming index 0, with cues to cover all le
   gain 10 with no stream open. They were held through stream start and stop, then restored
   at 09:32:34: manual, exposure 157, gain 0, then ae_mode 8, read back OK on all three
   ("restore OK on all targets present"). ae_priority was not touched.
+- **persist run 2 (2026-11-19 10:35:14)**: all three targets set to ae_mode 1, exposure 40,
+  gain 10. Port 1 was unplugged and replugged and came back at its defaults by itself.
+  At 10:37:36 all three were restored (manual, exposure 157, gain 0, then ae_mode 8) and read
+  back OK ("restore OK on all targets present"). ae_priority was not touched. The user also
+  unplugged and replugged port 4 (kind C, never written).

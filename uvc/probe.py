@@ -918,7 +918,9 @@ def cmd_persist(args):
         for dev in state["devs"]:
             usb.util.dispose_resources(dev)
         before = {location_id(d) for d in state["devs"]}
-        print(f">>> UNPLUG ONE target camera now (any one), wait about 5 s, then plug it back into the SAME port.")
+        target_ports = ", ".join(rig_port(d) for d in sorted(state["devs"], key=lambda d: int(rig_port(d)) if rig_port(d).isdigit() else 99))
+        print(f">>> UNPLUG ONE camera of the target product 0x{PID:04x} now: port {target_ports} "
+              f"(other ports are not watched). Wait about 5 s, then plug it back into the SAME port.")
         print(f"    waiting up to {args.timeout:.0f} s for it to disappear...")
         gone = wait_for_count(be, n - 1, args.timeout)
         if gone is None:

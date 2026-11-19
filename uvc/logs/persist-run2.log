@@ -1,0 +1,94 @@
+[2026-11-19 10:35:14] probe.py persist  python 3.13.5  pid 7685
+[2026-11-19 10:35:14] recording check: /Users/rat_hub_01/Desktop/temp absent, ok
+[2026-11-19 10:35:14] 3 target(s); manual setting under test: exposure 4.0 ms, gain 10
+
+[2026-11-19 10:35:14] PHASE 1: auto baseline brightness (stream at the recorder's format)
+  config /Users/rat_hub_01/Desktop/ratrixcam-uvc/uvc/camera_config_5.json: 8 camera entries; entry 0 = {'subjID': '999', 'view': 'view1', 'position': 'A', 'width': 640, 'height': 480, 'fps': 30} (format only; control requests select cameras by USB id 0x0c45:0x6369)
+  cv2 4.11.0 VideoCapture(0) isOpened=True backend=AVFOUNDATION open+set took 1247 ms
+  FORMAT requested 640x480 @ 30 fps (from /Users/rat_hub_01/Desktop/ratrixcam-uvc/uvc/camera_config_5.json, entry 0); capture reports 640x480 @ 30.0 fps
+    stream [warm-up] 3.0s: frames=89 failed_reads=0 fps=29.6 mean_brightness=134.5
+  FORMAT measured frame size: 640x480
+  FORMAT cv2 CAP_PROP_FOURCC: 0 '' (what the backend reports; may be its output, not the wire format)
+  FORMAT camera-side commit, port 3 (0x01143000): format 1 = MJPEG, frame 6 = 800x600, 30.0 fps; max frame 960589 B, max payload 800 B
+  FORMAT camera-side commit, port 1 (0x01141000): format 1 = MJPEG, frame 2 = 640x480, 30.0 fps; max frame 614989 B, max payload 800 B
+  FORMAT camera-side commit, port 5 (0x00141000): format 1 = MJPEG, frame 6 = 800x600, 30.0 fps; max frame 960589 B, max payload 800 B
+    stream [auto baseline] 2.0s: frames=59 failed_reads=0 fps=29.3 mean_brightness=135.4
+
+[2026-11-19 10:35:20] PHASE 2: set manual with NO stream open
+  loc 0x01143000 (bus 1 addr 6 ports (1, 4, 3))
+    write ae_mode:=manual(1): 1 [4.7 ms]
+    write exposure:=40 (4.0 ms): 40 [4.7 ms]
+    write gain:=10: 10 [5.7 ms]
+    [after write] 01143000 ae_mode=1 exposure=40 (4.0 ms) gain=10: MATCHES (expected ae_mode=1 exposure=40 gain=10)
+  loc 0x01141000 (bus 1 addr 5 ports (1, 4, 1))
+    write ae_mode:=manual(1): 1 [4.6 ms]
+    write exposure:=40 (4.0 ms): 40 [4.6 ms]
+    write gain:=10: 10 [5.7 ms]
+    [after write] 01141000 ae_mode=1 exposure=40 (4.0 ms) gain=10: MATCHES (expected ae_mode=1 exposure=40 gain=10)
+  loc 0x00141000 (bus 0 addr 5 ports (1, 4, 1))
+    write ae_mode:=manual(1): 1 [4.6 ms]
+    write exposure:=40 (4.0 ms): 40 [4.7 ms]
+    write gain:=10: 10 [5.6 ms]
+    [after write] 00141000 ae_mode=1 exposure=40 (4.0 ms) gain=10: MATCHES (expected ae_mode=1 exposure=40 gain=10)
+
+[2026-11-19 10:35:20] PHASE 3: stream start (opened as the recorder opens it)
+  config /Users/rat_hub_01/Desktop/ratrixcam-uvc/uvc/camera_config_5.json: 8 camera entries; entry 0 = {'subjID': '999', 'view': 'view1', 'position': 'A', 'width': 640, 'height': 480, 'fps': 30} (format only; control requests select cameras by USB id 0x0c45:0x6369)
+  cv2 4.11.0 VideoCapture(0) isOpened=True backend=AVFOUNDATION open+set took 1051 ms
+  FORMAT requested 640x480 @ 30 fps (from /Users/rat_hub_01/Desktop/ratrixcam-uvc/uvc/camera_config_5.json, entry 0); capture reports 640x480 @ 30.0 fps
+    [right after open] 01143000 ae_mode=1 exposure=40 (4.0 ms) gain=10: MATCHES (expected ae_mode=1 exposure=40 gain=10)
+    [right after open] 01141000 ae_mode=1 exposure=40 (4.0 ms) gain=10: MATCHES (expected ae_mode=1 exposure=40 gain=10)
+    [right after open] 00141000 ae_mode=1 exposure=40 (4.0 ms) gain=10: MATCHES (expected ae_mode=1 exposure=40 gain=10)
+    stream [streaming with manual set beforehand] 3.0s: frames=89 failed_reads=0 fps=29.6 mean_brightness=85.4
+    [after 4 s streaming] 01143000 ae_mode=1 exposure=40 (4.0 ms) gain=10: MATCHES (expected ae_mode=1 exposure=40 gain=10)
+    [after 4 s streaming] 01141000 ae_mode=1 exposure=40 (4.0 ms) gain=10: MATCHES (expected ae_mode=1 exposure=40 gain=10)
+    [after 4 s streaming] 00141000 ae_mode=1 exposure=40 (4.0 ms) gain=10: MATCHES (expected ae_mode=1 exposure=40 gain=10)
+    brightness: auto baseline 135.4, after stream start with manual 85.4: darker, consistent with the manual exposure being in force
+    [after stream stop] 01143000 ae_mode=1 exposure=40 (4.0 ms) gain=10: MATCHES (expected ae_mode=1 exposure=40 gain=10)
+    [after stream stop] 01141000 ae_mode=1 exposure=40 (4.0 ms) gain=10: MATCHES (expected ae_mode=1 exposure=40 gain=10)
+    [after stream stop] 00141000 ae_mode=1 exposure=40 (4.0 ms) gain=10: MATCHES (expected ae_mode=1 exposure=40 gain=10)
+
+[2026-11-19 10:35:26] PHASE 4: unplug and replug
+>>> UNPLUG ONE target camera now (any one), wait about 5 s, then plug it back into the SAME port.
+    waiting up to 120 s for it to disappear...
+[2026-11-19 10:37:19] disappeared: 0x01141000. Now plug it back in.
+[2026-11-19 10:37:29] re-enumerated: 0x01141000, 0x01143000, 0x00141000
+  loc 0x01141000 (bus 1 addr 5 ports (1, 4, 1)) (the replugged camera)
+    [after re-enumeration, no stream] 01141000 ae_mode=8 exposure=157 (15.7 ms) gain=0: DIFFERS (expected ae_mode=1 exposure=40 gain=10)
+  loc 0x01143000 (bus 1 addr 6 ports (1, 4, 3))
+    [after re-enumeration, no stream] 01143000 ae_mode=1 exposure=40 (4.0 ms) gain=10: MATCHES (expected ae_mode=1 exposure=40 gain=10)
+  loc 0x00141000 (bus 0 addr 5 ports (1, 4, 1))
+    [after re-enumeration, no stream] 00141000 ae_mode=1 exposure=40 (4.0 ms) gain=10: MATCHES (expected ae_mode=1 exposure=40 gain=10)
+  config /Users/rat_hub_01/Desktop/ratrixcam-uvc/uvc/camera_config_5.json: 8 camera entries; entry 0 = {'subjID': '999', 'view': 'view1', 'position': 'A', 'width': 640, 'height': 480, 'fps': 30} (format only; control requests select cameras by USB id 0x0c45:0x6369)
+  cv2 4.11.0 VideoCapture(0) isOpened=True backend=AVFOUNDATION open+set took 2057 ms
+  FORMAT requested 640x480 @ 30 fps (from /Users/rat_hub_01/Desktop/ratrixcam-uvc/uvc/camera_config_5.json, entry 0); capture reports 640x480 @ 30.0 fps
+    stream [stream after re-enumeration] 3.0s: frames=0 failed_reads=2 fps=0.0 mean_brightness=nan
+    [after re-enumeration + stream start] 01141000 ae_mode=8 exposure=157 (15.7 ms) gain=0: DIFFERS (expected ae_mode=1 exposure=40 gain=10)
+    [after re-enumeration + stream start] 01143000 ae_mode=1 exposure=40 (4.0 ms) gain=10: MATCHES (expected ae_mode=1 exposure=40 gain=10)
+    [after re-enumeration + stream start] 00141000 ae_mode=1 exposure=40 (4.0 ms) gain=10: MATCHES (expected ae_mode=1 exposure=40 gain=10)
+
+[2026-11-19 10:37:36] RESTORE every target to its defaults
+  loc 0x01141000 (bus 1 addr 5 ports (1, 4, 1))
+    restore: ae_mode:=manual(1) first, so exposure accepts the write: 1 [4.7 ms]
+    restore exposure:=157 (default): 157 [4.6 ms]
+    restore gain:=0 (default): 0 [6.0 ms]
+    restore ae_mode:=8 (default): 8 [4.6 ms]
+    read-back exposure=157 [0.7 ms] OK
+    read-back gain=0 [0.8 ms] OK
+    read-back ae_mode=8 [0.8 ms] OK
+  loc 0x01143000 (bus 1 addr 6 ports (1, 4, 3))
+    restore: ae_mode:=manual(1) first, so exposure accepts the write: 1 [0.9 ms]
+    restore exposure:=157 (default): 157 [4.5 ms]
+    restore gain:=0 (default): 0 [5.7 ms]
+    restore ae_mode:=8 (default): 8 [4.5 ms]
+    read-back exposure=157 [1.0 ms] OK
+    read-back gain=0 [0.8 ms] OK
+    read-back ae_mode=8 [0.9 ms] OK
+  loc 0x00141000 (bus 0 addr 5 ports (1, 4, 1))
+    restore: ae_mode:=manual(1) first, so exposure accepts the write: 1 [0.9 ms]
+    restore exposure:=157 (default): 157 [4.5 ms]
+    restore gain:=0 (default): 0 [5.6 ms]
+    restore ae_mode:=8 (default): 8 [4.4 ms]
+    read-back exposure=157 [0.8 ms] OK
+    read-back gain=0 [0.7 ms] OK
+    read-back ae_mode=8 [0.7 ms] OK
+[2026-11-19 10:37:36] restore OK on all targets present
