@@ -146,6 +146,25 @@ sizes are from the descriptors (`uvc/logs/list-all-run2.log`).
   alternative, a Linux host with the stock uvcvideo driver and its trace options, avoids
   both.
 
+## 7. Outcome (added after the developer's `avfoundation_probe_report_20261119.md`)
+
+- The developer's AVFoundation-level capture shows no missing frames on any kind. The
+  USB-clock stamps form a uniform sequence with no hole, and the dropped-frame callback
+  never fires.
+- Each kind runs at its own wire rate: A 29.60, B 30.55, C 29.35 fps. OpenCV delivers the
+  same count. This prototype's single-camera rates in section 3 agree (A 29.62, B 30.16,
+  C 29.53 at 352x288).
+- The 42/41 and 31/30 beat is in how the host hands frames over (callbacks every 33.1 ms,
+  then one pause). It is not a frame lost on the Mac.
+- **Correction to this file's earlier hypothesis.** The guess was "an empty slot on the
+  camera's USB-side grid". That is not supported: on the wire, the stream is uniform at the
+  kind's own rate. Whether the sensor skips internally cannot be seen from the host, and it
+  does not matter for the recording.
+- **Section 6's root/Linux FID/PTS capture is no longer needed for this question**, and it
+  is not planned.
+- The negotiated format agrees with the developer's. The camera-side commit reads MJPEG, and
+  AVFoundation reports the decoded MJPEG as '420v' 640x480.
+
 ## What to hand over
 
 This file and `uvc/frames_analysis.py` (standard library only; run it on the

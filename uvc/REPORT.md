@@ -17,7 +17,9 @@ Status (2026-11-19, after the kind B and C runs): **all three kinds (A 0x6369, B
   capture opens.
 - Open:
   - compensation in dim light (no kind tested);
-  - one unexplained stream stall on kind C (persist-C run 1), with a soak test proposed;
+  - one stream stall on kind C (persist-C run 1), now probably explained: it came 8 s after
+    another process released the same camera, a pattern the developer's AVFoundation probe
+    also saw (see the Kind C summary). Soak test deferred;
   - replug run 1's lost marker (kind A, unexplained).
 
 **Rig state: restored.** Every camera written to today was restored to its own defaults
@@ -541,6 +543,16 @@ kinds A and B: different format, different camera, different scene.
     its own new process, as the recorder runs them, with no control requests. It logs
     every gap of 1 s or more without a frame and whether frames resume. The stall logic
     was checked offline against a simulated 0.6 s stall.
+  - **Probable explanation (added after the developer's report,
+    `avfoundation_probe_report_20261119.md`, open question 3).** The developer saw OpenCV
+    return almost no frames for several seconds right after another session on the same
+    device closed: 26 frames in 60 s once, 29 in 8 s once, and the next open was normal.
+    persist-C run 1 opened 8 s after gainsweep-C run 1 released port 4 (12:30:15 to 12:30:23).
+    persist-C run 2, 2.5 min later, streamed normally. So the stall most likely follows a
+    quick reopen and is not specific to kind C. The soak test is deferred. Future probe runs
+    on one camera leave about a minute between runs.
+  - The supervisor pass recommended here sends control requests only and opens no capture
+    session, so it does not set up this reopen condition.
 
 ## The three kinds compared
 

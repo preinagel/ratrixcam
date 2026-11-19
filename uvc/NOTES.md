@@ -76,8 +76,12 @@ B and C differ only by name string. B has an extra H.264 stream and no 800x600. 
   libusb isochronous reader on macOS (outside the brief; user's decision), or a Linux host.
   A cheap test (stopwatch in view; timestamp jump of 1 vs 2 periods across a gap) was
   suggested; the user has noted it elsewhere.
-- The developer is running AVFoundation-level tests; the user will send a report. Wait
-  for it.
+- **Resolved (developer's `avfoundation_probe_report_20261119.md`, root of the clone):**
+  - No frame is lost on the Mac: the AVFoundation USB-clock stamps are uniform with no hole.
+  - Each kind runs at its own wire rate (A 29.60, B 30.55, C 29.35). The beat is in the
+    host's delivery pacing.
+  - My "empty slot on the camera" hypothesis was withdrawn (FRAME_DROPS.md section 7).
+  - The FID/PTS root/Linux test is dropped.
 
 ## Rig state and pending work
 - Rig state: every camera written to was restored to its own defaults and read back OK
@@ -86,9 +90,13 @@ B and C differ only by name string. B has an extra H.264 stream and no 800x600. 
   probe header). If the developer moved cameras, ask for the new port layout first.
   - kind C at 640x480: `q1 --kind C --port 4 --index 3` (q1-C-run2),
     `gainsweep ...` (gainsweep-C-run2), `persist ...` (persist-C-run3);
-  - `soak --minutes 20` (soak-run1): kind C ports 4 and 7 plus kind A port 1, for the
-    stall rate. One unexplained kind C stall was seen in persist-C run 1.
-- Open questions in REPORT.md: dim-light compensation (no kind); replug run 1's lost
-  marker (kind A, unexplained one-off); the kind C stall; the C 640x480 reruns.
+  - Leave about 1 min between runs on the same camera. A quick reopen after another
+    session closes can give almost no frames (developer's open question 3). That is the
+    probable cause of the persist-C run 1 stall, 8 s after gainsweep-C.
+  - `soak --minutes 20` is deferred, not needed unless a stall recurs after a pause.
+- Open questions in REPORT.md:
+  - dim-light compensation (no kind; needs the rig in recording light; the user's call);
+  - replug run 1's lost marker (kind A, covered by the read-back-and-reapply hook);
+  - the C 640x480 reruns (the only remaining gap in the per-kind evidence).
 - `uvc/camera_config_5.json` is the probe's own config copy: all 8 entries at 640x480 @ 30
   (C entries moved from 352x288 to 640x480 at the critic's recommendation).
