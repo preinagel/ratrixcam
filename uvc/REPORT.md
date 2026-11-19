@@ -371,6 +371,34 @@ config entry 1, 640x480 @ 30.
 - Restored to B's defaults (exposure 156, gain 0, ae_mode 8) and read back OK; final read-back
   after release MATCHES the defaults.
 
+### Q2, kind B: persist-B run 1 (2026-11-19 12:27:34; `uvc/logs/persist-B-run1.log`)
+
+`uvc/.venv/bin/python uvc/probe.py persist --kind B --port 2 --index 1`
+- Identification: `index 1 is kind B at port 2 (0x01142000): brightness 149.7 -> 1.1 with the
+  marker`, restored and read back OK.
+- Auto baseline 154.6; camera-side commit MJPEG 640x480 @ 30.
+- Set with **no stream open**: ae_mode 1, exposure 40, gain 10, MATCHES.
+- **Stream start** (1690 ms): MATCHES right after the open and after 4 s; brightness 90.3 vs
+  154.6 auto (darker); 30.3 fps, 0 failed reads. **Stream stop:** MATCHES.
+- **Unplug/replug of port 2** (gone 12:27:57, back 12:28:10): **ae_mode 8, exposure 156, gain 0,
+  which DIFFERS: reverted to B's defaults**, before and after a new stream start.
+- The same-process reopen of index 1 after the replug gave 0 frames (3 failed reads), the same
+  old-process effect as kind A (persist run 2; replug runs 1-3).
+- Restored to B's defaults and read back OK.
+
+### Kind B summary
+
+1. **Q1: YES.** Requests are answered while AVFoundation streams it; manual 4 ms takes effect
+   (-42%) with no fps change (q1-B run 1).
+2. **Q2: stream start and stop YES; unplug/replug NO**, it reverts to its defaults
+   (persist-B run 1).
+3. **Q3: YES.** AE mode (manual / aperture-priority), exposure time (0.1-500 ms in 0.1 ms
+   steps, default 15.6 ms) and gain (0-100, default 0) were all written and read back.
+   Exposure accepts writes only in manual mode (the restores go via manual, as on A).
+- Goal 3 compensation: gain 40 at 4.0 ms nearest the auto brightness, in the room's light at
+  12:26 (gainsweep-B run 1).
+- Wire format at 640x480: MJPEG (camera-side commit), as on A.
+
 ## Hook recommendation
 
 **A pass in the supervisor, by USB id, run before every launch and every relaunch of a camera
@@ -817,3 +845,7 @@ It read every second for 40 s while streaming index 0, with cues to cover all le
   restored and read back OK; then manual, exposure 40, gain 0-100, restored (manual, exposure
   156, gain 0, ae_mode 8) and read back OK. Final read-back after release: ae_mode 8, exposure
   156, gain 0, MATCHES. No other camera was written to.
+- **persist-B run 1 (2026-11-19 12:27:34), kind B port 2 only**: identification marker,
+  restored and read back OK; then ae_mode 1, exposure 40, gain 10 with no stream. The camera
+  reverted to its defaults by itself on its replug. Restored at 12:28:16 (manual, exposure
+  156, gain 0, ae_mode 8) and read back OK. No other camera was written to.

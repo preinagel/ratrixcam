@@ -1,0 +1,76 @@
+[2026-11-19 12:27:34] probe.py persist  python 3.13.5  pid 9432
+[2026-11-19 12:27:34] recording check: /Users/rat_hub_01/Desktop/temp absent, ok
+[2026-11-19 12:27:34] selected 1 camera(s) of kind B (0x0c45:0x6366 "USB 2.0 Camera") on port 2: ports 2
+[2026-11-19 12:27:34] manual setting under test: exposure 4.0 ms, gain 10
+
+[2026-11-19 12:27:34] IDENTIFY: which of the 1 selected camera(s) is behind index 1
+  config /Users/rat_hub_01/Desktop/ratrixcam-uvc/uvc/camera_config_5.json: 8 camera entries; entry 1 = {'subjID': '999', 'view': 'view2', 'position': 'B', 'width': 640, 'height': 480, 'fps': 30} (format only; control requests select cameras by kind: vendor id, product id and name string)
+  cv2 4.11.0 VideoCapture(1) isOpened=True backend=AVFOUNDATION open+set took 1437 ms
+  FORMAT requested 640x480 @ 30 fps (from /Users/rat_hub_01/Desktop/ratrixcam-uvc/uvc/camera_config_5.json, entry 1); capture reports 640x480 @ 30.0 fps
+    stream [identify: warm-up] 2.0s: frames=52 failed_reads=0 fps=31.4 mean_brightness=146.2
+    stream [identify: baseline] 1.5s: frames=46 failed_reads=0 fps=30.3 mean_brightness=149.7
+  candidate kind B port 2 loc 0x01142000 (bus 1 addr 8 ports (1, 4, 2))
+    write ae_mode:=manual(1): 1 [0.6 ms]
+    write exposure:=1 (0.1 ms): 1 [0.4 ms]
+    write gain:=0: 0 [0.5 ms]
+    [after write] kind B port 2 01142000 ae_mode=1 exposure=1 (0.1 ms) gain=0: MATCHES (expected ae_mode=1 exposure=1 gain=0)
+    stream [identify: marker on port 2] 1.5s: frames=46 failed_reads=0 fps=30.3 mean_brightness=1.1
+    restore [kind B port 2]: ae_mode:=manual(1) first, so exposure accepts the write: 1 [0.5 ms]
+    restore exposure:=156 (default): 156 [0.5 ms]
+    restore gain:=0 (default): 0 [0.5 ms]
+    restore ae_mode:=8 (default): 8 [0.5 ms]
+    read-back [kind B port 2] exposure=156 [0.5 ms] OK
+    read-back [kind B port 2] gain=0 [0.5 ms] OK
+    read-back [kind B port 2] ae_mode=8 [0.5 ms] OK
+index 1 is kind B at port 2 (0x01142000): brightness 149.7 -> 1.1 with the marker
+
+[2026-11-19 12:27:41] PHASE 1: auto baseline brightness (stream at the recorder's format)
+  config /Users/rat_hub_01/Desktop/ratrixcam-uvc/uvc/camera_config_5.json: 8 camera entries; entry 1 = {'subjID': '999', 'view': 'view2', 'position': 'B', 'width': 640, 'height': 480, 'fps': 30} (format only; control requests select cameras by kind: vendor id, product id and name string)
+  cv2 4.11.0 VideoCapture(1) isOpened=True backend=AVFOUNDATION open+set took 1659 ms
+  FORMAT requested 640x480 @ 30 fps (from /Users/rat_hub_01/Desktop/ratrixcam-uvc/uvc/camera_config_5.json, entry 1); capture reports 640x480 @ 30.0 fps
+    stream [warm-up] 3.0s: frames=91 failed_reads=0 fps=30.3 mean_brightness=118.7
+  FORMAT measured frame size: 640x480
+  FORMAT cv2 CAP_PROP_FOURCC: 0 '' (what the backend reports; may be its output, not the wire format)
+  FORMAT camera-side commit, port 2 (0x01142000): format 1 = MJPEG, frame 3 = 640x480, 30.0 fps; max frame 614989 B, max payload 800 B
+    stream [auto baseline] 2.0s: frames=61 failed_reads=0 fps=30.3 mean_brightness=154.6
+
+[2026-11-19 12:27:47] PHASE 2: set manual with NO stream open
+  loc 0x01142000 (bus 1 addr 8 ports (1, 4, 2))
+    write ae_mode:=manual(1): 1 [0.7 ms]
+    write exposure:=40 (4.0 ms): 40 [0.4 ms]
+    write gain:=10: 10 [0.7 ms]
+    [after write] kind B port 2 01142000 ae_mode=1 exposure=40 (4.0 ms) gain=10: MATCHES (expected ae_mode=1 exposure=40 gain=10)
+
+[2026-11-19 12:27:47] PHASE 3: stream start (opened as the recorder opens it)
+  config /Users/rat_hub_01/Desktop/ratrixcam-uvc/uvc/camera_config_5.json: 8 camera entries; entry 1 = {'subjID': '999', 'view': 'view2', 'position': 'B', 'width': 640, 'height': 480, 'fps': 30} (format only; control requests select cameras by kind: vendor id, product id and name string)
+  cv2 4.11.0 VideoCapture(1) isOpened=True backend=AVFOUNDATION open+set took 1690 ms
+  FORMAT requested 640x480 @ 30 fps (from /Users/rat_hub_01/Desktop/ratrixcam-uvc/uvc/camera_config_5.json, entry 1); capture reports 640x480 @ 30.0 fps
+    [right after open] kind B port 2 01142000 ae_mode=1 exposure=40 (4.0 ms) gain=10: MATCHES (expected ae_mode=1 exposure=40 gain=10)
+    stream [streaming with manual set beforehand] 3.0s: frames=91 failed_reads=0 fps=30.3 mean_brightness=90.3
+    [after 4 s streaming] kind B port 2 01142000 ae_mode=1 exposure=40 (4.0 ms) gain=10: MATCHES (expected ae_mode=1 exposure=40 gain=10)
+    brightness: auto baseline 154.6, after stream start with manual 90.3: darker, consistent with the manual exposure being in force
+    [after stream stop] kind B port 2 01142000 ae_mode=1 exposure=40 (4.0 ms) gain=10: MATCHES (expected ae_mode=1 exposure=40 gain=10)
+
+[2026-11-19 12:27:53] PHASE 4: unplug and replug
+>>> UNPLUG the kind B camera on PORT 2 now. Other ports are not watched. Wait about 5 s, then plug it back into the SAME port.
+    waiting up to 120 s for it to disappear...
+[2026-11-19 12:27:57] disappeared: 0x01142000. Now plug it back in.
+[2026-11-19 12:28:10] re-enumerated: 0x01142000
+  loc 0x01142000 (bus 1 addr 8 ports (1, 4, 2)) (the replugged camera)
+    [after re-enumeration, no stream] kind B port 2 01142000 ae_mode=8 exposure=156 (15.6 ms) gain=0: DIFFERS (expected ae_mode=1 exposure=40 gain=10)
+  config /Users/rat_hub_01/Desktop/ratrixcam-uvc/uvc/camera_config_5.json: 8 camera entries; entry 1 = {'subjID': '999', 'view': 'view2', 'position': 'B', 'width': 640, 'height': 480, 'fps': 30} (format only; control requests select cameras by kind: vendor id, product id and name string)
+  cv2 4.11.0 VideoCapture(1) isOpened=True backend=AVFOUNDATION open+set took 2055 ms
+  FORMAT requested 640x480 @ 30 fps (from /Users/rat_hub_01/Desktop/ratrixcam-uvc/uvc/camera_config_5.json, entry 1); capture reports 640x480 @ 30.0 fps
+    stream [stream after re-enumeration] 3.0s: frames=0 failed_reads=3 fps=0.0 mean_brightness=nan
+    [after re-enumeration + stream start] kind B port 2 01142000 ae_mode=8 exposure=156 (15.6 ms) gain=0: DIFFERS (expected ae_mode=1 exposure=40 gain=10)
+
+[2026-11-19 12:28:16] RESTORE every camera written to, to its own defaults
+  kind B port 2  loc 0x01142000 (bus 1 addr 8 ports (1, 4, 2))
+    restore [kind B port 2]: ae_mode:=manual(1) first, so exposure accepts the write: 1 [0.6 ms]
+    restore exposure:=156 (default): 156 [0.6 ms]
+    restore gain:=0 (default): 0 [0.6 ms]
+    restore ae_mode:=8 (default): 8 [0.6 ms]
+    read-back [kind B port 2] exposure=156 [0.6 ms] OK
+    read-back [kind B port 2] gain=0 [0.8 ms] OK
+    read-back [kind B port 2] ae_mode=8 [0.6 ms] OK
+[2026-11-19 12:28:16] restore OK on every camera written to
