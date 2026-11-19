@@ -26,6 +26,13 @@
       "Read(//Users/rat_hub_01/Desktop/ratrixcam/**)",
       "Read(//Users/rat_hub_01/Desktop/ratrixcam-gui/**)",
       "Read(//Users/rat_hub_01/Desktop/ratrixcam-legacy/**)",
+      "Read(~/Documents/**)",
+      "Read(~/Downloads/**)",
+      "Read(~/Pictures/**)",
+      "Read(~/Movies/**)",
+      "Read(~/Music/**)",
+      "Read(~/Library/Calendars/**)",
+      "Read(~/Library/Reminders/**)",
       "Bash(git push *)",
       "Bash(git worktree *)",
       "Bash(git remote *)",
@@ -47,7 +54,11 @@
     "allowUnsandboxedCommands": false,
     "autoAllowBashIfSandboxed": true,
     "filesystem": {
-      "denyRead": ["/Volumes/rlab2", "~/.ssh", "~/.aws"]
+      "denyRead": [
+        "/Volumes/rlab2", "~/.ssh", "~/.aws",
+        "~/Documents", "~/Downloads", "~/Pictures", "~/Movies", "~/Music",
+        "~/Library/Calendars", "~/Library/Reminders"
+      ]
     },
     "network": {
       "allowedDomains": [
