@@ -457,8 +457,11 @@ kinds A and B: different format, different camera, different scene.
   the **baseline window got 0 frames with 2 failed reads**: the stream stalled after about
   1 s. The identification check stopped the run ("baseline brightness nan"). **No control
   was written**: the stop came before the marker, so nothing needed restoring.
-- The gain sweep had released the same camera 8 s earlier (12:30:15). The cause of the
-  stall is not known. Pending: whether port 4 was touched before the prompt, and a rerun.
+- The gain sweep had released the same camera 8 s earlier (12:30:15). **The user confirms
+  no camera was touched before, during or after the three kind C runs.** So this is an
+  unprompted stall of kind C's stream on port 4, about 1 s after a successful open. Its
+  cause is unexplained. Neither kind A nor kind B stalled in any run. Rerun pending
+  (persist-C run 2).
 
 ## Hook recommendation
 
