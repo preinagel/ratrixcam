@@ -1,0 +1,212 @@
+[2026-11-19 11:39:57] probe.py replug  python 3.13.5  pid 8369
+[2026-11-19 11:39:57] recording check: /Users/rat_hub_01/Desktop/temp absent, ok
+[2026-11-19 11:39:57] marked camera: port 1 loc 0x01141000 (bus 1 addr 5 ports (1, 4, 1)); marker = manual, exposure 1 (0.1 ms), gain 0
+    write ae_mode:=manual(1): 1 [4.7 ms]
+    write exposure:=1 (0.1 ms): 1 [4.6 ms]
+    write gain:=0: 0 [6.0 ms]
+    [after write] 01141000 ae_mode=1 exposure=1 (0.1 ms) gain=0: MATCHES (expected ae_mode=1 exposure=1 gain=0)
+
+[2026-11-19 11:39:58] BEFORE the unplug
+  cv2 4.11.0 VideoCapture(0) isOpened=True backend=AVFOUNDATION open+set took 1130 ms
+  FORMAT requested 640x480 @ 30 fps (from command line); capture reports 640x480 @ 30.0 fps
+  [2026-11-19 11:40:01] before: same-process VideoCapture(0): opened=True frames=60 failed_reads=0 mean_brightness=4.8
+    [before: after same-process open] 01141000 ae_mode=1 exposure=1 (0.1 ms) gain=0: MATCHES (expected ae_mode=1 exposure=1 gain=0)
+  [2026-11-19 11:40:01] before: fresh process streams index 0 for 6 s; controls read while it streams
+    [before: DURING fresh-process stream] 01141000 ae_mode=1 exposure=1 (0.1 ms) gain=0: MATCHES (expected ae_mode=1 exposure=1 gain=0)
+    | SCAN index 0: opened=True frames=167 failed_reads=0 mean_brightness=5.2
+    [before: after fresh-process stream] 01141000 ae_mode=1 exposure=1 (0.1 ms) gain=0: MATCHES (expected ae_mode=1 exposure=1 gain=0)
+  [2026-11-19 11:40:08] before: fresh-process scan of indices 0-9
+    | FORMAT requested 640x480 @ 30 fps (from command line); capture reports 640x480 @ 30.0 fps
+    | SCAN index 0: opened=True frames=29 failed_reads=0 mean_brightness=5.2
+    | FORMAT requested 640x480 @ 30 fps (from command line); capture reports 640x480 @ 30.0 fps
+    | SCAN index 1: opened=True frames=31 failed_reads=0 mean_brightness=141.2
+    | FORMAT requested 640x480 @ 30 fps (from command line); capture reports 640x480 @ 30.0 fps
+    | SCAN index 2: opened=True frames=30 failed_reads=0 mean_brightness=129.8
+    | FORMAT requested 352x288 @ 30 fps (from command line); capture reports 352x288 @ 30.0 fps
+    | SCAN index 3: opened=True frames=29 failed_reads=0 mean_brightness=95.6
+    | FORMAT requested 640x480 @ 30 fps (from command line); capture reports 640x480 @ 30.0 fps
+    | SCAN index 4: opened=True frames=29 failed_reads=0 mean_brightness=129.8
+    | FORMAT requested 640x480 @ 30 fps (from command line); capture reports 640x480 @ 30.0 fps
+    | SCAN index 5: opened=True frames=32 failed_reads=0 mean_brightness=150.8
+    | FORMAT requested 352x288 @ 30 fps (from command line); capture reports 352x288 @ 30.0 fps
+    | SCAN index 6: opened=True frames=29 failed_reads=0 mean_brightness=111.3
+    | FORMAT requested 640x480 @ 30 fps (from command line); capture reports 640x480 @ 30.0 fps
+    | SCAN index 7: opened=True frames=32 failed_reads=0 mean_brightness=126.7
+    | FORMAT requested 640x480 @ 30 fps (from command line); capture reports 0x0 @ 0.0 fps
+    | SCAN index 8: opened=False frames=0 failed_reads=0 mean_brightness=-
+    | FORMAT requested 640x480 @ 30 fps (from command line); capture reports 0x0 @ 0.0 fps
+    | SCAN index 9: opened=False frames=0 failed_reads=0 mean_brightness=-
+    before: delivering indices [0, 1, 2, 3, 4, 5, 6, 7]; dark marker at index [0] (median brightness 129.8)
+    [before: after fresh-process scan] 01141000 ae_mode=1 exposure=1 (0.1 ms) gain=0: MATCHES (expected ae_mode=1 exposure=1 gain=0)
+
+>>> UNPLUG the camera on PORT 1 now, wait about 5 s, then plug it back into port 1.
+[2026-11-19 11:40:30] disappeared: ['0x01141000']
+[2026-11-19 11:40:46] re-enumerated (t=0 for the checks below)
+    [after replug, expected = defaults] 01141000 ae_mode=8 exposure=157 (15.7 ms) gain=0: MATCHES (expected ae_mode=8 exposure=157 gain=0)
+    write ae_mode:=manual(1): 1 [4.5 ms]
+    write exposure:=1 (0.1 ms): 1 [4.6 ms]
+    write gain:=0: 0 [5.9 ms]
+    [after write] 01141000 ae_mode=1 exposure=1 (0.1 ms) gain=0: MATCHES (expected ae_mode=1 exposure=1 gain=0)
+
+[2026-11-19 11:40:49] CHECK at t=3 s after re-enumeration
+    [t+3s: start of check] 01141000 ae_mode=1 exposure=1 (0.1 ms) gain=0: MATCHES (expected ae_mode=1 exposure=1 gain=0)
+  cv2 4.11.0 VideoCapture(0) isOpened=True backend=AVFOUNDATION open+set took 2052 ms
+  FORMAT requested 640x480 @ 30 fps (from command line); capture reports 640x480 @ 30.0 fps
+  [2026-11-19 11:40:53] t+3s: same-process VideoCapture(0): opened=True frames=0 failed_reads=1 mean_brightness=-
+    [t+3s: after same-process open] 01141000 ae_mode=1 exposure=1 (0.1 ms) gain=0: MATCHES (expected ae_mode=1 exposure=1 gain=0)
+  [2026-11-19 11:40:53] t+3s: fresh process streams index 0 for 6 s; controls read while it streams
+    [t+3s: DURING fresh-process stream] 01141000 ae_mode=1 exposure=1 (0.1 ms) gain=0: MATCHES (expected ae_mode=1 exposure=1 gain=0)
+    | SCAN index 0: opened=True frames=178 failed_reads=0 mean_brightness=5.4
+    [t+3s: after fresh-process stream] 01141000 ae_mode=1 exposure=1 (0.1 ms) gain=0: MATCHES (expected ae_mode=1 exposure=1 gain=0)
+  [2026-11-19 11:41:00] t+3s: fresh-process scan of indices 0-9
+    | FORMAT requested 640x480 @ 30 fps (from command line); capture reports 640x480 @ 30.0 fps
+    | SCAN index 0: opened=True frames=30 failed_reads=0 mean_brightness=5.6
+    | FORMAT requested 640x480 @ 30 fps (from command line); capture reports 640x480 @ 30.0 fps
+    | SCAN index 1: opened=True frames=31 failed_reads=0 mean_brightness=159.9
+    | FORMAT requested 640x480 @ 30 fps (from command line); capture reports 640x480 @ 30.0 fps
+    | SCAN index 2: opened=True frames=30 failed_reads=0 mean_brightness=128.8
+    | FORMAT requested 352x288 @ 30 fps (from command line); capture reports 352x288 @ 30.0 fps
+    | SCAN index 3: opened=True frames=29 failed_reads=0 mean_brightness=92.1
+    | FORMAT requested 640x480 @ 30 fps (from command line); capture reports 640x480 @ 30.0 fps
+    | SCAN index 4: opened=True frames=30 failed_reads=0 mean_brightness=130.0
+    | FORMAT requested 640x480 @ 30 fps (from command line); capture reports 640x480 @ 30.0 fps
+    | SCAN index 5: opened=True frames=31 failed_reads=0 mean_brightness=169.7
+    | FORMAT requested 352x288 @ 30 fps (from command line); capture reports 352x288 @ 30.0 fps
+    | SCAN index 6: opened=True frames=29 failed_reads=0 mean_brightness=110.3
+    | FORMAT requested 640x480 @ 30 fps (from command line); capture reports 640x480 @ 30.0 fps
+    | SCAN index 7: opened=True frames=31 failed_reads=0 mean_brightness=126.5
+    | FORMAT requested 640x480 @ 30 fps (from command line); capture reports 0x0 @ 0.0 fps
+    | SCAN index 8: opened=False frames=0 failed_reads=0 mean_brightness=-
+    | FORMAT requested 640x480 @ 30 fps (from command line); capture reports 0x0 @ 0.0 fps
+    | SCAN index 9: opened=False frames=0 failed_reads=0 mean_brightness=-
+    t+3s: delivering indices [0, 1, 2, 3, 4, 5, 6, 7]; dark marker at index [0] (median brightness 128.8)
+    [t+3s: after fresh-process scan] 01141000 ae_mode=1 exposure=1 (0.1 ms) gain=0: MATCHES (expected ae_mode=1 exposure=1 gain=0)
+
+[2026-11-19 11:41:20] CHECK at t=34 s after re-enumeration
+    [t+30s: start of check] 01141000 ae_mode=1 exposure=1 (0.1 ms) gain=0: MATCHES (expected ae_mode=1 exposure=1 gain=0)
+  cv2 4.11.0 VideoCapture(0) isOpened=True backend=AVFOUNDATION open+set took 2039 ms
+  FORMAT requested 640x480 @ 30 fps (from command line); capture reports 640x480 @ 30.0 fps
+  [2026-11-19 11:41:24] t+30s: same-process VideoCapture(0): opened=True frames=0 failed_reads=1 mean_brightness=-
+    [t+30s: after same-process open] 01141000 ae_mode=1 exposure=1 (0.1 ms) gain=0: MATCHES (expected ae_mode=1 exposure=1 gain=0)
+  [2026-11-19 11:41:24] t+30s: fresh process streams index 0 for 6 s; controls read while it streams
+    [t+30s: DURING fresh-process stream] 01141000 ae_mode=1 exposure=1 (0.1 ms) gain=0: MATCHES (expected ae_mode=1 exposure=1 gain=0)
+    | SCAN index 0: opened=True frames=178 failed_reads=0 mean_brightness=5.7
+    [t+30s: after fresh-process stream] 01141000 ae_mode=1 exposure=1 (0.1 ms) gain=0: MATCHES (expected ae_mode=1 exposure=1 gain=0)
+  [2026-11-19 11:41:32] t+30s: fresh-process scan of indices 0-9
+    | FORMAT requested 640x480 @ 30 fps (from command line); capture reports 640x480 @ 30.0 fps
+    | SCAN index 0: opened=True frames=30 failed_reads=0 mean_brightness=5.5
+    | FORMAT requested 640x480 @ 30 fps (from command line); capture reports 640x480 @ 30.0 fps
+    | SCAN index 1: opened=True frames=31 failed_reads=0 mean_brightness=144.9
+    | FORMAT requested 640x480 @ 30 fps (from command line); capture reports 640x480 @ 30.0 fps
+    | SCAN index 2: opened=True frames=30 failed_reads=0 mean_brightness=130.3
+    | FORMAT requested 352x288 @ 30 fps (from command line); capture reports 352x288 @ 30.0 fps
+    | SCAN index 3: opened=True frames=29 failed_reads=0 mean_brightness=93.1
+    | FORMAT requested 640x480 @ 30 fps (from command line); capture reports 640x480 @ 30.0 fps
+    | SCAN index 4: opened=True frames=19 failed_reads=0 mean_brightness=128.2
+    | FORMAT requested 640x480 @ 30 fps (from command line); capture reports 640x480 @ 30.0 fps
+    | SCAN index 5: opened=True frames=30 failed_reads=0 mean_brightness=136.7
+    | FORMAT requested 352x288 @ 30 fps (from command line); capture reports 352x288 @ 30.0 fps
+    | SCAN index 6: opened=True frames=22 failed_reads=0 mean_brightness=110.7
+    | FORMAT requested 640x480 @ 30 fps (from command line); capture reports 640x480 @ 30.0 fps
+    | SCAN index 7: opened=True frames=20 failed_reads=0 mean_brightness=124.7
+    | FORMAT requested 640x480 @ 30 fps (from command line); capture reports 0x0 @ 0.0 fps
+    | SCAN index 8: opened=False frames=0 failed_reads=0 mean_brightness=-
+    | FORMAT requested 640x480 @ 30 fps (from command line); capture reports 0x0 @ 0.0 fps
+    | SCAN index 9: opened=False frames=0 failed_reads=0 mean_brightness=-
+    t+30s: delivering indices [0, 1, 2, 3, 4, 5, 6, 7]; dark marker at index [0] (median brightness 128.2)
+    [t+30s: after fresh-process scan] 01141000 ae_mode=1 exposure=1 (0.1 ms) gain=0: MATCHES (expected ae_mode=1 exposure=1 gain=0)
+
+[2026-11-19 11:41:50] CHECK at t=64 s after re-enumeration
+    [t+60s: start of check] 01141000 ae_mode=1 exposure=1 (0.1 ms) gain=0: MATCHES (expected ae_mode=1 exposure=1 gain=0)
+  cv2 4.11.0 VideoCapture(0) isOpened=True backend=AVFOUNDATION open+set took 2038 ms
+  FORMAT requested 640x480 @ 30 fps (from command line); capture reports 640x480 @ 30.0 fps
+  [2026-11-19 11:41:54] t+60s: same-process VideoCapture(0): opened=True frames=0 failed_reads=1 mean_brightness=-
+    [t+60s: after same-process open] 01141000 ae_mode=1 exposure=1 (0.1 ms) gain=0: MATCHES (expected ae_mode=1 exposure=1 gain=0)
+  [2026-11-19 11:41:54] t+60s: fresh process streams index 0 for 6 s; controls read while it streams
+    [t+60s: DURING fresh-process stream] 01141000 ae_mode=1 exposure=1 (0.1 ms) gain=0: MATCHES (expected ae_mode=1 exposure=1 gain=0)
+    | SCAN index 0: opened=True frames=167 failed_reads=0 mean_brightness=5.8
+    [t+60s: after fresh-process stream] 01141000 ae_mode=1 exposure=1 (0.1 ms) gain=0: MATCHES (expected ae_mode=1 exposure=1 gain=0)
+  [2026-11-19 11:42:01] t+60s: fresh-process scan of indices 0-9
+    | FORMAT requested 640x480 @ 30 fps (from command line); capture reports 640x480 @ 30.0 fps
+    | SCAN index 0: opened=True frames=30 failed_reads=0 mean_brightness=5.6
+    | FORMAT requested 640x480 @ 30 fps (from command line); capture reports 640x480 @ 30.0 fps
+    | SCAN index 1: opened=True frames=31 failed_reads=0 mean_brightness=158.9
+    | FORMAT requested 640x480 @ 30 fps (from command line); capture reports 640x480 @ 30.0 fps
+    | SCAN index 2: opened=True frames=30 failed_reads=0 mean_brightness=130.6
+    | FORMAT requested 352x288 @ 30 fps (from command line); capture reports 352x288 @ 30.0 fps
+    | SCAN index 3: opened=True frames=29 failed_reads=0 mean_brightness=93.0
+    | FORMAT requested 640x480 @ 30 fps (from command line); capture reports 640x480 @ 30.0 fps
+    | SCAN index 4: opened=True frames=30 failed_reads=0 mean_brightness=130.5
+    | FORMAT requested 640x480 @ 30 fps (from command line); capture reports 640x480 @ 30.0 fps
+    | SCAN index 5: opened=True frames=22 failed_reads=0 mean_brightness=146.5
+    | FORMAT requested 352x288 @ 30 fps (from command line); capture reports 352x288 @ 30.0 fps
+    | SCAN index 6: opened=True frames=29 failed_reads=0 mean_brightness=108.1
+    | FORMAT requested 640x480 @ 30 fps (from command line); capture reports 640x480 @ 30.0 fps
+    | SCAN index 7: opened=True frames=21 failed_reads=0 mean_brightness=124.3
+    | FORMAT requested 640x480 @ 30 fps (from command line); capture reports 0x0 @ 0.0 fps
+    | SCAN index 8: opened=False frames=0 failed_reads=0 mean_brightness=-
+    | FORMAT requested 640x480 @ 30 fps (from command line); capture reports 0x0 @ 0.0 fps
+    | SCAN index 9: opened=False frames=0 failed_reads=0 mean_brightness=-
+    t+60s: delivering indices [0, 1, 2, 3, 4, 5, 6, 7]; dark marker at index [0] (median brightness 130.5)
+    [t+60s: after fresh-process scan] 01141000 ae_mode=1 exposure=1 (0.1 ms) gain=0: MATCHES (expected ae_mode=1 exposure=1 gain=0)
+
+[2026-11-19 11:42:46] CHECK at t=120 s after re-enumeration
+    [t+120s: start of check] 01141000 ae_mode=1 exposure=1 (0.1 ms) gain=0: MATCHES (expected ae_mode=1 exposure=1 gain=0)
+  cv2 4.11.0 VideoCapture(0) isOpened=True backend=AVFOUNDATION open+set took 2066 ms
+  FORMAT requested 640x480 @ 30 fps (from command line); capture reports 640x480 @ 30.0 fps
+  [2026-11-19 11:42:50] t+120s: same-process VideoCapture(0): opened=True frames=0 failed_reads=1 mean_brightness=-
+    [t+120s: after same-process open] 01141000 ae_mode=1 exposure=1 (0.1 ms) gain=0: MATCHES (expected ae_mode=1 exposure=1 gain=0)
+  [2026-11-19 11:42:50] t+120s: fresh process streams index 0 for 6 s; controls read while it streams
+    [t+120s: DURING fresh-process stream] 01141000 ae_mode=1 exposure=1 (0.1 ms) gain=0: MATCHES (expected ae_mode=1 exposure=1 gain=0)
+    | SCAN index 0: opened=True frames=178 failed_reads=0 mean_brightness=6.2
+    [t+120s: after fresh-process stream] 01141000 ae_mode=1 exposure=1 (0.1 ms) gain=0: MATCHES (expected ae_mode=1 exposure=1 gain=0)
+  [2026-11-19 11:42:57] t+120s: fresh-process scan of indices 0-9
+    | FORMAT requested 640x480 @ 30 fps (from command line); capture reports 640x480 @ 30.0 fps
+    | SCAN index 0: opened=True frames=30 failed_reads=0 mean_brightness=6.4
+    | FORMAT requested 640x480 @ 30 fps (from command line); capture reports 640x480 @ 30.0 fps
+    | SCAN index 1: opened=True frames=31 failed_reads=0 mean_brightness=147.0
+    | FORMAT requested 640x480 @ 30 fps (from command line); capture reports 640x480 @ 30.0 fps
+    | SCAN index 2: opened=True frames=19 failed_reads=0 mean_brightness=130.4
+    | FORMAT requested 352x288 @ 30 fps (from command line); capture reports 352x288 @ 30.0 fps
+    | SCAN index 3: opened=True frames=29 failed_reads=0 mean_brightness=93.6
+    | FORMAT requested 640x480 @ 30 fps (from command line); capture reports 640x480 @ 30.0 fps
+    | SCAN index 4: opened=True frames=30 failed_reads=0 mean_brightness=132.3
+    | FORMAT requested 640x480 @ 30 fps (from command line); capture reports 640x480 @ 30.0 fps
+    | SCAN index 5: opened=True frames=30 failed_reads=0 mean_brightness=148.0
+    | FORMAT requested 352x288 @ 30 fps (from command line); capture reports 352x288 @ 30.0 fps
+    | SCAN index 6: opened=True frames=29 failed_reads=0 mean_brightness=110.0
+    | FORMAT requested 640x480 @ 30 fps (from command line); capture reports 640x480 @ 30.0 fps
+    | SCAN index 7: opened=True frames=31 failed_reads=0 mean_brightness=140.4
+    | FORMAT requested 640x480 @ 30 fps (from command line); capture reports 0x0 @ 0.0 fps
+    | SCAN index 8: opened=False frames=0 failed_reads=0 mean_brightness=-
+    | FORMAT requested 640x480 @ 30 fps (from command line); capture reports 0x0 @ 0.0 fps
+    | SCAN index 9: opened=False frames=0 failed_reads=0 mean_brightness=-
+    t+120s: delivering indices [0, 1, 2, 3, 4, 5, 6, 7]; dark marker at index [0] (median brightness 132.3)
+    [t+120s: after fresh-process scan] 01141000 ae_mode=1 exposure=1 (0.1 ms) gain=0: MATCHES (expected ae_mode=1 exposure=1 gain=0)
+
+[2026-11-19 11:43:17] RESTORE every target to its defaults
+  loc 0x01141000 (bus 1 addr 5 ports (1, 4, 1))
+    restore: ae_mode:=manual(1) first, so exposure accepts the write: 1 [0.9 ms]
+    restore exposure:=157 (default): 157 [4.6 ms]
+    restore gain:=0 (default): 0 [5.6 ms]
+    restore ae_mode:=8 (default): 8 [4.6 ms]
+    read-back exposure=157 [0.9 ms] OK
+    read-back gain=0 [0.7 ms] OK
+    read-back ae_mode=8 [0.6 ms] OK
+  loc 0x01143000 (bus 1 addr 6 ports (1, 4, 3))
+    restore: ae_mode:=manual(1) first, so exposure accepts the write: 1 [4.5 ms]
+    restore exposure:=157 (default): 157 [4.6 ms]
+    restore gain:=0 (default): 0 [5.6 ms]
+    restore ae_mode:=8 (default): 8 [4.6 ms]
+    read-back exposure=157 [0.9 ms] OK
+    read-back gain=0 [0.8 ms] OK
+    read-back ae_mode=8 [0.7 ms] OK
+  loc 0x00141000 (bus 0 addr 5 ports (1, 4, 1))
+    restore: ae_mode:=manual(1) first, so exposure accepts the write: 1 [4.6 ms]
+    restore exposure:=157 (default): 157 [4.7 ms]
+    restore gain:=0 (default): 0 [5.7 ms]
+    restore ae_mode:=8 (default): 8 [4.6 ms]
+    read-back exposure=157 [0.9 ms] OK
+    read-back gain=0 [0.7 ms] OK
+    read-back ae_mode=8 [0.6 ms] OK
+[2026-11-19 11:43:17] restore OK on all targets present

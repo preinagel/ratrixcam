@@ -314,8 +314,8 @@ requests no format. From now on every streaming run also prints:
 
 ## Hook recommendation
 
-**Provisional, pending replug run 2: a pass in the supervisor, by USB id, run before every
-launch and every relaunch of a camera process.** It sets exposure and gain on every 0x0c45:0x6369 camera and reads them back. It is
+**A pass in the supervisor, by USB id, run before every launch and every relaunch of a camera
+process** (supported by replug run 2; replug run 1 is an unexplained exception). It sets exposure and gain on every 0x0c45:0x6369 camera and reads them back. It is
 not a call inside each camera server.
 
 Evidence:
@@ -325,7 +325,8 @@ Evidence:
 - **Q2, stream start:** settings applied before the capture opens survive the open, so a
   pass before launch is enough for a camera that stays plugged in.
 - **Q2, re-enumeration:** a replugged camera comes back in auto. The supervisor already
-  handles exactly that moment: each pass it counts video devices and relaunches any camera
+  handles exactly that moment. Settings written after re-enumeration survive the relaunched
+  process's first stream start (replug run 2). The supervisor each pass it counts video devices and relaunches any camera
   process that has died once all are present (`ratrixcam_multi.py:118-160`). A pass placed
   just before those launches reapplies the settings when they are needed.
 - **GitHub #60:** if every target camera gets the same settings, the pass needs no
@@ -419,6 +420,38 @@ for 5 s.
   The restore's read-back checked only ae_mode (8, "OK"), which hid the failure. The final
   read-back shows exposure 40 on all three. Fixed: restores now select manual, write
   exposure and gain defaults, then AE mode, and read back every control.
+
+### Replug follow-up: replug run 2 (2026-11-19 11:39:57; 640x480 @ 30 per config entry)
+
+`uvc/.venv/bin/python uvc/probe.py replug` (`uvc/logs/replug-run2.log`). As run 1, plus port 1's
+controls read before, **during** and after every fresh-process stream. The "hold" step is a
+new process streaming index 0 for 6 s while this process reads the controls at about 3 s.
+
+- **Before the unplug (control):** the marker read back MATCHES after the same-process open,
+  during and after a fresh-process stream, and after the scan. Index 0 was dark (4.8-5.2);
+  the median of the others was 129.8.
+- Unplug at 11:40:30, back at 11:40:46. Port 1 came back at its defaults (8/157/0) and was
+  re-marked.
+- **At t = 3, 34, 64 and 120 s after re-enumeration:**
+  - Same process, `VideoCapture(0)`: opened, **0 frames** every time, as in run 1.
+  - Port 1's controls: **MATCHES the marker at every read**: start of the check, after the
+    same-process open, **during** the fresh-process stream, after it, after the scan.
+  - Fresh process, index 0: 167-178 frames in 6 s, **brightness 5.4-6.2, dark**.
+  - Fresh-process scan: indices 0-7 delivered, 8 and 9 did not open, and **the dark marker
+    was at index 0** every time (median of the others 128-132).
+- Conclusions from run 2:
+  1. **The replugged camera kept index 0** in fresh processes, matching the user's tests of
+     the recorder: a replugged camera keeps its index.
+  2. **Settings written after re-enumeration survive the camera's first stream start.** They
+     read back unchanged during and after the stream, and the image stayed dark.
+  3. **The empty stream is specific to a process that streamed the camera before it was
+     replugged.** Fresh processes stream normally from 3 s. The recorder starts a new
+     process per (re)launch (`ratrixcam_multi.py`), so it is not affected.
+- **Run 1 vs run 2:** in run 1 the marker was not visible after the replug (index 0 read
+  68-81). In run 2 it held throughout. Run 1 had no control read-backs, so its result is
+  unexplained. With one clean run and one unexplained run, a third run would show whether
+  run 1's behaviour recurs.
+- Restore: all three targets restored to defaults and read back OK (11:43:17).
 
 ### Replug follow-up: replug run 1 (2026-11-19 11:29:15; 640x480 @ 30 per config entry)
 
@@ -677,3 +710,6 @@ It read every second for 40 s while streaming index 0, with cues to cover all le
   (manual, exposure 157, gain 0, then ae_mode 8) and read back OK. No other control was
   written; the fresh-process scans streamed all eight cameras, but no control request went
   to kinds B or C.
+- **replug run 2 (2026-11-19 11:39:57)**: as run 1. At 11:43:17 all three targets were restored
+  (manual, exposure 157, gain 0, then ae_mode 8) and read back OK. No control request went to
+  kinds B or C.
