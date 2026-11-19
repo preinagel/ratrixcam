@@ -52,6 +52,9 @@ nothing can be opened. So you write, the user runs. Develop each probe as a scri
 uvc/ (uvc/probe.py, with a sub-command per experiment), print at the top of the script
 the exact terminal command the user should run, and ask the user to run it and paste the
 output back. Interpret the output, revise, and repeat. Build tools under uvc/ the same way.
+Any command that opens or talks to a camera is never run by you: put it in a fenced code
+block prefixed "RUN THIS:", with the folder to run it from, and wait for the pasted output.
+Building, installing into the venv, and editing under uvc/ you do yourself.
 - For the duration of this prototype the rig holds only target cameras (0x0c45:0x6369);
   any camera the probe opens by index is a target. Control requests still select by
   vendor and product id, so the script stays correct when other cameras return.
