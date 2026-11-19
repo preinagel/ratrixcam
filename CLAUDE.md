@@ -89,5 +89,7 @@ Building, installing into the venv, and editing under uvc/ you do yourself.
 - Python standard library plus pyusb in a virtual environment under uvc/; no other packages
   without asking. Homebrew is not yours to run.
 - Never request anything outside the sandbox; report a sandbox failure instead.
+- Reading a file outside this clone (for example a config file on the Desktop) is a scope
+  boundary too, by any tool including the shell: name the file and ask before reading it.
 - Stop and ask at scope boundaries: anything outside uvc/, any install beyond pyusb, any
   question the brief does not answer.
