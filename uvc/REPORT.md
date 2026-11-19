@@ -1,18 +1,33 @@
 # UVC exposure/gain control on macOS: prototype report
 
-Status: Q1 answered yes, at 1920x1080 (q1 run 2) and at 640x480 (q1 run 3). Reads and
-writes work without root, with and without an AVFoundation stream. **Goal 1 by the UVC
-exposure read: no.** In auto mode the camera returns the stored manual value, not the
-exposure its AE loop uses (aetrack run 1). **Goal 3 compensation: at 4.0 ms, gain 50 matched
-the auto brightness in the room's light at 640x480** (gainsweep run 1). Q3 is answered yes
-for all three controls. **Q2: settings survive stream start and stop, but NOT unplug/replug**
-(persist runs 1 and 2). The wire format at 640x480 is MJPEG (camera-side commit, persist
-run 2). Open: compensation in dim light, and the empty stream from index 0 after a replug. Format: every run since aetrack run 1 is at the test format, 640x480 @ 30 (below).
+Status (2026-11-19, after the kind B and C runs): **all three kinds (A 0x6369, B and C
+0x6366) give the same three answers**; see "The three kinds compared".
+- **Q1: YES.** Control reads and writes work without root, with and without an AVFoundation
+  stream.
+- **Q2: settings survive stream start and stop, but NOT unplug/replug**; a replugged camera
+  comes back at its defaults.
+- **Q3: YES.** AE mode, exposure time (0.1-500 ms) and gain (0-100) are writable; exposure
+  only in manual mode.
+- **Goal 1 by the UVC exposure read: no** (kind A, aetrack run 1): in auto mode the camera
+  returns the stored manual value, not the exposure its AE loop uses.
+- **Goal 3 compensation at 4.0 ms**, in each camera's own scene: kind A gain 50, kind B gain
+  40, kind C none needed (4 ms is already brighter than auto).
+- The wire format is MJPEG on all three kinds.
+- Hook: a supervisor pass by USB id before each (re)launch, plus a read-back after the
+  capture opens.
+- Open:
+  - compensation in dim light (no kind tested);
+  - one unexplained stream stall on kind C (persist-C run 1), with a soak test proposed;
+  - replug run 1's lost marker (kind A, unexplained).
 
-**Rig state: restored** (restore run 1, 2026-11-19 09:21:33; again after gainsweep run 1 at
-09:28:22 and persist run 1 at 09:32:34). All three cameras read ae_mode 8 (auto), exposure 157
-(15.7 ms), gain 0 and ae_priority 0. These are the cameras' defaults and the values found at
-the start. aetrack run 1 had left the stored exposure at 40; see Restored.
+**Rig state: restored.** Every camera written to today was restored to its own defaults
+(GET_DEF) and read back OK:
+- kind A ports 1, 3, 5: ae_mode 8, exposure 157, gain 0;
+- kind B port 2: ae_mode 8, exposure 156, gain 0;
+- kind C port 4: ae_mode 8, exposure 157, gain 0.
+
+AE priority was 0 throughout and was only ever rewritten as 0. Kind B ports 6 and 8 and
+kind C port 7 were never written to. Per-run details are in Restored.
 
 **Stream format, and a correction.**
 - Runs up to and including track run 1 streamed at the camera default, 1920x1080.
