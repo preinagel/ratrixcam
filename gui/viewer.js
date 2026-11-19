@@ -282,7 +282,8 @@ function updateStills(entries) {
     if (offline && !cam.offline) cam.tile.querySelector("img").src = OFFLINE_IMAGE;
     cam.offline = offline;
     if (entry && entry.mtime !== cam.stillMtime && !offline) loadStill(cam, entry.mtime);
-    cam.tile.querySelector(".seen").textContent = cam.lastSeen ? `still ${fmtHMS(cam.lastSeen)}` : "no still yet";
+    // "updated", not "still": the file may be the offline image the camera program put there
+    cam.tile.querySelector(".seen").textContent = cam.lastSeen ? `updated ${fmtHMS(cam.lastSeen)}` : "no still yet";
   }
 }
 
