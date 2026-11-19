@@ -26,6 +26,24 @@ the start. aetrack run 1 had left the stored exposure at 40; see Restored.
 - The probe now reads its own copy, `uvc/camera_config_5.json`. It is identical to the
   user's file except `default_width` 640 and `default_height` 480. No camera entry sets its
   own format, so all five entries use 640x480 @ 30.
+- **Per-camera formats (2026-11-19, at the user's request):** each entry in
+  `uvc/camera_config_5.json` now states a width, height and fps that its camera accepts
+  in *both* MJPEG and uncompressed at 30 fps. So the request is supported whichever format
+  AVFoundation negotiates; behaviour under unsupported requests is set aside as a separate
+  task. The recorder pairs entry k with cv2 index k (`ratrixcam_server.py:461`; the user
+  confirms indices follow the config's list order), and index order follows port order:
+
+  | Entry = index | Port | Kind | Requested | Basis (descriptors, list run 2) |
+  |---|---|---|---|---|
+  | 0 | 1 | A | 640x480 @ 30 | MJPEG 30, YUY2 30 |
+  | 1 | 2 | B | 640x480 @ 30 | MJPEG 30, YUY2 30 |
+  | 2 | 3 | A | 640x480 @ 30 | MJPEG 30, YUY2 30 |
+  | 3 | 4 | C | **352x288 @ 30** | MJPEG 30, YUY2 30 (640x480 would be YUY2 15) |
+  | 4 | 5 | A | 640x480 @ 30 | MJPEG 30, YUY2 30 |
+
+  Ports 6-8 have no entry. The defaults stay 640x480 @ 30. The probe now reads the entry
+  for the index it streams (always 0, port 1, kind A), as the recorder does, so its request
+  is unchanged: 640x480 @ 30.
 - So the 640x480 runs (aetrack run 1, q1 run 3, gainsweep run 1, persist run 1) **are at the
   test format**, although they took it from the Desktop file. No probe has run at 800x600.
 - The config is used for the format only. Cameras are always selected by USB id; every run

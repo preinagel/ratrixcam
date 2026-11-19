@@ -11,10 +11,10 @@
   "default_cam_exposure": -8.0,
   "preview_interval": 1,
   "cameras": [
-    {"subjID": "999", "view": "view1", "position": "A"},
-    {"subjID": "999", "view": "view2", "position": "B"},
-    {"subjID": "999", "view": "view3", "position": "C"},
-    {"subjID": "999", "view": "view4", "position": "D"},
-    {"subjID": "999", "view": "view5", "position": "E"}
+    {"subjID": "999", "view": "view1", "position": "A", "width": 640, "height": 480, "fps": 30},
+    {"subjID": "999", "view": "view2", "position": "B", "width": 640, "height": 480, "fps": 30},
+    {"subjID": "999", "view": "view3", "position": "C", "width": 640, "height": 480, "fps": 30},
+    {"subjID": "999", "view": "view4", "position": "D", "width": 352, "height": 288, "fps": 30},
+    {"subjID": "999", "view": "view5", "position": "E", "width": 640, "height": 480, "fps": 30}
   ]
 }

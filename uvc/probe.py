@@ -239,22 +239,24 @@ def import_cv2():
 
 
 def recorder_format(args):
-    """Width, height, fps as the recorder requests them: the config's defaults
-    (ratrixcam_server.py:464-466), unless given on the command line."""
+    """Width, height, fps as the recorder requests them for cv2 index args.index: entry
+    args.index of the config's camera list (the recorder assigns indices in list order,
+    ratrixcam_server.py:461), each field falling back to the config default
+    (ratrixcam_server.py:464-466). Command-line values override."""
     src, w, h, f = "command line", args.width, args.height, args.fps
     if None in (w, h, f):
         with open(args.config) as fh:
             cfg = json.load(fh)
-        src = args.config
-        print(f"  config {args.config}: lists {len(cfg.get('cameras', []))} camera(s); used for the format only "
-              f"(cameras are selected by USB id 0x{VID:04x}:0x{PID:04x})")
-        overrides =[{k: c[k] for k in ("width", "height", "fps") if c.get(k) is not None}
-                     for c in cfg.get("cameras", [])]
-        if any(overrides):
-            print(f"  NOTE: per-camera format overrides in the config: {overrides}; probe uses the defaults")
-        w = w or cfg["default_width"]
-        h = h or cfg["default_height"]
-        f = f or cfg["default_fps"]
+        cams = cfg.get("cameras", [])
+        if args.index >= len(cams):
+            sys.exit(f"config {args.config} has {len(cams)} camera entries; none for index {args.index}")
+        cam = cams[args.index]
+        src = f"{args.config}, entry {args.index}"
+        print(f"  config {args.config}: {len(cams)} camera entries; entry {args.index} = {cam} "
+              f"(format only; control requests select cameras by USB id 0x{VID:04x}:0x{PID:04x})")
+        w = w or cam.get("width") or cfg["default_width"]
+        h = h or cam.get("height") or cfg["default_height"]
+        f = f or cam.get("fps") or cfg["default_fps"]
     return w, h, f, src
 
 
