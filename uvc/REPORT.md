@@ -259,9 +259,12 @@ What this means (B and C are not developed for; recorded for the user's decision
   Both add a microphone.
 - **B offers no 800x600 in any format.** The user confirms this is what "acting strangely"
   meant: B refused the 800x600 trial setting. The descriptors explain it.
-- B exposes two video streaming interfaces. An open question, not checked and not pursued:
-  could AVFoundation list a B camera as more than one video device, shifting the cv2
-  index-to-port order?
+- B exposes two video streaming interfaces (MJPEG/YUY2 and H.264), but **AVFoundation
+  lists each B camera once.** With all eight cameras plugged in (three of them kind B),
+  every fresh-process scan in replug runs 1, 2 and 3 found indices 0-7 delivering frames
+  and indices 8 and 9 not opening (`uvc/logs/replug-run1.log`, `uvc/logs/replug-run2.log`,
+  `uvc/logs/replug-run3.log`). Eight cameras, eight indices, so B's second streaming
+  interface does not add an index or shift the index-to-port order.
 - **C matches A where the recorder needs it**: the same exposure and gain controls and
   ranges, and MJPEG 640x480 @ 30 (also 800x600 @ 30). One difference: its uncompressed YUY2
   640x480 runs at only 15 fps, against 30 on A and B.
@@ -340,10 +343,22 @@ The values for goal 3 (manual, exposure under 5 ms, gain to compensate) cannot b
 this prototype. Gain 50 at 4 ms matched auto only in the room's light at 640x480
 (gainsweep run 1), and the problem case is dim light.
 
+**Verify after the capture opens; do not rely on the pass alone.** In replug run 1 the marker
+written to port 1 after re-enumeration was not visible in any fresh-process scan, while
+replug runs 2 and 3 held it at every check. Run 1 is unexplained. Treating it as a one-off
+is fine for the conclusion above, but the hook design must not depend on that:
+- the supervisor pass before a (re)launch must be followed by a **read-back of exposure
+  mode, exposure time and gain after that camera's capture is open**, either in the camera
+  server or on the supervisor's next loop pass;
+- a mismatch must be **reported** (log and terminal) and the settings **reapplied**, then
+  read back again.
+
 Caveats not resolved here:
-- After port 1 was replugged, `VideoCapture(0)` opened but delivered no frames for 3 s
-  (persist run 2). The recorder's relaunch path may meet the same thing; it is outside this
-  prototype.
+- A process that streamed a camera before it was unplugged gets no frames from that index
+  after the replug (persist run 2; replug runs 1-3, checked up to 120 s). Fresh processes
+  stream normally from 3 s after re-enumeration (replug runs 1-3). The recorder relaunches
+  each camera in a new process, so this should not affect it. Any design that reopens a
+  capture inside a long-lived process would be affected.
 - The pass must select manual mode before writing exposure: exposure writes stall in auto.
 - Nothing here is merged. The recorder code was read only, not changed.
 
