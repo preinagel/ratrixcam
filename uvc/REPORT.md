@@ -40,8 +40,13 @@ the start. aetrack run 1 had left the stored exposure at 40; see Restored.
   | 2 | 3 | A | 640x480 @ 30 | MJPEG 30, YUY2 30 |
   | 3 | 4 | C | **352x288 @ 30** | MJPEG 30, YUY2 30 (640x480 would be YUY2 15) |
   | 4 | 5 | A | 640x480 @ 30 | MJPEG 30, YUY2 30 |
+  | 5 | 6 | B | 640x480 @ 30 | MJPEG 30, YUY2 30 |
+  | 6 | 7 | C | **352x288 @ 30** | MJPEG 30, YUY2 30 (640x480 would be YUY2 15) |
+  | 7 | 8 | B | 640x480 @ 30 | MJPEG 30, YUY2 30 |
 
-  Ports 6-8 have no entry. The defaults stay 640x480 @ 30. The probe now reads the entry
+  The config has 8 entries, one per port, added at the user's request (positions F-H, views
+  view6-view8, subjID 999 like the others). It validates against the recorder's own schema
+  (`ratrixcam_utils.Config`). The defaults stay 640x480 @ 30. The probe now reads the entry
   for the index it streams (always 0, port 1, kind A), as the recorder does, so its request
   is unchanged: 640x480 @ 30.
 - So the 640x480 runs (aetrack run 1, q1 run 3, gainsweep run 1, persist run 1) **are at the

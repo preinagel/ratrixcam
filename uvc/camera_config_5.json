@@ -15,6 +15,9 @@
     {"subjID": "999", "view": "view2", "position": "B", "width": 640, "height": 480, "fps": 30},
     {"subjID": "999", "view": "view3", "position": "C", "width": 640, "height": 480, "fps": 30},
     {"subjID": "999", "view": "view4", "position": "D", "width": 352, "height": 288, "fps": 30},
-    {"subjID": "999", "view": "view5", "position": "E", "width": 640, "height": 480, "fps": 30}
+    {"subjID": "999", "view": "view5", "position": "E", "width": 640, "height": 480, "fps": 30},
+    {"subjID": "999", "view": "view6", "position": "F", "width": 640, "height": 480, "fps": 30},
+    {"subjID": "999", "view": "view7", "position": "G", "width": 352, "height": 288, "fps": 30},
+    {"subjID": "999", "view": "view8", "position": "H", "width": 640, "height": 480, "fps": 30}
   ]
 }
