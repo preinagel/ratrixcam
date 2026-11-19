@@ -3,7 +3,7 @@
 
 RUN THIS (in your own Terminal, from anywhere; not inside the Claude sandbox):
 
-    cd ~/Desktop/ratrixcam-uvc && uvc/.venv/bin/python uvc/probe.py list 2>&1 | tee uvc/logs/list-all-run2.log
+    cd ~/Desktop/ratrixcam-uvc && uvc/.venv/bin/python uvc/probe.py gainsweep 2>&1 | tee uvc/logs/gainsweep-run2.log
 
 Sub-commands:
     list      read-only, no device opened: full descriptors of every 0x0c45 camera (all
@@ -32,9 +32,9 @@ Every sub-command that writes restores each target to its defaults in a finally 
 
 Streaming sub-commands (q1, track, aetrack, gainsweep, persist) open the capture as the recorder does
 (ratrixcam_server.py:487-492): VideoCapture(index) on the default backend, then width,
-height and fps from camera_config_5.json's defaults (at the clone's root, supplied by the
-user; read only; --width/--height/
---fps override). Each prints the requested, reported and measured format.
+height and fps from the defaults in uvc/camera_config_5.json (the probe's copy of the
+user's config, set to 640x480 @ 30; --width/--height/--fps override). Each prints the
+requested, reported and measured format.
 
 Safety: refuses to run if ~/Desktop/temp exists (a recording is in progress). Never claims an
 interface, detaches a driver or sets a configuration: only class requests on endpoint 0,
@@ -54,9 +54,10 @@ import time
 VID, PID = 0x0C45, 0x6369
 LIBUSB = "/opt/homebrew/lib/libusb-1.0.dylib"
 RECORDING_FLAG = os.path.expanduser("~/Desktop/temp")
-# The config the user supplied for this prototype, at the clone's root (read only). Used for
-# the stream format only; cameras are always selected by USB vendor/product id.
-RECORDER_CONFIG = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "camera_config_5.json")
+# The probe's own copy of the user's camera_config_5.json, next to this script, with the
+# defaults changed to 640x480 at the user's request (2026-11-19). Used for the stream format
+# only; cameras are always selected by USB vendor/product id.
+RECORDER_CONFIG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "camera_config_5.json")
 
 # UVC 1.1 constants
 CS_INTERFACE = 0x24

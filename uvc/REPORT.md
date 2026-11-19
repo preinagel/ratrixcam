@@ -7,7 +7,7 @@ exposure its AE loop uses (aetrack run 1). **Goal 3 compensation: at 4.0 ms, gai
 the auto brightness in the room's light at 640x480** (gainsweep run 1). Q3 is answered yes
 for all three controls. **Q2, stream start and stop: settings held** (persist run 1, at
 640x480). Open: Q2 re-enumeration (the unplug step did not happen in persist run 1),
-compensation in dim light, and repeats at the user's format (below).
+and compensation in dim light. Format: every run since aetrack run 1 is at the test format, 640x480 @ 30 (below).
 
 **Rig state: restored** (restore run 1, 2026-11-19 09:21:33; again after gainsweep run 1 at
 09:28:22 and persist run 1 at 09:32:34). All three cameras read ae_mode 8 (auto), exposure 157
@@ -19,12 +19,17 @@ the start. aetrack run 1 had left the stored exposure at 40; see Restored.
 - From aetrack run 1 to persist run 1, the probes requested 640x480 @ 30. That came from
   `~/Desktop/camera_config.json`, which I picked as "the recorder's format" because the
   repo's `cam_start.applescript` and the GUI editor name that path. I read it without asking
-  the user, and the user had not chosen it for this prototype. Those 640x480 runs are
-  therefore **not at the format the user intends**.
-- The user then supplied `camera_config_5.json` at the clone's root: 800x600 @ 30, 5 camera
-  entries. The probe now takes its format from that file only.
+  the user, which the brief now forbids.
+- The user then supplied `camera_config_5.json` (800x600 @ 30, 5 camera entries). The user
+  later said 800x600 was only a trial that should not have been passed on. **The test
+  format for this prototype is 640x480 @ 30.**
+- The probe now reads its own copy, `uvc/camera_config_5.json`. It is identical to the
+  user's file except `default_width` 640 and `default_height` 480. No camera entry sets its
+  own format, so all five entries use 640x480 @ 30.
+- So the 640x480 runs (aetrack run 1, q1 run 3, gainsweep run 1, persist run 1) **are at the
+  test format**, although they took it from the Desktop file. No probe has run at 800x600.
 - The config is used for the format only. Cameras are always selected by USB id; every run
-  found the same 3 targets. The config's 5 entries do not match the rig's 3 cameras, which
+  found the same 3 targets. The config's 5 entries do not match the rig's 3 targets, which
   does not affect the probe.
 
 Goals in the order the brief values them (since 2026-11-19): (1) read exposure time and gain,
@@ -229,22 +234,23 @@ What this means (B and C are not developed for; recorded for the user's decision
 - **B and C are different products behind the same USB ids.** B is an H.264-capable
   camera with a second streaming interface; C is closer to A, with more MJPEG sizes than B.
   Both add a microphone.
-- **B offers no 800x600 in any format.** With the user's 800x600 config, AVFoundation must
-  give it a different size, or scale.
-- **B exposes two video streaming interfaces.** Hypothesis, not checked: AVFoundation may
-  list a B camera as more than one video device. That would shift the cv2 index-to-port
-  order the recorder relies on, and would fit the user's "performing strangely". It is
-  testable by counting AVFoundation devices with B plugged in and unplugged.
-- **C matches A where the recorder needs it** (MJPEG 800x600 @ 30; the same exposure and
-  gain controls and ranges), except that its YUY2 640x480 runs at only 15 fps.
+- **B offers no 800x600 in any format.** The user confirms this is what "acting strangely"
+  meant: B refused the 800x600 trial setting. The descriptors explain it.
+- B exposes two video streaming interfaces. An open question, not checked and not pursued:
+  could AVFoundation list a B camera as more than one video device, shifting the cv2
+  index-to-port order?
+- **C matches A where the recorder needs it**: the same exposure and gain controls and
+  ranges, and MJPEG 640x480 @ 30 (also 800x600 @ 30). One difference: its uncompressed YUY2
+  640x480 runs at only 15 fps, against 30 on A and B.
 - The exposure and gain method should carry over to B and C, since the controls, ranges and
   entity ids (CT 1, PU 2) are the same. Writes on B and C are untested.
 
-**Consequence for the user's 800x600 @ 30 config, on A and C:** 800x600 runs at 30 fps only
-as MJPEG; uncompressed it runs at 20 fps. The user says the recorder requests MJPG through
-cv2. This clone's capture code sets only width, height and fps (`ratrixcam_server.py:487-492`).
-Its only FOURCC is the writer's `mp4v` (`ratrixcam_server.py:25`). The probe does not request
-MJPG until the recorder's exact call is known.
+**Format and MJPG at the test format, 640x480 @ 30:** A offers 640x480 at 30 fps both as
+MJPEG and uncompressed, so the format AVFoundation picks does not limit A's frame rate in
+these tests. It does matter for C, whose uncompressed 640x480 runs at 15 fps. The user says
+the recorder requests MJPG through cv2. This clone's capture code sets only width, height and
+fps (`ratrixcam_server.py:487-492`); its only FOURCC is the writer's `mp4v`
+(`ratrixcam_server.py:25`). The probe does not request MJPG; it mirrors the clone.
 
 ## Answers
 
@@ -308,7 +314,7 @@ This run raised the goal 1 question: exposure read 157 (15.7 ms), exactly GET_DE
 three cameras with and without a stream. aetrack run 1 settles it: in auto mode the read is
 the stored value.
 
-### Goal 1: aetrack run 1 (2026-11-19 09:12:07; stream 640x480 @ 30, from the Desktop config, not the user's format)
+### Goal 1: aetrack run 1 (2026-11-19 09:12:07; stream 640x480 @ 30, the test format)
 
 `uvc/.venv/bin/python uvc/probe.py aetrack` (`uvc/logs/aetrack-run1.log`). The capture was
 opened as the recorder opens it: it requested, reported and measured 640x480 @ 30. On each
@@ -340,7 +346,7 @@ for 5 s.
   read-back shows exposure 40 on all three. Fixed: restores now select manual, write
   exposure and gain defaults, then AE mode, and read back every control.
 
-### Q2: persist run 1 (2026-11-19 09:30:22; stream 640x480 @ 30, from the Desktop config, not the user's format)
+### Q2: persist run 1 (2026-11-19 09:30:22; stream 640x480 @ 30, the test format)
 
 `uvc/.venv/bin/python uvc/probe.py persist` (`uvc/logs/persist-run1.log`).
 
@@ -362,7 +368,7 @@ for 5 s.
 They were set by USB location before any capture existed, and AVFoundation's open did not
 reset them. Re-enumeration after an unplug is still untested.
 
-### Goal 3: gainsweep run 1 (2026-11-19 09:27:16; stream 640x480 @ 30, from the Desktop config, not the user's format)
+### Goal 3: gainsweep run 1 (2026-11-19 09:27:16; stream 640x480 @ 30, the test format)
 
 `uvc/.venv/bin/python uvc/probe.py gainsweep` (`uvc/logs/gainsweep-run1.log`). Requested,
 reported and measured 640x480 @ 30. On each camera while index 0 streamed:
@@ -394,7 +400,7 @@ On the capture (0x01141000; auto reference 139.2), mean brightness at exposure 4
   - The cost in image noise of high gain was not measured: the probe records mean
     brightness only.
 
-### Q1, run 3 (2026-11-19 09:12:45; stream 640x480 @ 30, from the Desktop config, not the user's format)
+### Q1, run 3 (2026-11-19 09:12:45; stream 640x480 @ 30, the test format)
 
 `uvc/.venv/bin/python uvc/probe.py q1` (`uvc/logs/q1-run3.log`). It ran straight after
 aetrack, so every camera started with stored exposure 40 (the leftover above).

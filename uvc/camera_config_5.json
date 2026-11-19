@@ -1,0 +1,20 @@
+{
+  "save_path": "/Volumes/data/",
+  "temp_path": "/Volumes/temp/ratrixcam/",
+  "study_label": "Test",
+  "subject_prefix": "rat",
+  "default_crf": 25,
+  "time_slice": 60,
+  "default_fps": 30,
+  "default_width": 640,
+  "default_height": 480,
+  "default_cam_exposure": -8.0,
+  "preview_interval": 1,
+  "cameras": [
+    {"subjID": "999", "view": "view1", "position": "A"},
+    {"subjID": "999", "view": "view2", "position": "B"},
+    {"subjID": "999", "view": "view3", "position": "C"},
+    {"subjID": "999", "view": "view4", "position": "D"},
+    {"subjID": "999", "view": "view5", "position": "E"}
+  ]
+}
