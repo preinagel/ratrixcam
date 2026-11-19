@@ -3,15 +3,14 @@
 
 RUN THIS (in your own Terminal, from anywhere; not inside the Claude sandbox):
 
-    cd ~/Desktop/ratrixcam-uvc && uvc/.venv/bin/python uvc/probe.py gainsweep 2>&1 | tee uvc/logs/gainsweep-run1.log
-
-    then (watch the terminal: it tells you when to unplug and replug one camera):
-
-    cd ~/Desktop/ratrixcam-uvc && uvc/.venv/bin/python uvc/probe.py persist 2>&1 | tee uvc/logs/persist-run1.log
+    cd ~/Desktop/ratrixcam-uvc && uvc/.venv/bin/python uvc/probe.py list 2>&1 | tee uvc/logs/list-all-run1.log && uvc/.venv/bin/python uvc/probe.py controls --all-vendor 2>&1 | tee uvc/logs/controls-all-run1.log
 
 Sub-commands:
-    list      enumerate 0x0c45:0x6369 devices and parse their VideoControl descriptors
-    controls  read every GET_* of the exposure/gain controls, no stream open
+    list      read-only, no device opened: full descriptors of every 0x0c45 camera (all
+              products), with formats, frame sizes and rates, grouped by fingerprint
+    controls  read every GET_* of the exposure/gain controls, no stream open; target only,
+              or every 0x0c45 camera with --all-vendor (GET requests only)
+    All other sub-commands act on the target product 0x6369 only.
     q1        question 1: control requests before and while a cv2.VideoCapture streams.
               On each target in turn, while streaming: reads every control (goal 1);
               clears AE priority, then restores it (goal 2); sets manual exposure at
@@ -310,21 +309,142 @@ def watch(reader, label_, seconds, settle=0.0):
 
 # ---------------------------------------------------------------- sub-commands
 
+CT_BIT_NAMES = ["scanning mode", "AE mode", "AE priority", "exposure abs", "exposure rel",
+                "focus abs", "focus rel", "iris abs", "iris rel", "zoom abs", "zoom rel",
+                "pan/tilt abs", "pan/tilt rel", "roll abs", "roll rel", "reserved15",
+                "reserved16", "focus auto", "privacy"]
+PU_BIT_NAMES = ["brightness", "contrast", "hue", "saturation", "sharpness", "gamma",
+                "WB temperature", "WB component", "backlight comp", "gain", "power line freq",
+                "hue auto", "WB temperature auto", "WB component auto", "digital multiplier",
+                "digital mult limit", "analog video std", "analog lock status", "contrast auto"]
+VS_SUBTYPES = {0x04: "UNCOMPRESSED", 0x06: "MJPEG", 0x10: "FRAME_BASED"}
+VS_FRAME_SUBTYPES = {0x05: "UNCOMPRESSED", 0x07: "MJPEG", 0x11: "FRAME_BASED"}
+
+
+def bit_names(bits, names):
+    return ", ".join(names[b] if b < len(names) else f"bit{b}" for b in range(bits.bit_length()) if bits >> b & 1)
+
+
+def rig_port(dev):
+    """The user's port number on this rig: hub on bus 1 = ports 1-4, hub on bus 0 = ports 5-8,
+    by the last hub port (confirmed by the user 2026-11-19; rig-specific)."""
+    ports = dev.port_numbers or ()
+    if len(ports) != 3 or dev.bus not in (0, 1):
+        return "?"
+    return str(ports[2] + (0 if dev.bus == 1 else 4))
+
+
+def describe(dev):
+    """Every line of the descriptors that could differ between cameras, location excluded.
+    Read from the descriptors libusb caches at enumeration; the device is not opened."""
+    lines = [f"device: usb {dev.bcdUSB >> 8}.{dev.bcdUSB & 0xff:02x} bcdDevice {dev.bcdDevice >> 8}.{dev.bcdDevice & 0xff:02x} "
+             f"class {dev.bDeviceClass:#04x}/{dev.bDeviceSubClass:#04x}/{dev.bDeviceProtocol:#04x} "
+             f"ep0 {dev.bMaxPacketSize0} configs {dev.bNumConfigurations} "
+             f"string indices manufacturer {dev.iManufacturer} product {dev.iProduct} serial {dev.iSerialNumber}"]
+    cfg = dev[0]
+    lines.append(f"config: {cfg.bNumInterfaces} interfaces, attributes {cfg.bmAttributes:#04x}, max power {cfg.bMaxPower * 2} mA")
+    for intf in cfg:
+        eps = " ".join(f"ep{e.bEndpointAddress:#04x}/{e.bmAttributes & 3}/{e.wMaxPacketSize:#06x}" for e in intf)
+        lines.append(f"interface {intf.bInterfaceNumber} alt {intf.bAlternateSetting}: class "
+                     f"{intf.bInterfaceClass:#04x}/{intf.bInterfaceSubClass:#04x} endpoints [{eps}]")
+        ex = bytes(intf.extra_descriptors)
+        i = 0
+        while i + 2 < len(ex):
+            blen, dtype, sub = ex[i], ex[i + 1], ex[i + 2]
+            if blen == 0:
+                break
+            d = ex[i:i + blen]
+            i += blen
+            if dtype != CS_INTERFACE or intf.bInterfaceClass != 0x0E:
+                continue
+            if intf.bInterfaceSubClass == 0x01:  # VideoControl
+                if sub == 0x01:
+                    lines.append(f"  VC header: UVC {d[4]}.{d[3]:02x}, clock {int.from_bytes(d[7:11], 'little')} Hz")
+                elif sub == VC_INPUT_TERMINAL:
+                    ttype = int.from_bytes(d[4:6], "little")
+                    if ttype == ITT_CAMERA:
+                        bits = int.from_bytes(d[15:15 + d[14]], "little")
+                        lines.append(f"  camera terminal id {d[3]}: bmControls {bits:#x} = {bit_names(bits, CT_BIT_NAMES)}")
+                    else:
+                        lines.append(f"  input terminal id {d[3]} type {ttype:#06x}")
+                elif sub == 0x03:
+                    lines.append(f"  output terminal id {d[3]} type {int.from_bytes(d[4:6], 'little'):#06x} source {d[7]}")
+                elif sub == VC_PROCESSING_UNIT:
+                    bits = int.from_bytes(d[8:8 + d[7]], "little")
+                    lines.append(f"  processing unit id {d[3]} source {d[4]}: bmControls {bits:#x} = {bit_names(bits, PU_BIT_NAMES)}")
+                elif sub == VC_EXTENSION_UNIT:
+                    n_pins = d[21]
+                    size_at = 22 + n_pins
+                    bits = int.from_bytes(d[size_at + 1:size_at + 1 + d[size_at]], "little")
+                    lines.append(f"  extension unit id {d[3]} guid {d[4:20].hex()} controls {d[20]} bmControls {bits:#x}")
+                else:
+                    lines.append(f"  VC subtype {sub:#04x} id {d[3]}")
+            elif intf.bInterfaceSubClass == 0x02 and intf.bAlternateSetting == 0:  # VideoStreaming
+                if sub in VS_SUBTYPES:
+                    lines.append(f"  format {d[3]} {VS_SUBTYPES[sub]}" + (f" guid {d[5:21].hex()}" if sub != 0x06 else "")
+                                 + f": {d[4]} frame sizes")
+                elif sub in VS_FRAME_SUBTYPES:
+                    w, h = int.from_bytes(d[5:7], "little"), int.from_bytes(d[7:9], "little")
+                    off = 25 if sub != 0x11 else 21
+                    default = int.from_bytes(d[21:25], "little") if sub != 0x11 else int.from_bytes(d[17:21], "little")
+                    n = d[off]
+                    if n == 0:
+                        lo, hi, st = (int.from_bytes(d[off + 1 + 4 * k:off + 5 + 4 * k], "little") for k in range(3))
+                        rates = f"continuous {1e7 / hi:.1f}-{1e7 / lo:.1f} fps step {st}"
+                    else:
+                        ivs = [int.from_bytes(d[off + 1 + 4 * k:off + 5 + 4 * k], "little") for k in range(n)]
+                        rates = "/".join(f"{1e7 / v:g}" for v in ivs) + " fps"
+                    lines.append(f"    frame {d[3]} {w}x{h}: {rates} (default {1e7 / default:g} fps)")
+                elif sub == 0x03:
+                    sizes = [f"{int.from_bytes(d[4 + 4 * k:6 + 4 * k], 'little')}x{int.from_bytes(d[6 + 4 * k:8 + 4 * k], 'little')}"
+                             for k in range(d[3])]
+                    lines.append(f"    still image sizes: {' '.join(sizes)}")
+                elif sub == 0x0D:
+                    lines.append(f"    color matching: primaries {d[3]} transfer {d[4]} matrix {d[5]}")
+                elif sub == 0x01:
+                    lines.append(f"  VS input header: {d[3]} formats, endpoint {d[6]:#04x}, still method {d[9]}")
+                else:
+                    lines.append(f"  VS subtype {sub:#04x}")
+    return lines
+
+
 def cmd_list(_args):
+    """Read-only, no device opened: descriptors of every camera with the Sonix vendor id,
+    grouped by identical descriptors (location excluded)."""
+    import hashlib
+    import usb.core
     be = usb_backend()
-    devs = find_targets(be)
-    print(f"[{now()}] {len(devs)} device(s) with 0x{VID:04x}:0x{PID:04x}")
+    devs = sorted(usb.core.find(find_all=True, idVendor=VID, backend=be), key=location_id)
+    print(f"[{now()}] {len(devs)} device(s) with vendor 0x{VID:04x}; target product is 0x{PID:04x}")
+    groups = {}
     for dev in devs:
-        print_layout(dev, vc_layout(dev))
+        lines = describe(dev)
+        fp = hashlib.sha256("\n".join([f"{dev.idProduct:#06x}"] + lines).encode()).hexdigest()[:12]
+        groups.setdefault(fp, []).append(dev)
+        tag = "TARGET" if dev.idProduct == PID else "not target"
+        print(f"\n  port {rig_port(dev)}  {label(dev)}  product 0x{dev.idProduct:04x} ({tag})  fingerprint {fp}")
+        for line in lines:
+            print(f"    {line}")
+    print(f"\n[{now()}] {len(groups)} distinct descriptor set(s):")
+    for fp, members in groups.items():
+        print(f"  {fp}: product 0x{members[0].idProduct:04x}, ports "
+              + ", ".join(f"{rig_port(d)} (0x{location_id(d):08x})" for d in members))
 
 
-def cmd_controls(_args):
+def cmd_controls(args):
+    """Read-only GETs. --all-vendor: every 0x0c45 camera (approved by the user for reads only)."""
     guard()
     be = usb_backend()
-    devs = find_targets(be)
-    print(f"[{now()}] {len(devs)} target(s); no stream open")
+    if args.all_vendor:
+        import usb.core
+        devs = sorted(usb.core.find(find_all=True, idVendor=VID, backend=be), key=location_id)
+        print(f"[{now()}] {len(devs)} camera(s) with vendor 0x{VID:04x} (all products); GET requests only; no stream open")
+    else:
+        devs = find_targets(be)
+        print(f"[{now()}] {len(devs)} target(s); no stream open")
     import usb.util
     for dev in devs:
+        print(f"\n  port {rig_port(dev)}  product 0x{dev.idProduct:04x} ({'TARGET' if dev.idProduct == PID else 'not target'})")
         lay = vc_layout(dev)
         print_layout(dev, lay)
         for name in CONTROLS:
@@ -772,7 +892,10 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("list").set_defaults(fn=cmd_list)
-    sub.add_parser("controls").set_defaults(fn=cmd_controls)
+    ct = sub.add_parser("controls")
+    ct.add_argument("--all-vendor", action="store_true",
+                    help="every 0x0c45 camera, not only the target product (GET requests only)")
+    ct.set_defaults(fn=cmd_controls)
     stream = argparse.ArgumentParser(add_help=False)
     stream.add_argument("--index", type=int, default=0, help="cv2 camera index to stream (any index is a target)")
     stream.add_argument("--config", default=RECORDER_CONFIG, help="recorder config to take the format from")
