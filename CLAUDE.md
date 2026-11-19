@@ -23,6 +23,21 @@ same code works for the sibling product 0x6366 (25446), the Logitech webcam, or 
 camera is a secondary question, to be noted in the report if you learn anything, not
 pursued. Select cameras by vendor and product id, never by position in a list.
 
+## The specification behind this (added 2026-11-19)
+The later analysis of the video needs sharp images: the exposure time must be a small
+fraction of the frame interval, under 5 ms, or motion blur ruins the frames. The cameras'
+auto-exposure chooses much longer exposures in dim light (the recorder's per-clip rate
+check shows the rate dropping, which means exposure beyond the 33 ms frame interval), and
+nothing on macOS can read or set the exposure through OpenCV. So the goals, in order of
+value:
+1. Read the current exposure time (and gain) from a camera. A read alone gives the
+   recorder a way to warn when exposure exceeds the limit during a run.
+2. Clear the auto-exposure priority setting (the UVC control that lets the camera lower
+   its frame rate for a longer exposure). One write; it caps exposure at the frame
+   interval, not at 5 ms, but it is the smallest useful step.
+3. Set exposure to a fixed value under 5 ms with the gain raised to compensate, and have
+   it stick across stream start and re-enumeration.
+
 Answer these three, each with a yes or no and the evidence:
 1. Does macOS let a user process send UVC control requests to the camera while AVFoundation
    holds it open (i.e. while a cv2.VideoCapture is streaming from it)?
