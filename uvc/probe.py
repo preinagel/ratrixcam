@@ -3,7 +3,11 @@
 
 RUN THIS (in your own Terminal, from anywhere; not inside the Claude sandbox):
 
-    cd ~/Desktop/ratrixcam-uvc && uvc/.venv/bin/python uvc/probe.py restore 2>&1 | tee uvc/logs/restore-run1.log
+    cd ~/Desktop/ratrixcam-uvc && uvc/.venv/bin/python uvc/probe.py gainsweep 2>&1 | tee uvc/logs/gainsweep-run1.log
+
+    then (watch the terminal: it tells you when to unplug and replug one camera):
+
+    cd ~/Desktop/ratrixcam-uvc && uvc/.venv/bin/python uvc/probe.py persist 2>&1 | tee uvc/logs/persist-run1.log
 
 Sub-commands:
     list      enumerate 0x0c45:0x6369 devices and parse their VideoControl descriptors
@@ -18,9 +22,16 @@ Sub-commands:
     aetrack   on each target while index 0 streams: manual 4 ms, then back to auto with the
               exposure value left at 4 ms; reads exposure 4x/s while AE re-converges.
               Restores exposure and AE mode and reads them back.
+    gainsweep goal 3: on each target while index 0 streams, manual 4 ms and gain stepped
+              through its range; brightness per step vs the auto brightness just before
+    persist   question 2: manual 4 ms + gain 10 set with no stream; read back after stream
+              start, stream stop, and a cued unplug/replug of one camera (polls for it)
     restore   safety net: exposure, gain and AE mode to each camera's own defaults
 
-Streaming sub-commands (q1, track, aetrack) open the capture as the recorder does
+Every sub-command that writes restores each target to its defaults in a finally block
+(manual first, then exposure and gain defaults, then AE mode auto) and reads them back.
+
+Streaming sub-commands (q1, track, aetrack, gainsweep, persist) open the capture as the recorder does
 (ratrixcam_server.py:487-492): VideoCapture(index) on the default backend, then width,
 height and fps from ~/Desktop/camera_config.json's defaults (read only; --width/--height/
 --fps override). Each prints the requested, reported and measured format.
@@ -562,6 +573,190 @@ def restore_defaults(dev, lay):
     return ok
 
 
+def set_manual(dev, lay, exposure, gain):
+    """Manual AE mode, then exposure and gain; read back. Exposure only accepts writes in manual."""
+    print(f"    write ae_mode:=manual(1): {fmt(*xfer(dev, lay, 'ae_mode', SET_CUR, AE_MANUAL))}")
+    print(f"    write exposure:={exposure} ({exposure / 10:.1f} ms): {fmt(*xfer(dev, lay, 'exposure', SET_CUR, exposure))}")
+    print(f"    write gain:={gain}: {fmt(*xfer(dev, lay, 'gain', SET_CUR, gain))}")
+    return readback_line(dev, lay, (AE_MANUAL, exposure, gain), "after write")
+
+
+def readback_line(dev, lay, want, when):
+    """One line: ae_mode/exposure/gain now, and whether they match `want` (mode, exposure, gain)."""
+    got = tuple(xfer(dev, lay, n, GET_CUR)[0] for n in ("ae_mode", "exposure", "gain"))
+    verdict = ("MATCHES" if got == want else "DIFFERS") + f" (expected ae_mode={want[0]} exposure={want[1]} gain={want[2]})"
+    exp_s = f"{got[1] / 10:.1f} ms" if got[1] is not None else "ERR"
+    print(f"    [{when}] {location_id(dev):08x} ae_mode={got[0]} exposure={got[1]} ({exp_s}) gain={got[2]}: {verdict}")
+    return got == want
+
+
+def cmd_gainsweep(args):
+    """Goal 3 compensation: at manual 4 ms, step gain through its range and measure brightness,
+    to find the gain that matches the brightness auto-exposure gives at the same moment."""
+    guard()
+    be = usb_backend()
+    devs = find_targets(be)
+    lays = [vc_layout(d) for d in devs]
+    print(f"[{now()}] {len(devs)} target(s); exposure fixed at {TEST_EXPOSURE / 10:.1f} ms, gain step {args.step}")
+    cv2 = import_cv2()
+    cap = open_capture(cv2, args)
+    if not cap.isOpened():
+        sys.exit("capture did not open")
+    reader = Reader(cap)
+    reader.start()
+    changed = []
+    try:
+        watch(reader, "warm-up", 3.0)
+        print_measured_size(reader)
+        for dev, lay in zip(devs, lays):
+            print(f"  {label(dev)}")
+            gmin, e1, _ = xfer(dev, lay, "gain", GET_MIN)
+            gmax, e2, _ = xfer(dev, lay, "gain", GET_MAX)
+            if e1 or e2:
+                print("    gain range unreadable; skipped")
+                continue
+            b_auto = watch(reader, "auto (reference)", 2.0)
+            changed.append(lambda d=dev, l=lay: restore_defaults(d, l))
+            set_manual(dev, lay, TEST_EXPOSURE, gmin)
+            gains = list(range(gmin, gmax + 1, args.step))
+            if gains[-1] != gmax:
+                gains.append(gmax)
+            rows = []
+            for g in gains:
+                w = xfer(dev, lay, "gain", SET_CUR, g)
+                rb, rb_err, _ = xfer(dev, lay, "gain", GET_CUR)
+                tag = f"gain {g} (write {fmt(*w)}, read back {'ERR' if rb_err else rb})"
+                b = watch(reader, tag, args.dwell, settle=args.settle)
+                rows.append((g, b))
+            changed.pop()()
+            watch(reader, "after restore", 2.0)
+            bs = [b for _, b in rows]
+            if max(bs) - min(bs) < 3:
+                print(f"    gain sweep: brightness flat ({min(bs):.1f}-{max(bs):.1f}): not the capture")
+                continue
+            best = min(rows, key=lambda r: abs(r[1] - b_auto))
+            sat = [g for g, b in rows if b >= 250]
+            print(f"    gain sweep on the capture: auto reference {b_auto:.1f}; at {TEST_EXPOSURE / 10:.1f} ms "
+                  f"the nearest is gain {best[0]} -> {best[1]:.1f}"
+                  + (f"; saturated (>=250) from gain {sat[0]}" if sat else ""))
+            print("    table gain:brightness " + " ".join(f"{g}:{b:.1f}" for g, b in rows))
+    finally:
+        for undo in changed:
+            undo()
+        reader.stop_evt.set()
+        reader.join(timeout=3)
+        cap.release()
+    print(f"\n[{now()}] final read-back, stream released")
+    for dev, lay in zip(devs, lays):
+        readback_line(dev, lay, (AE_APERTURE, 157, 0), "final, expected = defaults")
+
+
+def wait_for_count(be, want, timeout, poll=0.5):
+    """Poll until the number of targets equals `want`; return the targets, or None on timeout."""
+    end = time.monotonic() + timeout
+    while time.monotonic() < end:
+        devs = find_targets(be)
+        if len(devs) == want:
+            return devs
+        time.sleep(poll)
+    return None
+
+
+def cmd_persist(args):
+    """Q2: do manual settings survive stream start, stream stop, and unplug/replug?"""
+    guard()
+    import usb.util
+    be = usb_backend()
+    state = {"devs": find_targets(be)}
+    state["lays"] = [vc_layout(d) for d in state["devs"]]
+    n = len(state["devs"])
+    want = (AE_MANUAL, TEST_EXPOSURE, args.gain)
+    print(f"[{now()}] {n} target(s); manual setting under test: exposure {TEST_EXPOSURE / 10:.1f} ms, gain {args.gain}")
+    cv2 = import_cv2()
+
+    print(f"\n[{now()}] PHASE 1: auto baseline brightness (stream at the recorder's format)")
+    cap = open_capture(cv2, args)
+    if not cap.isOpened():
+        sys.exit("capture did not open")
+    reader = Reader(cap)
+    reader.start()
+    watch(reader, "warm-up", 3.0)
+    print_measured_size(reader)
+    b_auto = watch(reader, "auto baseline", 2.0)
+    reader.stop_evt.set()
+    reader.join(timeout=3)
+    cap.release()
+
+    try:
+        print(f"\n[{now()}] PHASE 2: set manual with NO stream open")
+        for dev, lay in zip(state["devs"], state["lays"]):
+            print(f"  {label(dev)}")
+            set_manual(dev, lay, TEST_EXPOSURE, args.gain)
+
+        print(f"\n[{now()}] PHASE 3: stream start (opened as the recorder opens it)")
+        cap = open_capture(cv2, args)
+        reader = Reader(cap)
+        reader.start()
+        for dev, lay in zip(state["devs"], state["lays"]):
+            readback_line(dev, lay, want, "right after open")
+        b_manual = watch(reader, "streaming with manual set beforehand", 3.0, settle=1.0)
+        for dev, lay in zip(state["devs"], state["lays"]):
+            readback_line(dev, lay, want, "after 4 s streaming")
+        reader.stop_evt.set()
+        reader.join(timeout=3)
+        cap.release()
+        darker = b_manual < 0.85 * b_auto
+        print(f"    brightness: auto baseline {b_auto:.1f}, after stream start with manual {b_manual:.1f}: "
+              + ("darker, consistent with the manual exposure being in force"
+                 if darker else "NOT darker: the manual exposure may not be in force on the capture"))
+        for dev, lay in zip(state["devs"], state["lays"]):
+            readback_line(dev, lay, want, "after stream stop")
+
+        if args.no_replug:
+            return
+        print(f"\n[{now()}] PHASE 4: unplug and replug")
+        for dev in state["devs"]:
+            usb.util.dispose_resources(dev)
+        before = {location_id(d) for d in state["devs"]}
+        print(f">>> UNPLUG ONE target camera now (any one), wait about 5 s, then plug it back into the SAME port.")
+        print(f"    waiting up to {args.timeout:.0f} s for it to disappear...")
+        gone = wait_for_count(be, n - 1, args.timeout)
+        if gone is None:
+            print("    no camera disappeared; skipping the replug test")
+            return
+        missing = before - {location_id(d) for d in gone}
+        print(f"[{now()}] disappeared: {', '.join(f'0x{m:08x}' for m in missing)}. Now plug it back in.")
+        back = wait_for_count(be, n, args.timeout)
+        if back is None:
+            state["devs"], state["lays"] = gone, [vc_layout(d) for d in gone]
+            print(f"!!! the camera did not come back within {args.timeout:.0f} s. Plug it in, then run "
+                  "`uvc/.venv/bin/python uvc/probe.py restore` (it may still be in manual).")
+            return
+        time.sleep(args.settle_after_replug)
+        state["devs"], state["lays"] = back, [vc_layout(d) for d in back]
+        print(f"[{now()}] re-enumerated: {', '.join(f'0x{location_id(d):08x}' for d in back)}")
+        for dev, lay in zip(state["devs"], state["lays"]):
+            note = " (the replugged camera)" if location_id(dev) in missing else ""
+            print(f"  {label(dev)}{note}")
+            readback_line(dev, lay, want, "after re-enumeration, no stream")
+        cap = open_capture(cv2, args)
+        reader = Reader(cap)
+        reader.start()
+        watch(reader, "stream after re-enumeration", 3.0, settle=1.0)
+        for dev, lay in zip(state["devs"], state["lays"]):
+            readback_line(dev, lay, want, "after re-enumeration + stream start")
+        reader.stop_evt.set()
+        reader.join(timeout=3)
+        cap.release()
+    finally:
+        print(f"\n[{now()}] RESTORE every target to its defaults")
+        results = []
+        for dev, lay in zip(state["devs"], state["lays"]):
+            print(f"  {label(dev)}")
+            results.append(restore_defaults(dev, lay))
+        print(f"[{now()}] restore {'OK on all targets present' if all(results) else 'INCOMPLETE: see MISMATCH lines'}")
+
+
 def restore_priority(dev, lay, value):
     print(f"    restore ae_priority:={value}: {fmt(*xfer(dev, lay, 'ae_priority', SET_CUR, value))}")
     res, err, ms = xfer(dev, lay, "ae_priority", GET_CUR)
@@ -591,6 +786,17 @@ def main():
     at.add_argument("--seconds", type=float, default=5.0, help="how long to follow AE after handing back")
     at.add_argument("--interval", type=float, default=0.25)
     at.set_defaults(fn=cmd_aetrack)
+    gs = sub.add_parser("gainsweep", parents=[stream])
+    gs.add_argument("--step", type=int, default=10, help="gain step through the camera's range")
+    gs.add_argument("--dwell", type=float, default=1.0, help="seconds measured per gain step")
+    gs.add_argument("--settle", type=float, default=0.5, help="seconds discarded after each gain write")
+    gs.set_defaults(fn=cmd_gainsweep)
+    ps = sub.add_parser("persist", parents=[stream])
+    ps.add_argument("--gain", type=int, default=10, help="manual gain under test (non-default, so a revert shows)")
+    ps.add_argument("--no-replug", action="store_true", help="stop after the stream start/stop phases")
+    ps.add_argument("--timeout", type=float, default=120.0, help="seconds to wait for unplug, and again for replug")
+    ps.add_argument("--settle-after-replug", type=float, default=2.0)
+    ps.set_defaults(fn=cmd_persist)
     sub.add_parser("restore").set_defaults(fn=cmd_restore)
     args = ap.parse_args()
     sys.stdout.reconfigure(line_buffering=True)  # cues must appear live through tee
