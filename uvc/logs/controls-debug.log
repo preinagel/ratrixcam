@@ -1,0 +1,647 @@
+[timestamp] [threadID] facility level [function call] <message>
+--------------------------------------------------------------------------------
+[ 0.000032] [017d8557] libusb: debug [libusb_init_context] libusb v1.0.30.12037
+[ 0.000069] [017d8557] libusb: debug [usbi_add_event_source] add fd 3 events 1
+[ 0.000117] [017d8558] libusb: debug [darwin_event_thread_main] creating hotplug event source
+[ 0.000240] [017d8558] libusb: debug [darwin_event_thread_main] darwin event thread ready to receive events
+[ 0.000309] [017d8557] libusb: debug [darwin_get_cached_device] finding cached device for sessionID 0x18a61db87284
+[ 0.000326] [017d8557] libusb: debug [darwin_get_cached_device] caching new device with sessionID 0x18a61db87284
+[ 0.002725] [017d8557] libusb: debug [darwin_cache_device_descriptor] cached device descriptor:
+[ 0.002727] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDescriptorType:    0x01
+[ 0.002728] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bcdUSB:             0x0210
+[ 0.002729] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDeviceClass:       0x09
+[ 0.002730] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDeviceSubClass:    0x00
+[ 0.002731] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDeviceProtocol:    0x02
+[ 0.002732] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bMaxPacketSize0:    0x40
+[ 0.002733] [017d8557] libusb: debug [darwin_cache_device_descriptor]   idVendor:           0x2109
+[ 0.002734] [017d8557] libusb: debug [darwin_cache_device_descriptor]   idProduct:          0x2822
+[ 0.002735] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bcdDevice:          0x08b4
+[ 0.002736] [017d8557] libusb: debug [darwin_cache_device_descriptor]   iManufacturer:      0x01
+[ 0.002736] [017d8557] libusb: debug [darwin_cache_device_descriptor]   iProduct:           0x02
+[ 0.002737] [017d8557] libusb: debug [darwin_cache_device_descriptor]   iSerialNumber:      0x00
+[ 0.002738] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bNumConfigurations: 0x01
+[ 0.002748] [017d8557] libusb: debug [darwin_check_configuration] active config: 1, first config: 1
+[ 0.002749] [017d8557] libusb: debug [process_new_device] allocating new device in context 0x11be05ba0 for with session 0x18a61db87284
+[ 0.002751] [017d8557] libusb: debug [process_new_device] found device with address 1 port = 1 parent = 0x0 at 0x600003e3553a
+[ 0.002788] [017d8557] libusb: debug [darwin_get_cached_device] finding cached device for sessionID 0x18a61dc0bb70
+[ 0.002801] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x18a61dc0bb70/0x1200000 against cached device with sessionID/locationID 0x18a61db87284/0x1100000
+[ 0.002802] [017d8557] libusb: debug [darwin_get_cached_device] caching new device with sessionID 0x18a61dc0bb70
+[ 0.002888] [017d8557] libusb: debug [darwin_cache_device_descriptor] cached device descriptor:
+[ 0.002890] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDescriptorType:    0x01
+[ 0.002891] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bcdUSB:             0x0320
+[ 0.002891] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDeviceClass:       0x09
+[ 0.002892] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDeviceSubClass:    0x00
+[ 0.002893] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDeviceProtocol:    0x03
+[ 0.002893] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bMaxPacketSize0:    0x09
+[ 0.002894] [017d8557] libusb: debug [darwin_cache_device_descriptor]   idVendor:           0x2109
+[ 0.002894] [017d8557] libusb: debug [darwin_cache_device_descriptor]   idProduct:          0x0822
+[ 0.002895] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bcdDevice:          0x08b4
+[ 0.002896] [017d8557] libusb: debug [darwin_cache_device_descriptor]   iManufacturer:      0x01
+[ 0.002896] [017d8557] libusb: debug [darwin_cache_device_descriptor]   iProduct:           0x02
+[ 0.002897] [017d8557] libusb: debug [darwin_cache_device_descriptor]   iSerialNumber:      0x00
+[ 0.002898] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bNumConfigurations: 0x01
+[ 0.002903] [017d8557] libusb: debug [darwin_check_configuration] active config: 1, first config: 1
+[ 0.002904] [017d8557] libusb: debug [process_new_device] allocating new device in context 0x11be05ba0 for with session 0x18a61dc0bb70
+[ 0.002905] [017d8557] libusb: debug [process_new_device] found device with address 2 port = 2 parent = 0x0 at 0x600003e357ba
+[ 0.002929] [017d8557] libusb: debug [darwin_get_cached_device] finding cached device for sessionID 0x18a61ed19c2b
+[ 0.002937] [017d8557] libusb: debug [darwin_get_cached_device] parent sessionID: 0x18a61db87284
+[ 0.002939] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x18a61ed19c2b/0x1140000 against cached device with sessionID/locationID 0x18a61dc0bb70/0x1200000
+[ 0.002939] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x18a61ed19c2b/0x1140000 against cached device with sessionID/locationID 0x18a61db87284/0x1100000
+[ 0.002940] [017d8557] libusb: debug [darwin_get_cached_device] caching new device with sessionID 0x18a61ed19c2b
+[ 0.003009] [017d8557] libusb: debug [darwin_cache_device_descriptor] cached device descriptor:
+[ 0.003010] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDescriptorType:    0x01
+[ 0.003011] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bcdUSB:             0x0210
+[ 0.003012] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDeviceClass:       0x09
+[ 0.003012] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDeviceSubClass:    0x00
+[ 0.003013] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDeviceProtocol:    0x02
+[ 0.003013] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bMaxPacketSize0:    0x40
+[ 0.003014] [017d8557] libusb: debug [darwin_cache_device_descriptor]   idVendor:           0x0bda
+[ 0.003015] [017d8557] libusb: debug [darwin_cache_device_descriptor]   idProduct:          0x5411
+[ 0.003016] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bcdDevice:          0x0004
+[ 0.003016] [017d8557] libusb: debug [darwin_cache_device_descriptor]   iManufacturer:      0x01
+[ 0.003017] [017d8557] libusb: debug [darwin_cache_device_descriptor]   iProduct:           0x02
+[ 0.003017] [017d8557] libusb: debug [darwin_cache_device_descriptor]   iSerialNumber:      0x00
+[ 0.003018] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bNumConfigurations: 0x01
+[ 0.003023] [017d8557] libusb: debug [darwin_check_configuration] active config: 1, first config: 1
+[ 0.003024] [017d8557] libusb: debug [process_new_device] allocating new device in context 0x11be05ba0 for with session 0x18a61ed19c2b
+[ 0.003025] [017d8557] libusb: debug [process_new_device] found device with address 3 port = 4 parent = 0x600003e35680 at 0x600003e3593a
+[ 0.003048] [017d8557] libusb: debug [darwin_get_cached_device] finding cached device for sessionID 0x18a61f3eb6cc
+[ 0.003056] [017d8557] libusb: debug [darwin_get_cached_device] parent sessionID: 0x18a61dc0bb70
+[ 0.003057] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x18a61f3eb6cc/0x1240000 against cached device with sessionID/locationID 0x18a61ed19c2b/0x1140000
+[ 0.003057] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x18a61f3eb6cc/0x1240000 against cached device with sessionID/locationID 0x18a61dc0bb70/0x1200000
+[ 0.003058] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x18a61f3eb6cc/0x1240000 against cached device with sessionID/locationID 0x18a61db87284/0x1100000
+[ 0.003059] [017d8557] libusb: debug [darwin_get_cached_device] caching new device with sessionID 0x18a61f3eb6cc
+[ 0.003124] [017d8557] libusb: debug [darwin_cache_device_descriptor] cached device descriptor:
+[ 0.003125] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDescriptorType:    0x01
+[ 0.003126] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bcdUSB:             0x0320
+[ 0.003127] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDeviceClass:       0x09
+[ 0.003127] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDeviceSubClass:    0x00
+[ 0.003128] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDeviceProtocol:    0x03
+[ 0.003129] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bMaxPacketSize0:    0x09
+[ 0.003129] [017d8557] libusb: debug [darwin_cache_device_descriptor]   idVendor:           0x0bda
+[ 0.003130] [017d8557] libusb: debug [darwin_cache_device_descriptor]   idProduct:          0x0411
+[ 0.003130] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bcdDevice:          0x0004
+[ 0.003131] [017d8557] libusb: debug [darwin_cache_device_descriptor]   iManufacturer:      0x01
+[ 0.003132] [017d8557] libusb: debug [darwin_cache_device_descriptor]   iProduct:           0x02
+[ 0.003132] [017d8557] libusb: debug [darwin_cache_device_descriptor]   iSerialNumber:      0x00
+[ 0.003133] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bNumConfigurations: 0x01
+[ 0.003137] [017d8557] libusb: debug [darwin_check_configuration] active config: 1, first config: 1
+[ 0.003138] [017d8557] libusb: debug [process_new_device] allocating new device in context 0x11be05ba0 for with session 0x18a61f3eb6cc
+[ 0.003139] [017d8557] libusb: debug [process_new_device] found device with address 4 port = 4 parent = 0x600003e35800 at 0x600003e35aba
+[ 0.003161] [017d8557] libusb: debug [darwin_get_cached_device] finding cached device for sessionID 0x18a632e76b4d
+[ 0.003172] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x18a632e76b4d/0x100000 against cached device with sessionID/locationID 0x18a61f3eb6cc/0x1240000
+[ 0.003173] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x18a632e76b4d/0x100000 against cached device with sessionID/locationID 0x18a61ed19c2b/0x1140000
+[ 0.003174] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x18a632e76b4d/0x100000 against cached device with sessionID/locationID 0x18a61dc0bb70/0x1200000
+[ 0.003175] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x18a632e76b4d/0x100000 against cached device with sessionID/locationID 0x18a61db87284/0x1100000
+[ 0.003176] [017d8557] libusb: debug [darwin_get_cached_device] caching new device with sessionID 0x18a632e76b4d
+[ 0.003239] [017d8557] libusb: debug [darwin_cache_device_descriptor] cached device descriptor:
+[ 0.003241] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDescriptorType:    0x01
+[ 0.003241] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bcdUSB:             0x0210
+[ 0.003242] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDeviceClass:       0x09
+[ 0.003243] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDeviceSubClass:    0x00
+[ 0.003243] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDeviceProtocol:    0x02
+[ 0.003244] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bMaxPacketSize0:    0x40
+[ 0.003245] [017d8557] libusb: debug [darwin_cache_device_descriptor]   idVendor:           0x2109
+[ 0.003245] [017d8557] libusb: debug [darwin_cache_device_descriptor]   idProduct:          0x2822
+[ 0.003246] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bcdDevice:          0x08b4
+[ 0.003247] [017d8557] libusb: debug [darwin_cache_device_descriptor]   iManufacturer:      0x01
+[ 0.003247] [017d8557] libusb: debug [darwin_cache_device_descriptor]   iProduct:           0x02
+[ 0.003248] [017d8557] libusb: debug [darwin_cache_device_descriptor]   iSerialNumber:      0x00
+[ 0.003249] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bNumConfigurations: 0x01
+[ 0.003253] [017d8557] libusb: debug [darwin_check_configuration] active config: 1, first config: 1
+[ 0.003254] [017d8557] libusb: debug [process_new_device] allocating new device in context 0x11be05ba0 for with session 0x18a632e76b4d
+[ 0.003255] [017d8557] libusb: debug [process_new_device] found device with address 1 port = 1 parent = 0x0 at 0x600003e35c3a
+[ 0.003276] [017d8557] libusb: debug [darwin_get_cached_device] finding cached device for sessionID 0x18a632ee1fdc
+[ 0.003287] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x18a632ee1fdc/0x200000 against cached device with sessionID/locationID 0x18a632e76b4d/0x100000
+[ 0.003288] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x18a632ee1fdc/0x200000 against cached device with sessionID/locationID 0x18a61f3eb6cc/0x1240000
+[ 0.003289] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x18a632ee1fdc/0x200000 against cached device with sessionID/locationID 0x18a61ed19c2b/0x1140000
+[ 0.003290] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x18a632ee1fdc/0x200000 against cached device with sessionID/locationID 0x18a61dc0bb70/0x1200000
+[ 0.003290] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x18a632ee1fdc/0x200000 against cached device with sessionID/locationID 0x18a61db87284/0x1100000
+[ 0.003291] [017d8557] libusb: debug [darwin_get_cached_device] caching new device with sessionID 0x18a632ee1fdc
+[ 0.003352] [017d8557] libusb: debug [darwin_cache_device_descriptor] cached device descriptor:
+[ 0.003353] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDescriptorType:    0x01
+[ 0.003354] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bcdUSB:             0x0320
+[ 0.003355] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDeviceClass:       0x09
+[ 0.003355] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDeviceSubClass:    0x00
+[ 0.003356] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDeviceProtocol:    0x03
+[ 0.003357] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bMaxPacketSize0:    0x09
+[ 0.003357] [017d8557] libusb: debug [darwin_cache_device_descriptor]   idVendor:           0x2109
+[ 0.003358] [017d8557] libusb: debug [darwin_cache_device_descriptor]   idProduct:          0x0822
+[ 0.003359] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bcdDevice:          0x08b4
+[ 0.003359] [017d8557] libusb: debug [darwin_cache_device_descriptor]   iManufacturer:      0x01
+[ 0.003360] [017d8557] libusb: debug [darwin_cache_device_descriptor]   iProduct:           0x02
+[ 0.003360] [017d8557] libusb: debug [darwin_cache_device_descriptor]   iSerialNumber:      0x00
+[ 0.003361] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bNumConfigurations: 0x01
+[ 0.003365] [017d8557] libusb: debug [darwin_check_configuration] active config: 1, first config: 1
+[ 0.003366] [017d8557] libusb: debug [process_new_device] allocating new device in context 0x11be05ba0 for with session 0x18a632ee1fdc
+[ 0.003367] [017d8557] libusb: debug [process_new_device] found device with address 2 port = 2 parent = 0x0 at 0x600003e35dba
+[ 0.003388] [017d8557] libusb: debug [darwin_get_cached_device] finding cached device for sessionID 0x18a63405bf24
+[ 0.003396] [017d8557] libusb: debug [darwin_get_cached_device] parent sessionID: 0x18a632e76b4d
+[ 0.003397] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x18a63405bf24/0x140000 against cached device with sessionID/locationID 0x18a632ee1fdc/0x200000
+[ 0.003398] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x18a63405bf24/0x140000 against cached device with sessionID/locationID 0x18a632e76b4d/0x100000
+[ 0.003399] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x18a63405bf24/0x140000 against cached device with sessionID/locationID 0x18a61f3eb6cc/0x1240000
+[ 0.003399] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x18a63405bf24/0x140000 against cached device with sessionID/locationID 0x18a61ed19c2b/0x1140000
+[ 0.003400] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x18a63405bf24/0x140000 against cached device with sessionID/locationID 0x18a61dc0bb70/0x1200000
+[ 0.003401] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x18a63405bf24/0x140000 against cached device with sessionID/locationID 0x18a61db87284/0x1100000
+[ 0.003402] [017d8557] libusb: debug [darwin_get_cached_device] caching new device with sessionID 0x18a63405bf24
+[ 0.003463] [017d8557] libusb: debug [darwin_cache_device_descriptor] cached device descriptor:
+[ 0.003464] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDescriptorType:    0x01
+[ 0.003465] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bcdUSB:             0x0210
+[ 0.003466] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDeviceClass:       0x09
+[ 0.003466] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDeviceSubClass:    0x00
+[ 0.003467] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDeviceProtocol:    0x02
+[ 0.003467] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bMaxPacketSize0:    0x40
+[ 0.003468] [017d8557] libusb: debug [darwin_cache_device_descriptor]   idVendor:           0x0bda
+[ 0.003469] [017d8557] libusb: debug [darwin_cache_device_descriptor]   idProduct:          0x5411
+[ 0.003469] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bcdDevice:          0x0004
+[ 0.003470] [017d8557] libusb: debug [darwin_cache_device_descriptor]   iManufacturer:      0x01
+[ 0.003471] [017d8557] libusb: debug [darwin_cache_device_descriptor]   iProduct:           0x02
+[ 0.003471] [017d8557] libusb: debug [darwin_cache_device_descriptor]   iSerialNumber:      0x00
+[ 0.003472] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bNumConfigurations: 0x01
+[ 0.003476] [017d8557] libusb: debug [darwin_check_configuration] active config: 1, first config: 1
+[ 0.003477] [017d8557] libusb: debug [process_new_device] allocating new device in context 0x11be05ba0 for with session 0x18a63405bf24
+[ 0.003478] [017d8557] libusb: debug [process_new_device] found device with address 3 port = 4 parent = 0x600003e35c80 at 0x600003e35f3a
+[ 0.003499] [017d8557] libusb: debug [darwin_get_cached_device] finding cached device for sessionID 0x18a6346e78f1
+[ 0.003507] [017d8557] libusb: debug [darwin_get_cached_device] parent sessionID: 0x18a632ee1fdc
+[ 0.003508] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x18a6346e78f1/0x240000 against cached device with sessionID/locationID 0x18a63405bf24/0x140000
+[ 0.003509] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x18a6346e78f1/0x240000 against cached device with sessionID/locationID 0x18a632ee1fdc/0x200000
+[ 0.003510] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x18a6346e78f1/0x240000 against cached device with sessionID/locationID 0x18a632e76b4d/0x100000
+[ 0.003511] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x18a6346e78f1/0x240000 against cached device with sessionID/locationID 0x18a61f3eb6cc/0x1240000
+[ 0.003511] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x18a6346e78f1/0x240000 against cached device with sessionID/locationID 0x18a61ed19c2b/0x1140000
+[ 0.003512] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x18a6346e78f1/0x240000 against cached device with sessionID/locationID 0x18a61dc0bb70/0x1200000
+[ 0.003513] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x18a6346e78f1/0x240000 against cached device with sessionID/locationID 0x18a61db87284/0x1100000
+[ 0.003514] [017d8557] libusb: debug [darwin_get_cached_device] caching new device with sessionID 0x18a6346e78f1
+[ 0.003572] [017d8557] libusb: debug [darwin_cache_device_descriptor] cached device descriptor:
+[ 0.003574] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDescriptorType:    0x01
+[ 0.003574] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bcdUSB:             0x0320
+[ 0.003575] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDeviceClass:       0x09
+[ 0.003575] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDeviceSubClass:    0x00
+[ 0.003576] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDeviceProtocol:    0x03
+[ 0.003577] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bMaxPacketSize0:    0x09
+[ 0.003577] [017d8557] libusb: debug [darwin_cache_device_descriptor]   idVendor:           0x0bda
+[ 0.003578] [017d8557] libusb: debug [darwin_cache_device_descriptor]   idProduct:          0x0411
+[ 0.003579] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bcdDevice:          0x0004
+[ 0.003579] [017d8557] libusb: debug [darwin_cache_device_descriptor]   iManufacturer:      0x01
+[ 0.003580] [017d8557] libusb: debug [darwin_cache_device_descriptor]   iProduct:           0x02
+[ 0.003581] [017d8557] libusb: debug [darwin_cache_device_descriptor]   iSerialNumber:      0x00
+[ 0.003581] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bNumConfigurations: 0x01
+[ 0.003586] [017d8557] libusb: debug [darwin_check_configuration] active config: 1, first config: 1
+[ 0.003586] [017d8557] libusb: debug [process_new_device] allocating new device in context 0x11be05ba0 for with session 0x18a6346e78f1
+[ 0.003587] [017d8557] libusb: debug [process_new_device] found device with address 4 port = 4 parent = 0x600003e35e00 at 0x600003e360ba
+[ 0.003608] [017d8557] libusb: debug [darwin_get_cached_device] finding cached device for sessionID 0x18af6719656a
+[ 0.003620] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x18af6719656a/0x2100000 against cached device with sessionID/locationID 0x18a6346e78f1/0x240000
+[ 0.003621] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x18af6719656a/0x2100000 against cached device with sessionID/locationID 0x18a63405bf24/0x140000
+[ 0.003622] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x18af6719656a/0x2100000 against cached device with sessionID/locationID 0x18a632ee1fdc/0x200000
+[ 0.003623] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x18af6719656a/0x2100000 against cached device with sessionID/locationID 0x18a632e76b4d/0x100000
+[ 0.003624] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x18af6719656a/0x2100000 against cached device with sessionID/locationID 0x18a61f3eb6cc/0x1240000
+[ 0.003624] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x18af6719656a/0x2100000 against cached device with sessionID/locationID 0x18a61ed19c2b/0x1140000
+[ 0.003625] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x18af6719656a/0x2100000 against cached device with sessionID/locationID 0x18a61dc0bb70/0x1200000
+[ 0.003626] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x18af6719656a/0x2100000 against cached device with sessionID/locationID 0x18a61db87284/0x1100000
+[ 0.003627] [017d8557] libusb: debug [darwin_get_cached_device] caching new device with sessionID 0x18af6719656a
+[ 0.003700] [017d8557] libusb: debug [darwin_cache_device_descriptor] cached device descriptor:
+[ 0.003702] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDescriptorType:    0x01
+[ 0.003702] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bcdUSB:             0x0320
+[ 0.003703] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDeviceClass:       0x00
+[ 0.003704] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDeviceSubClass:    0x00
+[ 0.003704] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDeviceProtocol:    0x00
+[ 0.003705] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bMaxPacketSize0:    0x09
+[ 0.003706] [017d8557] libusb: debug [darwin_cache_device_descriptor]   idVendor:           0x0634
+[ 0.003706] [017d8557] libusb: debug [darwin_cache_device_descriptor]   idProduct:          0x5602
+[ 0.003707] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bcdDevice:          0x0110
+[ 0.003708] [017d8557] libusb: debug [darwin_cache_device_descriptor]   iManufacturer:      0x01
+[ 0.003708] [017d8557] libusb: debug [darwin_cache_device_descriptor]   iProduct:           0x02
+[ 0.003709] [017d8557] libusb: debug [darwin_cache_device_descriptor]   iSerialNumber:      0x03
+[ 0.003709] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bNumConfigurations: 0x01
+[ 0.003714] [017d8557] libusb: debug [darwin_check_configuration] active config: 1, first config: 1
+[ 0.003715] [017d8557] libusb: debug [process_new_device] allocating new device in context 0x11be05ba0 for with session 0x18af6719656a
+[ 0.003716] [017d8557] libusb: debug [process_new_device] found device with address 3 port = 1 parent = 0x0 at 0x600003e362ba
+[ 0.003737] [017d8557] libusb: debug [darwin_get_cached_device] finding cached device for sessionID 0x18b328d85d99
+[ 0.003747] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x18b328d85d99/0x2400000 against cached device with sessionID/locationID 0x18af6719656a/0x2100000
+[ 0.003749] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x18b328d85d99/0x2400000 against cached device with sessionID/locationID 0x18a6346e78f1/0x240000
+[ 0.003750] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x18b328d85d99/0x2400000 against cached device with sessionID/locationID 0x18a63405bf24/0x140000
+[ 0.003750] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x18b328d85d99/0x2400000 against cached device with sessionID/locationID 0x18a632ee1fdc/0x200000
+[ 0.003751] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x18b328d85d99/0x2400000 against cached device with sessionID/locationID 0x18a632e76b4d/0x100000
+[ 0.003752] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x18b328d85d99/0x2400000 against cached device with sessionID/locationID 0x18a61f3eb6cc/0x1240000
+[ 0.003753] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x18b328d85d99/0x2400000 against cached device with sessionID/locationID 0x18a61ed19c2b/0x1140000
+[ 0.003753] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x18b328d85d99/0x2400000 against cached device with sessionID/locationID 0x18a61dc0bb70/0x1200000
+[ 0.003754] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x18b328d85d99/0x2400000 against cached device with sessionID/locationID 0x18a61db87284/0x1100000
+[ 0.003755] [017d8557] libusb: debug [darwin_get_cached_device] caching new device with sessionID 0x18b328d85d99
+[ 0.003818] [017d8557] libusb: debug [darwin_cache_device_descriptor] cached device descriptor:
+[ 0.003819] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDescriptorType:    0x01
+[ 0.003820] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bcdUSB:             0x0200
+[ 0.003820] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDeviceClass:       0x00
+[ 0.003821] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDeviceSubClass:    0x00
+[ 0.003822] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDeviceProtocol:    0x00
+[ 0.003822] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bMaxPacketSize0:    0x08
+[ 0.003823] [017d8557] libusb: debug [darwin_cache_device_descriptor]   idVendor:           0x046d
+[ 0.003823] [017d8557] libusb: debug [darwin_cache_device_descriptor]   idProduct:          0xc016
+[ 0.003824] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bcdDevice:          0x0340
+[ 0.003825] [017d8557] libusb: debug [darwin_cache_device_descriptor]   iManufacturer:      0x01
+[ 0.003825] [017d8557] libusb: debug [darwin_cache_device_descriptor]   iProduct:           0x02
+[ 0.003826] [017d8557] libusb: debug [darwin_cache_device_descriptor]   iSerialNumber:      0x00
+[ 0.003827] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bNumConfigurations: 0x01
+[ 0.003831] [017d8557] libusb: debug [darwin_check_configuration] active config: 1, first config: 1
+[ 0.003832] [017d8557] libusb: debug [process_new_device] allocating new device in context 0x11be05ba0 for with session 0x18b328d85d99
+[ 0.003832] [017d8557] libusb: debug [process_new_device] found device with address 4 port = 4 parent = 0x0 at 0x600003e3643a
+[ 0.003853] [017d8557] libusb: debug [darwin_get_cached_device] finding cached device for sessionID 0x3359a02e10b1
+[ 0.003860] [017d8557] libusb: debug [darwin_get_cached_device] parent sessionID: 0x18a63405bf24
+[ 0.003861] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x3359a02e10b1/0x141000 against cached device with sessionID/locationID 0x18b328d85d99/0x2400000
+[ 0.003862] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x3359a02e10b1/0x141000 against cached device with sessionID/locationID 0x18af6719656a/0x2100000
+[ 0.003863] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x3359a02e10b1/0x141000 against cached device with sessionID/locationID 0x18a6346e78f1/0x240000
+[ 0.003864] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x3359a02e10b1/0x141000 against cached device with sessionID/locationID 0x18a63405bf24/0x140000
+[ 0.003864] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x3359a02e10b1/0x141000 against cached device with sessionID/locationID 0x18a632ee1fdc/0x200000
+[ 0.003868] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x3359a02e10b1/0x141000 against cached device with sessionID/locationID 0x18a632e76b4d/0x100000
+[ 0.003869] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x3359a02e10b1/0x141000 against cached device with sessionID/locationID 0x18a61f3eb6cc/0x1240000
+[ 0.003870] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x3359a02e10b1/0x141000 against cached device with sessionID/locationID 0x18a61ed19c2b/0x1140000
+[ 0.003870] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x3359a02e10b1/0x141000 against cached device with sessionID/locationID 0x18a61dc0bb70/0x1200000
+[ 0.003871] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x3359a02e10b1/0x141000 against cached device with sessionID/locationID 0x18a61db87284/0x1100000
+[ 0.003872] [017d8557] libusb: debug [darwin_get_cached_device] caching new device with sessionID 0x3359a02e10b1
+[ 0.003936] [017d8557] libusb: debug [darwin_cache_device_descriptor] cached device descriptor:
+[ 0.003937] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDescriptorType:    0x01
+[ 0.003938] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bcdUSB:             0x0200
+[ 0.003938] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDeviceClass:       0xef
+[ 0.003939] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDeviceSubClass:    0x02
+[ 0.003939] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDeviceProtocol:    0x01
+[ 0.003940] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bMaxPacketSize0:    0x40
+[ 0.003941] [017d8557] libusb: debug [darwin_cache_device_descriptor]   idVendor:           0x0c45
+[ 0.003941] [017d8557] libusb: debug [darwin_cache_device_descriptor]   idProduct:          0x6369
+[ 0.003942] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bcdDevice:          0x0100
+[ 0.003943] [017d8557] libusb: debug [darwin_cache_device_descriptor]   iManufacturer:      0x02
+[ 0.003943] [017d8557] libusb: debug [darwin_cache_device_descriptor]   iProduct:           0x01
+[ 0.003944] [017d8557] libusb: debug [darwin_cache_device_descriptor]   iSerialNumber:      0x00
+[ 0.003945] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bNumConfigurations: 0x01
+[ 0.003949] [017d8557] libusb: debug [darwin_check_configuration] active config: 1, first config: 1
+[ 0.003950] [017d8557] libusb: debug [process_new_device] allocating new device in context 0x11be05ba0 for with session 0x3359a02e10b1
+[ 0.003951] [017d8557] libusb: debug [process_new_device] found device with address 5 port = 1 parent = 0x600003e35f80 at 0x600003e365ba
+[ 0.003973] [017d8557] libusb: debug [darwin_get_cached_device] finding cached device for sessionID 0x335a06c7026c
+[ 0.003980] [017d8557] libusb: debug [darwin_get_cached_device] parent sessionID: 0x18a61ed19c2b
+[ 0.003982] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x335a06c7026c/0x1141000 against cached device with sessionID/locationID 0x3359a02e10b1/0x141000
+[ 0.003982] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x335a06c7026c/0x1141000 against cached device with sessionID/locationID 0x18b328d85d99/0x2400000
+[ 0.003983] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x335a06c7026c/0x1141000 against cached device with sessionID/locationID 0x18af6719656a/0x2100000
+[ 0.003984] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x335a06c7026c/0x1141000 against cached device with sessionID/locationID 0x18a6346e78f1/0x240000
+[ 0.003985] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x335a06c7026c/0x1141000 against cached device with sessionID/locationID 0x18a63405bf24/0x140000
+[ 0.003985] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x335a06c7026c/0x1141000 against cached device with sessionID/locationID 0x18a632ee1fdc/0x200000
+[ 0.003986] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x335a06c7026c/0x1141000 against cached device with sessionID/locationID 0x18a632e76b4d/0x100000
+[ 0.003987] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x335a06c7026c/0x1141000 against cached device with sessionID/locationID 0x18a61f3eb6cc/0x1240000
+[ 0.003988] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x335a06c7026c/0x1141000 against cached device with sessionID/locationID 0x18a61ed19c2b/0x1140000
+[ 0.003988] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x335a06c7026c/0x1141000 against cached device with sessionID/locationID 0x18a61dc0bb70/0x1200000
+[ 0.003989] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x335a06c7026c/0x1141000 against cached device with sessionID/locationID 0x18a61db87284/0x1100000
+[ 0.003990] [017d8557] libusb: debug [darwin_get_cached_device] caching new device with sessionID 0x335a06c7026c
+[ 0.004050] [017d8557] libusb: debug [darwin_cache_device_descriptor] cached device descriptor:
+[ 0.004051] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDescriptorType:    0x01
+[ 0.004052] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bcdUSB:             0x0200
+[ 0.004052] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDeviceClass:       0xef
+[ 0.004053] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDeviceSubClass:    0x02
+[ 0.004054] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDeviceProtocol:    0x01
+[ 0.004054] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bMaxPacketSize0:    0x40
+[ 0.004055] [017d8557] libusb: debug [darwin_cache_device_descriptor]   idVendor:           0x0c45
+[ 0.004056] [017d8557] libusb: debug [darwin_cache_device_descriptor]   idProduct:          0x6369
+[ 0.004056] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bcdDevice:          0x0100
+[ 0.004057] [017d8557] libusb: debug [darwin_cache_device_descriptor]   iManufacturer:      0x02
+[ 0.004057] [017d8557] libusb: debug [darwin_cache_device_descriptor]   iProduct:           0x01
+[ 0.004058] [017d8557] libusb: debug [darwin_cache_device_descriptor]   iSerialNumber:      0x00
+[ 0.004059] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bNumConfigurations: 0x01
+[ 0.004063] [017d8557] libusb: debug [darwin_check_configuration] active config: 1, first config: 1
+[ 0.004064] [017d8557] libusb: debug [process_new_device] allocating new device in context 0x11be05ba0 for with session 0x335a06c7026c
+[ 0.004065] [017d8557] libusb: debug [process_new_device] found device with address 5 port = 1 parent = 0x600003e35980 at 0x600003e3673a
+[ 0.004085] [017d8557] libusb: debug [darwin_get_cached_device] finding cached device for sessionID 0x335a46365c2a
+[ 0.004093] [017d8557] libusb: debug [darwin_get_cached_device] parent sessionID: 0x18a61ed19c2b
+[ 0.004093] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x335a46365c2a/0x1143000 against cached device with sessionID/locationID 0x335a06c7026c/0x1141000
+[ 0.004094] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x335a46365c2a/0x1143000 against cached device with sessionID/locationID 0x3359a02e10b1/0x141000
+[ 0.004095] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x335a46365c2a/0x1143000 against cached device with sessionID/locationID 0x18b328d85d99/0x2400000
+[ 0.004096] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x335a46365c2a/0x1143000 against cached device with sessionID/locationID 0x18af6719656a/0x2100000
+[ 0.004096] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x335a46365c2a/0x1143000 against cached device with sessionID/locationID 0x18a6346e78f1/0x240000
+[ 0.004097] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x335a46365c2a/0x1143000 against cached device with sessionID/locationID 0x18a63405bf24/0x140000
+[ 0.004098] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x335a46365c2a/0x1143000 against cached device with sessionID/locationID 0x18a632ee1fdc/0x200000
+[ 0.004099] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x335a46365c2a/0x1143000 against cached device with sessionID/locationID 0x18a632e76b4d/0x100000
+[ 0.004099] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x335a46365c2a/0x1143000 against cached device with sessionID/locationID 0x18a61f3eb6cc/0x1240000
+[ 0.004100] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x335a46365c2a/0x1143000 against cached device with sessionID/locationID 0x18a61ed19c2b/0x1140000
+[ 0.004101] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x335a46365c2a/0x1143000 against cached device with sessionID/locationID 0x18a61dc0bb70/0x1200000
+[ 0.004102] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x335a46365c2a/0x1143000 against cached device with sessionID/locationID 0x18a61db87284/0x1100000
+[ 0.004103] [017d8557] libusb: debug [darwin_get_cached_device] caching new device with sessionID 0x335a46365c2a
+[ 0.004161] [017d8557] libusb: debug [darwin_cache_device_descriptor] cached device descriptor:
+[ 0.004162] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDescriptorType:    0x01
+[ 0.004163] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bcdUSB:             0x0200
+[ 0.004164] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDeviceClass:       0xef
+[ 0.004164] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDeviceSubClass:    0x02
+[ 0.004165] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDeviceProtocol:    0x01
+[ 0.004165] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bMaxPacketSize0:    0x40
+[ 0.004166] [017d8557] libusb: debug [darwin_cache_device_descriptor]   idVendor:           0x0c45
+[ 0.004167] [017d8557] libusb: debug [darwin_cache_device_descriptor]   idProduct:          0x6369
+[ 0.004168] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bcdDevice:          0x0100
+[ 0.004168] [017d8557] libusb: debug [darwin_cache_device_descriptor]   iManufacturer:      0x02
+[ 0.004169] [017d8557] libusb: debug [darwin_cache_device_descriptor]   iProduct:           0x01
+[ 0.004169] [017d8557] libusb: debug [darwin_cache_device_descriptor]   iSerialNumber:      0x00
+[ 0.004170] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bNumConfigurations: 0x01
+[ 0.004175] [017d8557] libusb: debug [darwin_check_configuration] active config: 1, first config: 1
+[ 0.004175] [017d8557] libusb: debug [process_new_device] allocating new device in context 0x11be05ba0 for with session 0x335a46365c2a
+[ 0.004176] [017d8557] libusb: debug [process_new_device] found device with address 6 port = 3 parent = 0x600003e35980 at 0x600003e368ba
+[ 0.004197] [017d8557] libusb: debug [darwin_get_cached_device] finding cached device for sessionID 0x35575693ad27
+[ 0.004204] [017d8557] libusb: debug [darwin_get_cached_device] parent sessionID: 0x18a63405bf24
+[ 0.004207] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x35575693ad27/0x143000 against cached device with sessionID/locationID 0x335a46365c2a/0x1143000
+[ 0.004207] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x35575693ad27/0x143000 against cached device with sessionID/locationID 0x335a06c7026c/0x1141000
+[ 0.004208] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x35575693ad27/0x143000 against cached device with sessionID/locationID 0x3359a02e10b1/0x141000
+[ 0.004209] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x35575693ad27/0x143000 against cached device with sessionID/locationID 0x18b328d85d99/0x2400000
+[ 0.004210] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x35575693ad27/0x143000 against cached device with sessionID/locationID 0x18af6719656a/0x2100000
+[ 0.004211] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x35575693ad27/0x143000 against cached device with sessionID/locationID 0x18a6346e78f1/0x240000
+[ 0.004211] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x35575693ad27/0x143000 against cached device with sessionID/locationID 0x18a63405bf24/0x140000
+[ 0.004212] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x35575693ad27/0x143000 against cached device with sessionID/locationID 0x18a632ee1fdc/0x200000
+[ 0.004213] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x35575693ad27/0x143000 against cached device with sessionID/locationID 0x18a632e76b4d/0x100000
+[ 0.004214] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x35575693ad27/0x143000 against cached device with sessionID/locationID 0x18a61f3eb6cc/0x1240000
+[ 0.004214] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x35575693ad27/0x143000 against cached device with sessionID/locationID 0x18a61ed19c2b/0x1140000
+[ 0.004215] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x35575693ad27/0x143000 against cached device with sessionID/locationID 0x18a61dc0bb70/0x1200000
+[ 0.004216] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x35575693ad27/0x143000 against cached device with sessionID/locationID 0x18a61db87284/0x1100000
+[ 0.004217] [017d8557] libusb: debug [darwin_get_cached_device] caching new device with sessionID 0x35575693ad27
+[ 0.004289] [017d8557] libusb: debug [darwin_cache_device_descriptor] cached device descriptor:
+[ 0.004291] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDescriptorType:    0x01
+[ 0.004292] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bcdUSB:             0x0200
+[ 0.004292] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDeviceClass:       0xef
+[ 0.004293] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDeviceSubClass:    0x02
+[ 0.004294] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDeviceProtocol:    0x01
+[ 0.004294] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bMaxPacketSize0:    0x40
+[ 0.004295] [017d8557] libusb: debug [darwin_cache_device_descriptor]   idVendor:           0x0c45
+[ 0.004295] [017d8557] libusb: debug [darwin_cache_device_descriptor]   idProduct:          0x6366
+[ 0.004296] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bcdDevice:          0x0100
+[ 0.004297] [017d8557] libusb: debug [darwin_cache_device_descriptor]   iManufacturer:      0x02
+[ 0.004297] [017d8557] libusb: debug [darwin_cache_device_descriptor]   iProduct:           0x01
+[ 0.004298] [017d8557] libusb: debug [darwin_cache_device_descriptor]   iSerialNumber:      0x03
+[ 0.004299] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bNumConfigurations: 0x01
+[ 0.004304] [017d8557] libusb: debug [darwin_check_configuration] active config: 1, first config: 1
+[ 0.004305] [017d8557] libusb: debug [process_new_device] allocating new device in context 0x11be05ba0 for with session 0x35575693ad27
+[ 0.004305] [017d8557] libusb: debug [process_new_device] found device with address 7 port = 3 parent = 0x600003e35f80 at 0x600003e36a3a
+[ 0.004343] [017d8557] libusb: debug [darwin_get_cached_device] finding cached device for sessionID 0x35839c835c36
+[ 0.004351] [017d8557] libusb: debug [darwin_get_cached_device] parent sessionID: 0x18a61ed19c2b
+[ 0.004353] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x35839c835c36/0x1144000 against cached device with sessionID/locationID 0x35575693ad27/0x143000
+[ 0.004354] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x35839c835c36/0x1144000 against cached device with sessionID/locationID 0x335a46365c2a/0x1143000
+[ 0.004354] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x35839c835c36/0x1144000 against cached device with sessionID/locationID 0x335a06c7026c/0x1141000
+[ 0.004355] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x35839c835c36/0x1144000 against cached device with sessionID/locationID 0x3359a02e10b1/0x141000
+[ 0.004356] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x35839c835c36/0x1144000 against cached device with sessionID/locationID 0x18b328d85d99/0x2400000
+[ 0.004357] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x35839c835c36/0x1144000 against cached device with sessionID/locationID 0x18af6719656a/0x2100000
+[ 0.004357] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x35839c835c36/0x1144000 against cached device with sessionID/locationID 0x18a6346e78f1/0x240000
+[ 0.004358] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x35839c835c36/0x1144000 against cached device with sessionID/locationID 0x18a63405bf24/0x140000
+[ 0.004359] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x35839c835c36/0x1144000 against cached device with sessionID/locationID 0x18a632ee1fdc/0x200000
+[ 0.004360] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x35839c835c36/0x1144000 against cached device with sessionID/locationID 0x18a632e76b4d/0x100000
+[ 0.004360] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x35839c835c36/0x1144000 against cached device with sessionID/locationID 0x18a61f3eb6cc/0x1240000
+[ 0.004361] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x35839c835c36/0x1144000 against cached device with sessionID/locationID 0x18a61ed19c2b/0x1140000
+[ 0.004362] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x35839c835c36/0x1144000 against cached device with sessionID/locationID 0x18a61dc0bb70/0x1200000
+[ 0.004363] [017d8557] libusb: debug [darwin_get_cached_device] matching sessionID/locationID 0x35839c835c36/0x1144000 against cached device with sessionID/locationID 0x18a61db87284/0x1100000
+[ 0.004363] [017d8557] libusb: debug [darwin_get_cached_device] caching new device with sessionID 0x35839c835c36
+[ 0.004438] [017d8557] libusb: debug [darwin_cache_device_descriptor] cached device descriptor:
+[ 0.004439] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDescriptorType:    0x01
+[ 0.004440] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bcdUSB:             0x0200
+[ 0.004441] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDeviceClass:       0xef
+[ 0.004441] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDeviceSubClass:    0x02
+[ 0.004442] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bDeviceProtocol:    0x01
+[ 0.004442] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bMaxPacketSize0:    0x40
+[ 0.004443] [017d8557] libusb: debug [darwin_cache_device_descriptor]   idVendor:           0x0c45
+[ 0.004444] [017d8557] libusb: debug [darwin_cache_device_descriptor]   idProduct:          0x6366
+[ 0.004444] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bcdDevice:          0x0100
+[ 0.004445] [017d8557] libusb: debug [darwin_cache_device_descriptor]   iManufacturer:      0x02
+[ 0.004446] [017d8557] libusb: debug [darwin_cache_device_descriptor]   iProduct:           0x01
+[ 0.004446] [017d8557] libusb: debug [darwin_cache_device_descriptor]   iSerialNumber:      0x03
+[ 0.004447] [017d8557] libusb: debug [darwin_cache_device_descriptor]   bNumConfigurations: 0x01
+[ 0.004452] [017d8557] libusb: debug [darwin_check_configuration] active config: 1, first config: 1
+[ 0.004453] [017d8557] libusb: debug [process_new_device] allocating new device in context 0x11be05ba0 for with session 0x35839c835c36
+[ 0.004453] [017d8557] libusb: debug [process_new_device] found device with address 7 port = 4 parent = 0x600003e35980 at 0x600003e36bba
+[ 0.004456] [017d8557] libusb: debug [libusb_init_context] installing new context as implicit default
+[ 0.004482] [017d8557] libusb: debug [libusb_get_device_list]  
+[ 0.004510] [017d8557] libusb: debug [libusb_get_device_descriptor]  
+[ 0.004554] [017d8557] libusb: debug [libusb_get_device_descriptor]  
+[ 0.004584] [017d8557] libusb: debug [libusb_get_device_descriptor]  
+[ 0.004601] [017d8557] libusb: debug [libusb_get_device_descriptor]  
+[ 0.004612] [017d8557] libusb: debug [libusb_get_device_descriptor]  
+[ 0.004622] [017d8557] libusb: debug [libusb_get_device_descriptor]  
+[ 0.004633] [017d8557] libusb: debug [libusb_get_device_descriptor]  
+[ 0.004646] [017d8557] libusb: debug [libusb_get_device_descriptor]  
+[ 0.004658] [017d8557] libusb: debug [libusb_get_device_descriptor]  
+[ 0.004669] [017d8557] libusb: debug [libusb_get_device_descriptor]  
+[ 0.004679] [017d8557] libusb: debug [libusb_get_device_descriptor]  
+[ 0.004690] [017d8557] libusb: debug [libusb_get_device_descriptor]  
+[ 0.004700] [017d8557] libusb: debug [libusb_get_device_descriptor]  
+[ 0.004711] [017d8557] libusb: debug [libusb_get_device_descriptor]  
+[ 0.004721] [017d8557] libusb: debug [libusb_get_device_descriptor]  
+[ 0.004747] [017d8557] libusb: debug [libusb_get_config_descriptor] index 0
+[ 0.004750] [017d8557] libusb: debug [parse_configuration] skipping descriptor 0xb
+[ 0.004751] [017d8557] libusb: debug [parse_endpoint] skipping descriptor 0x25
+[ 0.004767] [017d8557] libusb: debug [libusb_get_config_descriptor] index 0
+[ 0.004769] [017d8557] libusb: debug [parse_configuration] skipping descriptor 0xb
+[ 0.004770] [017d8557] libusb: debug [parse_endpoint] skipping descriptor 0x25
+[ 0.004980] [017d8557] libusb: debug [libusb_open] open 1.6
+[ 0.004998] [017d8557] libusb: debug [darwin_open] device open for access
+[ 0.005004] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.005131] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.005153] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.005256] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.005270] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.005362] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.005371] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.005456] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.005464] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.005550] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.005558] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.005649] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.005659] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.005746] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.005754] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.005842] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.005849] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.005935] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.005942] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.006032] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.006039] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.006129] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.006136] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.006223] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.006232] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.006318] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.006325] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.006417] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.006423] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.006509] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.006515] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.006601] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.006608] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.006694] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.006701] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.006784] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.006792] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.006876] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.006887] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.006972] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.006981] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.007063] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.007070] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.007153] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.007160] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.007242] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.007249] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.007332] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.007341] [017d8557] libusb: debug [libusb_close]  
+[ 0.007352] [017d8557] libusb: debug [libusb_get_config_descriptor] index 0
+[ 0.007354] [017d8557] libusb: debug [parse_configuration] skipping descriptor 0xb
+[ 0.007355] [017d8557] libusb: debug [parse_endpoint] skipping descriptor 0x25
+[ 0.007368] [017d8557] libusb: debug [libusb_get_config_descriptor] index 0
+[ 0.007370] [017d8557] libusb: debug [parse_configuration] skipping descriptor 0xb
+[ 0.007371] [017d8557] libusb: debug [parse_endpoint] skipping descriptor 0x25
+[ 0.007402] [017d8557] libusb: debug [libusb_open] open 1.5
+[ 0.007415] [017d8557] libusb: debug [darwin_open] device open for access
+[ 0.007419] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.007511] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.007518] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.007604] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.007611] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.007697] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.007704] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.007790] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.007796] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.007881] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.007887] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.007970] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.007978] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.008063] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.008070] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.008154] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.008160] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.008245] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.008251] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.008336] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.008342] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.008427] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.008433] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.008518] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.008526] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.008612] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.008618] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.008704] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.008711] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.008796] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.008803] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.008887] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.008894] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.008979] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.008985] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.009066] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.009074] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.009159] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.009166] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.009250] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.009257] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.009344] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.009351] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.009437] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.009443] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.009529] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.009535] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.009621] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.009628] [017d8557] libusb: debug [libusb_close]  
+[ 0.009636] [017d8557] libusb: debug [libusb_get_config_descriptor] index 0
+[ 0.009638] [017d8557] libusb: debug [parse_configuration] skipping descriptor 0xb
+[ 0.009639] [017d8557] libusb: debug [parse_endpoint] skipping descriptor 0x25
+[ 0.009649] [017d8557] libusb: debug [libusb_get_config_descriptor] index 0
+[ 0.009651] [017d8557] libusb: debug [parse_configuration] skipping descriptor 0xb
+[ 0.009651] [017d8557] libusb: debug [parse_endpoint] skipping descriptor 0x25
+[ 0.009676] [017d8557] libusb: debug [libusb_open] open 0.5
+[ 0.009692] [017d8557] libusb: debug [darwin_open] device open for access
+[ 0.009696] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.009790] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.009797] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.009880] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.009886] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.009976] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.009982] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.010066] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.010072] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.010156] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.010162] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.010248] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.010255] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.010339] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.010345] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.010431] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.010437] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.010522] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.010529] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.010612] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.010618] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.010703] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.010709] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.010792] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.010804] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.010886] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.010895] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.010980] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.010986] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.011068] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.011074] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.011159] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.011165] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.011250] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.011257] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.011343] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.011354] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.011440] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.011447] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.011532] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.011538] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.011623] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.011629] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.011714] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.011721] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.011808] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.011814] [017d8557] libusb: debug [libusb_claim_interface] interface 0
+[ 0.011897] [017d8557] libusb: info [darwin_claim_interface] USBInterfaceOpen: another process has device opened for exclusive access
+[ 0.011905] [017d8557] libusb: debug [libusb_close]  
+[2026-11-18 17:08:59] probe.py controls  python 3.13.5  pid 90233
+[2026-11-18 17:08:59] recording check: /Users/rat_hub_01/Desktop/temp absent, ok
+[2026-11-18 17:08:59] 3 target(s); no stream open
+  loc 0x01143000 (bus 1 addr 6 ports (1, 4, 3))  manufacturer/product strings not read (would open the device)
+  VC interface 0; camera terminal id 1 bmControls 0xe; processing unit id 2 bmControls 0x177f
+    ae_mode      CT bit 1: advertised  (bitmap 1=manual 2=auto 4=shutter-prio 8=aperture-prio)
+    ae_priority  CT bit 2: advertised  (0=constant frame rate, 1=frame rate may vary)
+    exposure     CT bit 3: advertised  (units of 100 us)
+    gain         PU bit 9: advertised  (unitless)
+    extension unit id 3 guid 7033f02811632e4aba2c6890eb334016
+    ae_mode      INFO=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.2 ms]  MIN=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  MAX=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  RES=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  DEF=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  CUR=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]
+    ae_priority  INFO=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  MIN=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  MAX=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  RES=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  DEF=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  CUR=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]
+    exposure     INFO=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  MIN=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  MAX=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  RES=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  DEF=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  CUR=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]
+    gain         INFO=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  MIN=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  MAX=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  RES=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  DEF=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  CUR=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]
+  loc 0x01141000 (bus 1 addr 5 ports (1, 4, 1))  manufacturer/product strings not read (would open the device)
+  VC interface 0; camera terminal id 1 bmControls 0xe; processing unit id 2 bmControls 0x177f
+    ae_mode      CT bit 1: advertised  (bitmap 1=manual 2=auto 4=shutter-prio 8=aperture-prio)
+    ae_priority  CT bit 2: advertised  (0=constant frame rate, 1=frame rate may vary)
+    exposure     CT bit 3: advertised  (units of 100 us)
+    gain         PU bit 9: advertised  (unitless)
+    extension unit id 3 guid 7033f02811632e4aba2c6890eb334016
+    ae_mode      INFO=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  MIN=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  MAX=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  RES=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  DEF=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  CUR=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]
+    ae_priority  INFO=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  MIN=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  MAX=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  RES=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  DEF=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  CUR=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]
+    exposure     INFO=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  MIN=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  MAX=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  RES=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  DEF=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  CUR=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]
+    gain         INFO=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  MIN=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  MAX=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  RES=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  DEF=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  CUR=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]
+  loc 0x00141000 (bus 0 addr 5 ports (1, 4, 1))  manufacturer/product strings not read (would open the device)
+  VC interface 0; camera terminal id 1 bmControls 0xe; processing unit id 2 bmControls 0x177f
+    ae_mode      CT bit 1: advertised  (bitmap 1=manual 2=auto 4=shutter-prio 8=aperture-prio)
+    ae_priority  CT bit 2: advertised  (0=constant frame rate, 1=frame rate may vary)
+    exposure     CT bit 3: advertised  (units of 100 us)
+    gain         PU bit 9: advertised  (unitless)
+    extension unit id 3 guid 7033f02811632e4aba2c6890eb334016
+    ae_mode      INFO=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  MIN=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  MAX=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  RES=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  DEF=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  CUR=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]
+    ae_priority  INFO=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  MIN=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  MAX=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  RES=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  DEF=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  CUR=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]
+    exposure     INFO=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  MIN=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  MAX=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  RES=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  DEF=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  CUR=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]
+    gain         INFO=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  MIN=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  MAX=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  RES=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  DEF=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  CUR=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]
+[ 0.012037] [017d8557] libusb: debug [libusb_exit]  
+[ 0.012038] [017d8557] libusb: debug [libusb_unref_device] destroy device 1.7
+[ 0.012039] [017d8557] libusb: debug [libusb_unref_device] destroy device 0.7
+[ 0.012040] [017d8557] libusb: debug [libusb_unref_device] destroy device 1.6
+[ 0.012041] [017d8557] libusb: debug [libusb_unref_device] destroy device 1.5
+[ 0.012042] [017d8557] libusb: debug [libusb_unref_device] destroy device 0.5
+[ 0.012042] [017d8557] libusb: debug [libusb_unref_device] destroy device 2.4
+[ 0.012043] [017d8557] libusb: debug [libusb_unref_device] destroy device 2.3
+[ 0.012044] [017d8557] libusb: debug [libusb_unref_device] destroy device 0.4
+[ 0.012044] [017d8557] libusb: debug [libusb_unref_device] destroy device 0.3
+[ 0.012045] [017d8557] libusb: debug [libusb_unref_device] destroy device 0.2
+[ 0.012046] [017d8557] libusb: debug [libusb_unref_device] destroy device 0.1
+[ 0.012047] [017d8557] libusb: debug [libusb_unref_device] destroy device 1.4
+[ 0.012047] [017d8557] libusb: debug [libusb_unref_device] destroy device 1.3
+[ 0.012048] [017d8557] libusb: debug [libusb_unref_device] destroy device 1.2
+[ 0.012049] [017d8557] libusb: debug [libusb_unref_device] destroy device 1.1
+[ 0.012058] [017d8558] libusb: debug [darwin_event_thread_main] darwin event thread exiting
+[ 0.012673] [017d8557] libusb: debug [usbi_remove_event_source] remove fd 3

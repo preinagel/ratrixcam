@@ -1,6 +1,7 @@
 # UVC exposure/gain control on macOS: prototype report
 
-Status: Q1 run 1 done (pyusb, unprivileged: refused). No control has been changed on any
+Status: Q1 run 1 refused, but the refusal was traced to the probe (pyusb's implicit
+interface claim); run 2 pending. No control has been changed on any
 camera, so nothing has needed restoring.
 
 ## Rig inventory (system_profiler SPUSBDataType, 2026-11-18)
@@ -53,10 +54,10 @@ the brief forbids, and could open a sibling 0x6366, which is off limits. Stopped
 
 ## Answers
 
-1. **UVC requests while AVFoundation streams: no, for an unprivileged user process via
-   pyusb/libusb. But AVFoundation is not the cause:** the same requests are refused with no
-   stream open. Whether streaming *additionally* blocks requests is untested until some route
-   gets requests through with no stream open. Evidence below (q1 run 1).
+1. **UVC requests while AVFoundation streams: open again.** Run 1's refusals were caused by
+   the probe itself. pyusb tried to claim the VideoControl interface before each request,
+   and macOS refused because Apple's UVC driver holds it exclusively (controls-debug run). The
+   probe now sends requests on the open device handle without claiming; run 2 tests that.
 2. Settings persistence across stream start and re-enumeration: not yet tested.
 3. Exposure mode, exposure time and gain as writable controls: not yet tested.
 
@@ -88,8 +89,26 @@ uvc/.venv/bin/python uvc/probe.py q1 --index 0
   output (per-window frame count, failed reads, fps, mean frame brightness). With only
   target cameras attached, which index maps to which USB port does not matter here.
 
-This matches public reports that on macOS 12 and later, non-root libusb control requests
-to a camera held by Apple's UVC driver are refused. That explanation is not verified here.
+### Diagnostic: controls with LIBUSB_DEBUG=4 (2026-11-18 17:08:59, user's Terminal, not root)
+
+Command (full output in `uvc/logs/controls-debug.log`):
+
+```
+LIBUSB_DEBUG=4 uvc/.venv/bin/python uvc/probe.py controls
+```
+
+- `darwin_open: device open for access` on all three cameras: opening the device succeeds.
+- 72 lines (3 cameras x 4 controls x 6 GET requests) of
+  `darwin_claim_interface: USBInterfaceOpen: another process has device opened for
+  exclusive access`, and each request then fails with LIBUSB_ERROR_ACCESS.
+- Cause: pyusb's `Device.ctrl_transfer` claims the interface for any interface-recipient,
+  non-vendor request (`usb/core.py` line 1091, `managed_claim_interface`). The UVC requests
+  never reached libusb's control-transfer path. So run 1 says nothing about macOS blocking
+  control requests, and the earlier "macOS 12+ needs root" guess is withdrawn.
+- Correction to the probe's safety claim: run 1 and this diagnostic *did* attempt interface
+  claims, contrary to the script's docstring. Every claim failed, so no ownership changed
+  and the stream in run 1 was unaffected (0 failed reads). The probe now calls the libusb
+  backend directly on the device handle, with no claim.
 
 ## Installed
 

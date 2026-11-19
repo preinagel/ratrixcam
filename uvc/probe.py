@@ -3,7 +3,7 @@
 
 RUN THIS (in your own Terminal, from anywhere; not inside the Claude sandbox):
 
-    cd ~/Desktop/ratrixcam-uvc && mkdir -p uvc/logs && uvc/.venv/bin/python uvc/probe.py q1 --index 0 2>&1 | tee uvc/logs/q1-run1.log
+    cd ~/Desktop/ratrixcam-uvc && LIBUSB_DEBUG=3 uvc/.venv/bin/python uvc/probe.py controls 2>&1 | tee uvc/logs/controls-run2.log && LIBUSB_DEBUG=3 uvc/.venv/bin/python uvc/probe.py q1 --index 0 2>&1 | tee uvc/logs/q1-run2.log
 
 Sub-commands:
     list      enumerate 0x0c45:0x6369 devices and parse their VideoControl descriptors
@@ -13,11 +13,14 @@ Sub-commands:
               stream's brightness, then restores AE mode to auto and reads it back
 
 Safety: refuses to run if ~/Desktop/temp exists (a recording is in progress). Never claims an
-interface, detaches a driver or sets a configuration: only class requests on endpoint 0.
+interface, detaches a driver or sets a configuration: only class requests on endpoint 0,
+sent on the device handle without pyusb's implicit interface claim (run 1 did claim; see
+REPORT.md).
 Devices are selected by vendor and product id only.
 """
 
 import argparse
+import array
 import os
 import sys
 import threading
@@ -122,15 +125,22 @@ def xfer(dev, lay, name, req, value=None):
     elif req == GET_LEN:
         length = 2
     w_value, w_index = sel << 8, (entity << 8) | lay["ifnum"]
+    # Not dev.ctrl_transfer(): for interface-recipient class requests pyusb first claims the
+    # interface (usb/core.py, managed_claim_interface), which macOS refuses because Apple's UVC
+    # driver holds it exclusively. Go to the backend on the open device handle instead; libusb
+    # sends endpoint-0 requests through the device, with no interface claim.
+    ctx = dev._ctx
     t0 = time.perf_counter()
     try:
+        ctx.managed_open()
         if req == SET_CUR:
-            data = int(value).to_bytes(length, "little", signed=signed)
-            dev.ctrl_transfer(0x21, SET_CUR, w_value, w_index, data, timeout=1000)
+            data = array.array("B", int(value).to_bytes(length, "little", signed=signed))
+            ctx.backend.ctrl_transfer(ctx.handle, 0x21, SET_CUR, w_value, w_index, data, 1000)
             res = value
         else:
-            raw = bytes(dev.ctrl_transfer(0xA1, req, w_value, w_index, length, timeout=1000))
-            res = int.from_bytes(raw, "little", signed=signed)
+            buf = array.array("B", bytes(length))
+            n = ctx.backend.ctrl_transfer(ctx.handle, 0xA1, req, w_value, w_index, buf, 1000)
+            res = int.from_bytes(bytes(buf[:n]), "little", signed=signed)
         return res, None, (time.perf_counter() - t0) * 1000
     except usb.core.USBError as e:
         return None, f"USBError errno={e.errno} code={e.backend_error_code}: {e}", (time.perf_counter() - t0) * 1000
