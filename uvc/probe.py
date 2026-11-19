@@ -3,7 +3,9 @@
 
 RUN THIS (in your own Terminal, from anywhere; not inside the Claude sandbox):
 
-    cd ~/Desktop/ratrixcam-uvc && uvc/.venv/bin/python uvc/probe.py gainsweep 2>&1 | tee uvc/logs/gainsweep-run2.log
+    cd ~/Desktop/ratrixcam-uvc && uvc/.venv/bin/python uvc/probe.py persist 2>&1 | tee uvc/logs/persist-run2.log
+
+    (when told, unplug the kind A camera on port 3 or port 5, not port 1, and replug it into the same port)
 
 Sub-commands:
     list      read-only, no device opened: full descriptors of every 0x0c45 camera (all
