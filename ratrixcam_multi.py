@@ -126,10 +126,19 @@ def run(config: Config, stop_event: Event, abort_event: Event | None = None, cal
         if counted is None:
             have_all_cameras = False  # unknown this pass: nothing is launched; the cameras are still watched below
         else:
-            have_all_cameras = counted >= num_cameras  # note if too many will grab the first ones
-            if not have_all_cameras and counted != devices:
+            # exactly the configured number, for launch and relaunch alike: process i opens
+            # device i, which is right only while the device list holds the configured cameras
+            # and nothing else; with one more counted, a dropped camera's relaunch would open
+            # the camera above it, already recorded by its own process (GitHub #66)
+            have_all_cameras = counted == num_cameras
+            if counted < num_cameras and counted != devices:
                 print(
                     f"Only detected {counted}/{num_cameras} camera(s), waiting for all to be connected"
+                )
+            elif counted > num_cameras and counted != devices:
+                print(
+                    f"Detected {counted} camera(s), {num_cameras} configured: nothing is launched until the count matches "
+                    + "(configure the extra camera, or disconnect or disable it)"
                 )
             devices = counted
 

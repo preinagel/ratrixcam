@@ -133,5 +133,12 @@ def test_an_unknown_count_launches_nothing(monkeypatch: pytest.MonkeyPatch, tmp_
     assert "Only detected" not in capsys.readouterr().out
 
 
-def test_a_sufficient_count_launches_the_cameras(monkeypatch: pytest.MonkeyPatch, tmp_path: object):
+def test_the_exact_count_launches_the_cameras(monkeypatch: pytest.MonkeyPatch, tmp_path: object):
     assert supervise(monkeypatch, tmp_path, 1, 1.5)[:1] == [0]  # relaunched each pass, since the stand-in dies at once
+
+
+def test_one_camera_too_many_launches_nothing_and_is_said_once(monkeypatch: pytest.MonkeyPatch, tmp_path: object, capsys: pytest.CaptureFixture[str]):
+    assert supervise(monkeypatch, tmp_path, 2, 2.5) == []  # a count above the configured one: process i would not be camera i
+    out = capsys.readouterr().out
+    assert out.count("Detected 2 camera(s), 1 configured: nothing is launched until the count matches") == 1
+    assert "Only detected" not in out
