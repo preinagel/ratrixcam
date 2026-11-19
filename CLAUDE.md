@@ -15,13 +15,25 @@ requests sent to the camera directly. Two candidate routes:
    a virtual environment in this folder).
 
 ## Which cameras
-The test rig may hold several camera models at once. The target is one of them: the
-Arducam 1080p day/night camera (OV2710 sensor) with the Sonix Technology UVC controller,
-USB vendor 0x0c45 (3141 decimal), product 0x6369 (25449 decimal); the system report shows
-it as "UVC Camera VendorID_3141 ProductID_25449". Solve it for that camera. Whether the
-same code works for the sibling product 0x6366 (25446), the Logitech webcam, or a built-in
-camera is a secondary question, to be noted in the report if you learn anything, not
-pursued. Select cameras by vendor and product id, never by position in a list.
+The test rig holds eight cameras of three kinds, all Arducam OV2710 cameras with the Sonix
+Technology UVC controller, USB vendor 0x0c45 (3141 decimal). The kinds, as your report
+names them:
+- A: product 0x6369 (25449 decimal), name string "USB 2.0 Camera", no serial. The kind the
+  prototype was developed on; everything up to 2026-11-19 was done on it.
+- B: product 0x6366 (25446 decimal), name string "USB 2.0 Camera", serial "SN0001" on
+  every unit. Has a second (H.264) streaming interface and no 800x600 mode.
+- C: product 0x6366, name string "USB Camera", serial "SN0001" on every unit. Closer to A.
+All three kinds are targets now (changed 2026-11-19: 0x6366 is the product currently sold,
+so the recorder must support it). B and C share every USB id field and are told apart by
+the product name string only. Select cameras by vendor id, product id and name string,
+never by position in a list. Every streaming run must say which kind is behind the index
+it opens (by the brightness-response method already in the probe) and record that in the
+log and the report. Results are reported per kind, never pooled. The Logitech webcam and a
+built-in camera are not targets.
+
+Ordering of the extension to kinds B and C (2026-11-19): q1 (writes while streaming),
+gainsweep, and persist with replug, on one camera of each kind; aetrack and track are not
+repeated. Restore every camera you wrote to, per kind, and read it back.
 
 ## The specification behind this (added 2026-11-19)
 The later analysis of the video needs sharp images: the exposure time must be a small
@@ -56,8 +68,8 @@ GitHub #60), or a call in each camera server after its capture opens.
 - After every experiment, restore every control you changed to its automatic mode and
   read it back to confirm; some cameras keep a manual setting across power cycles, and a
   rig left in manual would record wrongly later. Say in the report what you restored.
-- Only the target cameras above. Any other camera entry in the system report (the sibling
-  product, the webcam, a built-in camera) is not yours to touch unless the user says so.
+- Only the target cameras above (kinds A, B and C). Any other camera entry in the system
+  report (a webcam, a built-in camera) is not yours to touch unless the user says so.
 - macOS may show a camera-permission dialog the first time a new program opens a camera;
   you cannot click it. Stop and tell the user.
 
@@ -70,9 +82,9 @@ output back. Interpret the output, revise, and repeat. Build tools under uvc/ th
 Any command that opens or talks to a camera is never run by you: put it in a fenced code
 block prefixed "RUN THIS:", with the folder to run it from, and wait for the pasted output.
 Building, installing into the venv, and editing under uvc/ you do yourself.
-- For the duration of this prototype the rig holds only target cameras (0x0c45:0x6369);
-  any camera the probe opens by index is a target. Control requests still select by
-  vendor and product id, so the script stays correct when other cameras return.
+- The rig holds all eight cameras, kinds A, B and C mixed across the two hubs (the port
+  table is in your report). A camera opened by index is one of them, but which kind is not
+  known until the stream identifies it; control requests select by USB id and name string.
 - Never create ~/Desktop/temp; it belongs to the recording program and is the
   recording check. Your scratch space is uvc/.
 
