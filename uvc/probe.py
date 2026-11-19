@@ -3,7 +3,7 @@
 
 RUN THIS (in your own Terminal, from anywhere; not inside the Claude sandbox):
 
-    cd ~/Desktop/ratrixcam-uvc && uvc/.venv/bin/python uvc/probe.py replug 2>&1 | tee uvc/logs/replug-run2.log
+    cd ~/Desktop/ratrixcam-uvc && uvc/.venv/bin/python uvc/probe.py replug 2>&1 | tee uvc/logs/replug-run3.log
 
     (when told, unplug the camera on PORT 1 and plug it back into port 1; then leave the
     rig alone for about 3 minutes while it checks at 3, 30, 60 and 120 s)
@@ -1092,6 +1092,10 @@ def cmd_replug(args):
     dev, lay = marked()
     if dev is None:
         sys.exit(f"no target camera (0x{PID:04x}) on port {args.port}")
+    print(f"[{now()}] CLEAN START: every target to its defaults, read back, before anything else")
+    clean = [restore_defaults(d, l) for d, l in zip(state["devs"], state["lays"])]
+    if not all(clean):
+        sys.exit("clean start incomplete (see MISMATCH lines); not starting the test")
     print(f"[{now()}] marked camera: port {args.port} {label(dev)}; marker = manual, exposure 1 (0.1 ms), gain 0")
     try:
         set_manual(dev, lay, 1, 0)
