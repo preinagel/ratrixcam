@@ -21,16 +21,35 @@ Note for the hook question: the 0x6369 units report **no serial number**, and th
 units all share the same one, so neither can be told apart by serial. A by-device pass would
 have to key on USB location ID (the physical port), which changes if a cable is moved.
 
-## Blockers
+## Setup notes
 
-1. **Recording check cannot be run from the sandbox.** `pgrep -fl ratrixcam` fails with
-   "pgrep: Cannot get process list" (exit 3; sysmond is not reachable), so an empty result
-   cannot be obtained. `~/Desktop/temp` does not exist.
-2. **pyusb install failed.** `pip install pyusb` in `uvc/.venv` fails with
-   `SSLCertVerificationError ... unable to get local issuer certificate` against pypi.org
-   through the sandbox proxy. Not worked around (disabling TLS verification was not tried).
-3. **libusb not found** in /usr/local/lib, /usr/local/include or /opt/local/lib.
-4. `system_profiler SPCameraDataType` printed nothing from inside the sandbox.
+- Recording check: per the revised brief, the absence of `~/Desktop/temp` is the whole
+  check (pgrep cannot list processes in the sandbox). Confirmed absent on 2026-11-18.
+- pyusb: installed in `uvc/.venv` by the user (my own `pip install` failed on
+  `SSLCertVerificationError` through the sandbox proxy; not worked around).
+- libusb: at `/opt/homebrew/lib/libusb-1.0.dylib` (user-supplied path).
+- OpenCV: 4.11.0, in the system Python 3.13 site-packages (not the venv).
+
+## Sandbox probes (2026-11-18)
+
+### system_profiler SPCameraDataType
+
+```
+$ system_profiler SPCameraDataType          -> no output, exit 0
+$ system_profiler -json SPCameraDataType    -> {"SPCameraDataType" : [ ]}, exit 0
+```
+
+No error text, and the harness reported no sandbox violation, so **no service or path name
+is available**. The camera list is empty even though SPUSBDataType shows the cameras on
+the bus. The empty list therefore looks like a quiet refusal, not an absence of cameras.
+The unified log could not be checked: `/usr/bin/log show` answers "log: Cannot run while
+sandboxed".
+
+### cv2.VideoCapture open + one read on a target camera: not run
+
+cv2 opens AVFoundation devices by index only. With the camera report empty, nothing maps an
+index to vendor/product 0x0c45:0x6369. Opening an index would select by position, which
+the brief forbids, and could open a sibling 0x6366, which is off limits. Stopped to ask.
 
 ## Answers
 
