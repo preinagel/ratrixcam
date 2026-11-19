@@ -6,9 +6,10 @@ the UVC exposure read: no.** In auto mode the camera returns the stored manual v
 the exposure its AE loop uses (aetrack run 1). Open: gain writes and compensation (goal 3),
 and Q2 (stream start, re-enumeration).
 
-**Rig state: NOT fully restored.** aetrack run 1's restore failed. All three cameras are in
-auto mode (8) with gain 0 and AE priority 0, but their stored exposure is 40 (4.0 ms), not
-the default 157 (15.7 ms). See Restored; `probe.py restore` (fixed) is pending.
+**Rig state: restored** (restore run 1, 2026-11-19 09:21:33). All three cameras read ae_mode 8
+(auto), exposure 157 (15.7 ms), gain 0 and ae_priority 0. These are the cameras' defaults
+and the values found at the start. aetrack run 1 had left the stored exposure at 40; see
+Restored.
 
 Runs up to and including track run 1 streamed at the camera default, 1920x1080. From
 aetrack run 1 on, the probes stream at the recorder's format, 640x480 @ 30 fps
@@ -300,8 +301,13 @@ It read every second for 40 s while streaming index 0, with cues to cover all le
   were left with stored exposure **40 (4.0 ms)**. gain and ae_priority were never changed.
 - **q1 run 3** started from that leftover: it restored ae_mode 8 (OK) and ae_priority 0
   (OK), and wrote exposure back to 40, the value it found.
-- **Current rig state: ae_mode 8 (auto), ae_priority 0, gain 0, stored exposure 40.** The
-  auto loop ignores the stored exposure while in auto: brightness re-converged normally in
-  aetrack and q1 run 3. But it is a changed control and must go back to 157. The fixed
-  `probe.py restore` (manual, then exposure 157, gain 0, then auto 8, all read back) is
-  pending.
+- Between aetrack run 1 (09:12) and restore run 1 (09:21), the rig was at ae_mode 8 (auto),
+  ae_priority 0, gain 0, stored exposure 40. The auto loop ignored the stored exposure:
+  brightness re-converged normally in aetrack and q1 run 3. No recording ran in that window
+  (`~/Desktop/temp` was absent at both runs' checks).
+- **restore run 1 (2026-11-19 09:21:33, `uvc/logs/restore-run1.log`)**, with the fixed
+  restore, on each of the three cameras: ae_mode:=1, then exposure:=157 (accepted, 4.5 ms),
+  then gain:=0 (accepted, 5.7 ms; the value was already 0), then ae_mode:=8. Read back:
+  exposure 157 OK, gain 0 OK, ae_mode 8 OK, ae_priority 0. The script reported "restore OK
+  on all targets". **The rig is back to its starting state** (ae_mode 8, ae_priority 0,
+  exposure 157, gain 0) on all three cameras.

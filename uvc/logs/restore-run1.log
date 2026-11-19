@@ -1,0 +1,30 @@
+[2026-11-19 09:21:33] probe.py restore  python 3.13.5  pid 5943
+[2026-11-19 09:21:33] recording check: /Users/rat_hub_01/Desktop/temp absent, ok
+  loc 0x01143000 (bus 1 addr 6 ports (1, 4, 3))
+    restore: ae_mode:=manual(1) first, so exposure accepts the write: 1 [4.7 ms]
+    restore exposure:=157 (default): 157 [4.5 ms]
+    restore gain:=0 (default): 0 [5.7 ms]
+    restore ae_mode:=8 (default): 8 [4.6 ms]
+    read-back exposure=157 [0.9 ms] OK
+    read-back gain=0 [0.9 ms] OK
+    read-back ae_mode=8 [0.8 ms] OK
+    ae_priority  CUR=0 [0.9 ms]
+  loc 0x01141000 (bus 1 addr 5 ports (1, 4, 1))
+    restore: ae_mode:=manual(1) first, so exposure accepts the write: 1 [4.7 ms]
+    restore exposure:=157 (default): 157 [4.6 ms]
+    restore gain:=0 (default): 0 [5.7 ms]
+    restore ae_mode:=8 (default): 8 [4.6 ms]
+    read-back exposure=157 [0.8 ms] OK
+    read-back gain=0 [0.7 ms] OK
+    read-back ae_mode=8 [0.9 ms] OK
+    ae_priority  CUR=0 [0.8 ms]
+  loc 0x00141000 (bus 0 addr 5 ports (1, 4, 1))
+    restore: ae_mode:=manual(1) first, so exposure accepts the write: 1 [4.6 ms]
+    restore exposure:=157 (default): 157 [4.5 ms]
+    restore gain:=0 (default): 0 [5.7 ms]
+    restore ae_mode:=8 (default): 8 [4.5 ms]
+    read-back exposure=157 [0.8 ms] OK
+    read-back gain=0 [0.9 ms] OK
+    read-back ae_mode=8 [0.9 ms] OK
+    ae_priority  CUR=0 [0.9 ms]
+[2026-11-19 09:21:34] restore OK on all targets
