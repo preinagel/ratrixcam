@@ -68,6 +68,30 @@ target product:**
 - persist run 1 saw no target disappear during its 120 s wait (09:30:34-09:32:34). If the
   camera the user unplugged was a 0x6366, the probe was right to ignore it.
 
+**All eight cameras, plugged in by the user (2026-11-19, system_profiler -json SPUSBDataType).**
+Ports are as the user numbers them: hub 1 slots 1-4 = ports 1-4 (bus 0x01), hub 2 slots 1-4
+= ports 5-8 (bus 0x00). There are three kinds:
+
+| Port | Location | Product | Name string | Manufacturer | Serial | bcdDevice | Kind |
+|---|---|---|---|---|---|---|---|
+| 1 | 0x01141000 | 0x6369 | USB 2.0 Camera | Sonix Technology Co., Ltd. | none | 1.00 | A: the target the rig was developed on |
+| 3 | 0x01143000 | 0x6369 | USB 2.0 Camera | Sonix Technology Co., Ltd. | none | 1.00 | A |
+| 5 | 0x00141000 | 0x6369 | USB 2.0 Camera | Sonix Technology Co., Ltd. | none | 1.00 | A |
+| 2 | 0x01142000 | 0x6366 | USB 2.0 Camera | Arducam Technology Co., Ltd. | SN0001 | 1.00 | B: excluded by the user for odd behaviour |
+| 6 | 0x00142000 | 0x6366 | USB 2.0 Camera | Arducam Technology Co., Ltd. | SN0001 | 1.00 | B |
+| 8 | 0x00144000 | 0x6366 | USB 2.0 Camera | Arducam Technology Co., Ltd. | SN0001 | 1.00 | B |
+| 4 | 0x01144000 | 0x6366 | **USB Camera** | Arducam Technology Co., Ltd. | SN0001 | 1.00 | C: newly purchased as replacements |
+| 7 | 0x00143000 | 0x6366 | **USB Camera** | Arducam Technology Co., Ltd. | SN0001 | 1.00 | C |
+
+- B and C share every USB id field the report shows. Only the product name string differs:
+  "USB 2.0 Camera" for B, "USB Camera" for C. So vendor/product id alone cannot tell the new
+  cameras from the excluded ones; the name string can.
+- The camera the user unplugged in persist run 1 was on port 7, a kind C 0x6366, which the
+  probe correctly does not watch.
+- The user's reading: 0x6366 may be the currently sold replacement for 0x6369, so both
+  should be tested and supported. That widens the brief's scope, which said the sibling
+  was "noted, not pursued".
+
 Note for the hook question: the 0x6369 units report **no serial number**, and the 0x6366
 units all share the same one, so neither can be told apart by serial. A by-device pass would
 have to key on USB location ID (the physical port), which changes if a cable is moved.
