@@ -463,6 +463,64 @@ kinds A and B: different format, different camera, different scene.
   cause is unexplained. Neither kind A nor kind B stalled in any run. Rerun pending
   (persist-C run 2).
 
+### Q2, kind C: persist-C run 2 (2026-11-19 12:33:03; `uvc/logs/persist-C-run2.log`)
+
+`uvc/.venv/bin/python uvc/probe.py persist --kind C --port 4 --index 3`
+- Identification: `index 3 is kind C at port 4 (0x01144000): brightness 99.7 -> 7.8 with the
+  marker`, restored and read back OK.
+- Auto baseline 100.3; camera-side commit MJPEG 352x288 @ 30.
+- Set with **no stream open**: ae_mode 1, exposure 40, gain 10, MATCHES.
+- **Stream start** (1114 ms): MATCHES right after the open and after 4 s. Brightness was 212.8 vs
+  100.3 auto: *brighter*, as kind C's manual 4 ms is in its scene (q1-C run 1). It equals the
+  sweep's gain-10 value (213.5), so the manual setting was in force. The probe's verdict
+  line printed "NOT darker: the manual exposure may not be in force", which is wrong. The
+  check assumed manual 4 ms is darker than auto; it now tests for a change in either
+  direction. **Stream stop:** MATCHES.
+- **Unplug/replug of port 4** (gone 12:33:28, back 12:33:41): **ae_mode 8, exposure 157, gain 0,
+  which DIFFERS: reverted to defaults**, before and after a new stream start. The same-process
+  reopen got 0 frames, the known old-process effect.
+- Restored to C's defaults and read back OK.
+
+### Kind C summary
+
+1. **Q1: YES.** Requests are answered while AVFoundation streams it, and the image responds
+   (q1-C run 1).
+2. **Q2: stream start and stop YES; unplug/replug NO**, it reverts to its defaults
+   (persist-C run 2).
+3. **Q3: YES.** AE mode, exposure time (0.1-500 ms, default 15.7 ms) and gain (0-100, default
+   0) were all written and read back; exposure only in manual mode.
+- Goal 3 compensation: **none needed at 4.0 ms in this scene.** Gain 0 already gives about 2x
+  the auto brightness (gainsweep-C run 1). A brightness match would need a shorter exposure,
+  not tested.
+- **One unprompted stream stall** (persist-C run 1): the stream stopped after about 1 s,
+  unexplained, with no handling. No kind A or B camera stalled in any run. Kind C streamed
+  longer than 1 s about 8 times today, too few to estimate a stall rate.
+  - The recorder's existing path, 3 failed reads then the camera server exits
+    (`ratrixcam_server.py:358-367, 589-590`) and the supervisor relaunches it, would turn such
+    a stall into a recording gap and a relaunch.
+  - A long read-only soak test of kind C, alongside kind A, would measure the stall rate.
+
+## The three kinds compared
+
+Per kind, never pooled. Brightness values are not comparable across kinds: each camera sees
+its own scene, and C streamed at 352x288 while A and B streamed at 640x480.
+
+| | Kind A (0x6369 "USB 2.0 Camera"; ports 1, 3, 5) | Kind B (0x6366 "USB 2.0 Camera"; port 2 tested) | Kind C (0x6366 "USB Camera"; port 4 tested) |
+|---|---|---|---|
+| Q1: writes while AVFoundation streams | **YES** (q1 runs 2, 3) | **YES** (q1-B run 1) | **YES** (q1-C run 1) |
+| Q2: survive stream start and stop | **YES** (persist runs 1, 2) | **YES** (persist-B run 1) | **YES** (persist-C run 2) |
+| Q2: survive unplug/replug | **NO**, reverts to defaults (persist run 2; replug runs 1-3) | **NO**, reverts to defaults (persist-B run 1) | **NO**, reverts to defaults (persist-C run 2) |
+| Q3: AE mode / exposure / gain writable | **YES** / **YES** (manual only) / **YES** | **YES** / **YES** (manual only) / **YES** | **YES** / **YES** (manual only) / **YES** |
+| Exposure range, step, default | 0.1-500 ms, 0.1 ms, 15.7 ms | 0.1-500 ms, 0.1 ms, **15.6 ms** | 0.1-500 ms, 0.1 ms, 15.7 ms |
+| Gain range, default | 0-100, 0 | 0-100, 0 | 0-100, 0 |
+| Stream format tested (wire format) | 640x480 @ 30 (MJPEG) | 640x480 @ 30 (MJPEG) | 352x288 @ 30 (MJPEG) |
+| Manual 4.0 ms vs auto, while streaming | darker, -44% (q1 run 3) | darker, -42% (q1-B run 1) | **brighter, +91%** (q1-C run 1) |
+| Goal 3: gain at 4.0 ms nearest auto | **50** (139.2 vs 139.2; 09:27) | **40** (150.0 vs 152.9; 12:26) | **none needed**: gain 0 = 197.4 vs 101.0 (12:29) |
+| Stream stalls seen | none | none | one, unexplained (persist-C run 1) |
+
+The gain values hold only for each camera's scene and light at the time of its run. The dim
+light that motivates goal 3 has not been tested on any kind.
+
 ## Hook recommendation
 
 **A pass in the supervisor, by USB id, run before every launch and every relaunch of a camera
@@ -922,3 +980,7 @@ It read every second for 40 s while streaming index 0, with cues to cover all le
   ae_mode 8) and read back OK. Final read-back after release MATCHES.
 - **persist-C run 1 (2026-11-19 12:30:23)**: stopped at identification before any write;
   nothing written, nothing to restore.
+- **persist-C run 2 (2026-11-19 12:33:03), kind C port 4 only**: identification marker,
+  restored and read back OK; then ae_mode 1, exposure 40, gain 10 with no stream. The camera
+  reverted to its defaults by itself on its replug. Restored at 12:33:47 (manual, exposure
+  157, gain 0, ae_mode 8) and read back OK. No other camera was written to.

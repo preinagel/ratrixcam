@@ -1024,10 +1024,12 @@ def cmd_persist(args):
         reader.stop_evt.set()
         reader.join(timeout=3)
         cap.release()
-        darker = b_manual < 0.85 * b_auto
+        # Manual 4 ms can be darker (kinds A, B) or brighter (kind C in its scene) than auto,
+        # so the test is a clear change in either direction (persist-C run 2 fixed this).
+        changed = abs(b_manual - b_auto) > 0.15 * b_auto
         print(f"    brightness: auto baseline {b_auto:.1f}, after stream start with manual {b_manual:.1f}: "
-              + ("darker, consistent with the manual exposure being in force"
-                 if darker else "NOT darker: the manual exposure may not be in force on the capture"))
+              + (f"changed ({(b_manual - b_auto) / b_auto * 100:+.0f}%), consistent with the manual exposure being in force"
+                 if changed else "NOT changed: the manual exposure may not be in force on the capture"))
         for dev, lay in zip(state["devs"], state["lays"]):
             readback_line(dev, lay, want, "after stream stop")
 
