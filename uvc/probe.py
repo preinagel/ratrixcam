@@ -3,9 +3,10 @@
 
 RUN THIS (in your own Terminal, from anywhere; not inside the Claude sandbox):
 
-    cd ~/Desktop/ratrixcam-uvc && uvc/.venv/bin/python uvc/probe.py persist 2>&1 | tee uvc/logs/persist-run2.log
+    cd ~/Desktop/ratrixcam-uvc && uvc/.venv/bin/python uvc/probe.py replug 2>&1 | tee uvc/logs/replug-run1.log
 
-    (when told, unplug the kind A camera on port 3 or port 5, not port 1, and replug it into the same port)
+    (when told, unplug the camera on PORT 1 and plug it back into port 1; then leave the
+    rig alone for about 3 minutes while it checks at 3, 30, 60 and 120 s)
 
 Sub-commands:
     list      read-only, no device opened: full descriptors of every 0x0c45 camera (all
@@ -27,6 +28,11 @@ Sub-commands:
               through its range; brightness per step vs the auto brightness just before
     persist   question 2: manual 4 ms + gain 10 set with no stream; read back after stream
               start, stream stop, and a cued unplug/replug of one camera (polls for it)
+    scan      cv2 only, no control requests: open indices --first..--last in turn and
+              report frames and brightness for each
+    replug    marks the camera on --port dark (manual, 0.1 ms), cues its unplug/replug,
+              then at 3/30/60/120 s compares a same-process reopen of index 0 with a
+              fresh-process scan of indices 0-9, to find where the marked camera went
     restore   safety net: exposure, gain and AE mode to each camera's own defaults
 
 Every sub-command that writes restores each target to its defaults in a finally block
@@ -959,6 +965,157 @@ def cmd_persist(args):
         print(f"[{now()}] restore {'OK on all targets present' if all(results) else 'INCOMPLETE: see MISMATCH lines'}")
 
 
+def scan_index(cv2, config_path, idx, seconds):
+    """Open cv2 index idx as the recorder would (format from config entry idx, or the
+    defaults for an index beyond the list), read for `seconds`, release. cv2 only: no
+    control requests. Returns (opened, frames, failed, mean brightness)."""
+    with open(config_path) as fh:
+        cfg = json.load(fh)
+    cams = cfg.get("cameras", [])
+    cam = cams[idx] if idx < len(cams) else {}
+    a = argparse.Namespace(index=idx, config=config_path,
+                           width=cam.get("width") or cfg["default_width"],
+                           height=cam.get("height") or cfg["default_height"],
+                           fps=cam.get("fps") or cfg["default_fps"])
+    cap = open_capture(cv2, a)
+    if not cap.isOpened():
+        cap.release()
+        return False, 0, 0, float("nan")
+    reader = Reader(cap)
+    reader.start()
+    t0 = time.monotonic()
+    time.sleep(seconds)
+    n, bad, _fps, mean = reader.window(t0, time.monotonic())
+    reader.stop_evt.set()
+    reader.join(timeout=3)
+    cap.release()
+    return True, n, bad, mean
+
+
+def cmd_scan(args):
+    """Read-only (cv2 only, no control requests): open each index in turn, report what it
+    delivers, and end with one machine-readable SCAN_RESULT line for a parent process."""
+    guard()
+    cv2 = import_cv2()
+    results = {}
+    for idx in range(args.first, args.last + 1):
+        opened, n, bad, mean = scan_index(cv2, args.config, idx, args.seconds)
+        results[idx] = [opened, n, bad, None if mean != mean else round(mean, 1)]
+        print(f"  SCAN index {idx}: opened={opened} frames={n} failed_reads={bad} "
+              f"mean_brightness={'-' if mean != mean else f'{mean:.1f}'}")
+    print("SCAN_RESULT " + json.dumps(results))
+
+
+def scan_fresh_process(args, label_):
+    """Run `probe.py scan` in a NEW Python process, as the recorder runs each camera server in
+    a new process; echo its output and return {index: [opened, frames, failed, mean]}."""
+    import subprocess
+    cmd = [sys.executable, os.path.abspath(__file__), "scan", "--config", args.config,
+           "--first", "0", "--last", str(args.scan_last), "--seconds", str(args.scan_seconds)]
+    print(f"  [{now()}] {label_}: fresh-process scan of indices 0-{args.scan_last}")
+    out = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+    result = {}
+    for line in out.stdout.splitlines():
+        if line.startswith("SCAN_RESULT "):
+            result = {int(k): v for k, v in json.loads(line[len("SCAN_RESULT "):]).items()}
+        elif "SCAN index" in line or "FORMAT requested" in line:
+            print(f"    | {line.strip()}")
+    if out.returncode != 0:
+        print(f"    | scan exited {out.returncode}: {out.stderr.strip()[-300:]}")
+    print(f"    {label_}: {marker_verdict(result)}")
+    return result
+
+
+def marker_verdict(result):
+    """Which index shows the dark marker: delivering, and far darker than the median."""
+    live = {i: v[3] for i, v in result.items() if v[0] and v[1] > 0 and v[3] is not None}
+    if not live:
+        return "no index delivered frames"
+    vals = sorted(live.values())
+    median = vals[len(vals) // 2]
+    dark = [i for i, b in live.items() if b < 0.4 * median or b < 25]
+    silent = [i for i, v in result.items() if v[0] and v[1] == 0]
+    text = (f"delivering indices {sorted(live)}; dark marker at index {dark if dark else 'none'}"
+            f" (median brightness {median:.1f})")
+    if silent:
+        text += f"; opened but NO frames: {silent}"
+    return text
+
+
+def in_process_index(cv2, args, label_):
+    """Open args.index in THIS process (as persist run 2 did after the replug)."""
+    opened, n, bad, mean = scan_index(cv2, args.config, args.index, 2.0)
+    print(f"  [{now()}] {label_}: same-process VideoCapture({args.index}): opened={opened} frames={n} "
+          f"failed_reads={bad} mean_brightness={'-' if mean != mean else f'{mean:.1f}'}")
+
+
+def cmd_replug(args):
+    """Reproduce persist run 2's empty stream after a replug: mark the camera on --port dark,
+    unplug/replug it, then at several delays compare a same-process reopen of --index with a
+    fresh-process scan of every index, and find which index the marked camera is on."""
+    guard()
+    import usb.util
+    be = usb_backend()
+    cv2 = import_cv2()
+    state = {"devs": find_targets(be)}
+    state["lays"] = [vc_layout(d) for d in state["devs"]]
+
+    def marked():
+        for d, l in zip(state["devs"], state["lays"]):
+            if rig_port(d) == str(args.port):
+                return d, l
+        return None, None
+
+    dev, lay = marked()
+    if dev is None:
+        sys.exit(f"no target camera (0x{PID:04x}) on port {args.port}")
+    print(f"[{now()}] marked camera: port {args.port} {label(dev)}; marker = manual, exposure 1 (0.1 ms), gain 0")
+    try:
+        set_manual(dev, lay, 1, 0)
+        print(f"\n[{now()}] BEFORE the unplug")
+        in_process_index(cv2, args, "before")
+        scan_fresh_process(args, "before")
+
+        for d in state["devs"]:
+            usb.util.dispose_resources(d)
+        n = len(state["devs"])
+        print(f"\n>>> UNPLUG the camera on PORT {args.port} now, wait about 5 s, then plug it back into port {args.port}.")
+        gone = wait_for_count(be, n - 1, args.timeout)
+        if gone is None:
+            print("    no target camera disappeared; stopping")
+            return
+        print(f"[{now()}] disappeared: {sorted(f'0x{location_id(d):08x}' for d in state['devs'] if location_id(d) not in {location_id(g) for g in gone})}")
+        back = wait_for_count(be, n, args.timeout)
+        if back is None:
+            state["devs"], state["lays"] = gone, [vc_layout(d) for d in gone]
+            print(f"!!! not back within {args.timeout:.0f} s; plug it in, then run `uvc/.venv/bin/python uvc/probe.py restore`")
+            return
+        t_back = time.monotonic()
+        state["devs"], state["lays"] = back, [vc_layout(d) for d in back]
+        print(f"[{now()}] re-enumerated (t=0 for the checks below)")
+        dev, lay = marked()
+        if dev is None:
+            print(f"    port {args.port} not among the re-enumerated targets; stopping")
+            return
+        readback_line(dev, lay, (AE_APERTURE, 157, 0), "after replug, expected = defaults")
+        set_manual(dev, lay, 1, 0)
+
+        for at in args.checks:
+            wait = t_back + at - time.monotonic()
+            if wait > 0:
+                time.sleep(wait)
+            print(f"\n[{now()}] CHECK at t={time.monotonic() - t_back:.0f} s after re-enumeration")
+            in_process_index(cv2, args, f"t+{at:g}s")
+            scan_fresh_process(args, f"t+{at:g}s")
+    finally:
+        print(f"\n[{now()}] RESTORE every target to its defaults")
+        results = []
+        for d, l in zip(state["devs"], state["lays"]):
+            print(f"  {label(d)}")
+            results.append(restore_defaults(d, l))
+        print(f"[{now()}] restore {'OK on all targets present' if all(results) else 'INCOMPLETE: see MISMATCH lines'}")
+
+
 def restore_priority(dev, lay, value):
     print(f"    restore ae_priority:={value}: {fmt(*xfer(dev, lay, 'ae_priority', SET_CUR, value))}")
     res, err, ms = xfer(dev, lay, "ae_priority", GET_CUR)
@@ -1002,6 +1159,20 @@ def main():
     ps.add_argument("--timeout", type=float, default=120.0, help="seconds to wait for unplug, and again for replug")
     ps.add_argument("--settle-after-replug", type=float, default=2.0)
     ps.set_defaults(fn=cmd_persist)
+    sc = sub.add_parser("scan")
+    sc.add_argument("--config", default=RECORDER_CONFIG)
+    sc.add_argument("--first", type=int, default=0)
+    sc.add_argument("--last", type=int, default=9)
+    sc.add_argument("--seconds", type=float, default=1.0)
+    sc.set_defaults(fn=cmd_scan)
+    rp = sub.add_parser("replug", parents=[stream])
+    rp.add_argument("--port", type=int, default=1, help="rig port of the target camera to mark and replug")
+    rp.add_argument("--checks", type=float, nargs="+", default=[3, 30, 60, 120],
+                    help="seconds after re-enumeration at which to check")
+    rp.add_argument("--scan-last", type=int, default=9, help="highest index in the fresh-process scans")
+    rp.add_argument("--scan-seconds", type=float, default=1.0)
+    rp.add_argument("--timeout", type=float, default=120.0)
+    rp.set_defaults(fn=cmd_replug)
     sub.add_parser("restore").set_defaults(fn=cmd_restore)
     args = ap.parse_args()
     sys.stdout.reconfigure(line_buffering=True)  # cues must appear live through tee
