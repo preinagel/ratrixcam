@@ -3,7 +3,9 @@
 
 RUN THIS (in your own Terminal, from anywhere; not inside the Claude sandbox):
 
-    cd ~/Desktop/ratrixcam-uvc && LIBUSB_DEBUG=3 uvc/.venv/bin/python uvc/probe.py controls 2>&1 | tee uvc/logs/controls-run2.log && LIBUSB_DEBUG=3 uvc/.venv/bin/python uvc/probe.py q1 --index 0 2>&1 | tee uvc/logs/q1-run2.log
+    cd ~/Desktop/ratrixcam-uvc && uvc/.venv/bin/python uvc/probe.py track 2>&1 | tee uvc/logs/track-run1.log
+
+    (watch the terminal: it tells you when to cover all lenses and when to uncover them)
 
 Sub-commands:
     list      enumerate 0x0c45:0x6369 devices and parse their VideoControl descriptors
@@ -13,6 +15,9 @@ Sub-commands:
               clears AE priority, then restores it (goal 2); sets manual exposure at
               4 ms, then restores auto (goal 3 preview). Every write is restored and
               read back; fps and mean brightness are printed per window.
+    track     read-only: stream index 0 and read exposure/gain/AE mode every second while
+              you cover and uncover the lenses; shows whether the reads follow auto-exposure
+    restore   safety net: exposure, gain and AE mode to each camera's own defaults
 
 Safety: refuses to run if ~/Desktop/temp exists (a recording is in progress). Never claims an
 interface, detaches a driver or sets a configuration: only class requests on endpoint 0,
@@ -365,6 +370,67 @@ def cmd_q1(args):
     print(f"[{now()}] done")
 
 
+def cmd_track(args):
+    """Read-only: does exposure GET_CUR follow the auto-exposure loop when the light changes?"""
+    guard()
+    be = usb_backend()
+    devs = find_targets(be)
+    lays = [vc_layout(d) for d in devs]
+    print(f"[{now()}] {len(devs)} target(s); reading every {args.interval:.1f}s for {args.seconds:.0f}s")
+    print(f"  cue: at t={args.cover:.0f}s COVER ALL LENSES (or switch off the room light); "
+          f"at t={args.uncover:.0f}s UNCOVER")
+    cv2 = import_cv2()
+    cap = cv2.VideoCapture(args.index, cv2.CAP_AVFOUNDATION)
+    if not cap.isOpened():
+        sys.exit("capture did not open")
+    reader = Reader(cap)
+    reader.start()
+    start, cued = time.monotonic(), set()
+    try:
+        while (elapsed := time.monotonic() - start) < args.seconds:
+            for at, msg in ((args.cover, "COVER ALL LENSES NOW"), (args.uncover, "UNCOVER NOW")):
+                if elapsed >= at and at not in cued:
+                    cued.add(at)
+                    print(f">>> t={elapsed:.1f}s {msg}")
+            t0 = time.monotonic()
+            time.sleep(args.interval)
+            n, bad, fps, mean = reader.window(t0, time.monotonic())
+            cols = []
+            for dev, lay in zip(devs, lays):
+                m, me, _ = xfer(dev, lay, "ae_mode", GET_CUR)
+                e, ee, _ = xfer(dev, lay, "exposure", GET_CUR)
+                g, ge, _ = xfer(dev, lay, "gain", GET_CUR)
+                exp_s = "ERR" if ee else f"{e / 10:.1f}ms"
+                cols.append(f"{location_id(dev):08x} ae={'ERR' if me else m} exp={exp_s} "
+                            f"gain={'ERR' if ge else g}")
+            print(f"t={time.monotonic() - start:5.1f}s frames={n:2d} bad={bad} fps={fps:4.1f} "
+                  f"bright={mean:5.1f} | " + " | ".join(cols))
+    finally:
+        reader.stop_evt.set()
+        reader.join(timeout=3)
+        cap.release()
+    print(f"[{now()}] done (read-only; nothing to restore)")
+
+
+def cmd_restore(_args):
+    """Safety net: exposure and gain to their GET_DEF values, then AE mode to its default (auto)."""
+    guard()
+    be = usb_backend()
+    for dev in find_targets(be):
+        lay = vc_layout(dev)
+        print(f"  {label(dev)}")
+        for name in ("exposure", "gain", "ae_mode"):
+            d, err, _ = xfer(dev, lay, name, GET_DEF)
+            if err and name == "ae_mode":
+                d, err = auto_mode_for(dev, lay), None
+            if err:
+                print(f"    {name}: GET_DEF failed ({err}); left as is")
+                continue
+            print(f"    {name}:={d}: {fmt(*xfer(dev, lay, name, SET_CUR, d))}")
+        for name in CONTROLS:
+            read_all(dev, lay, name, (GET_DEF, GET_CUR) if name != "ae_priority" else (GET_CUR,))
+
+
 def restore_priority(dev, lay, value):
     print(f"    restore ae_priority:={value}: {fmt(*xfer(dev, lay, 'ae_priority', SET_CUR, value))}")
     res, err, ms = xfer(dev, lay, "ae_priority", GET_CUR)
@@ -388,7 +454,16 @@ def main():
     q1 = sub.add_parser("q1")
     q1.add_argument("--index", type=int, default=0, help="cv2 camera index to stream (any index is a target)")
     q1.set_defaults(fn=cmd_q1)
+    tr = sub.add_parser("track")
+    tr.add_argument("--index", type=int, default=0)
+    tr.add_argument("--seconds", type=float, default=40.0)
+    tr.add_argument("--interval", type=float, default=1.0)
+    tr.add_argument("--cover", type=float, default=10.0, help="seconds in: cue to cover the lenses")
+    tr.add_argument("--uncover", type=float, default=25.0, help="seconds in: cue to uncover")
+    tr.set_defaults(fn=cmd_track)
+    sub.add_parser("restore").set_defaults(fn=cmd_restore)
     args = ap.parse_args()
+    sys.stdout.reconfigure(line_buffering=True)  # cues must appear live through tee
     print(f"[{now()}] probe.py {args.cmd}  python {sys.version.split()[0]}  pid {os.getpid()}")
     args.fn(args)
 
