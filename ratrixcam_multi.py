@@ -16,6 +16,7 @@ from ratrixcam_naming import camera_name, still_path
 from ratrixcam_utils import (
     BLANK_IMAGE,
     CAMERA_LAUNCH_PAUSE,
+    Calibration,
     Config,
     ensure_dir_exists,
     load_settings,
@@ -78,17 +79,20 @@ def count_video_devices(non_usb: set[str]) -> int | None:
     return count
 
 
-def run_without_handlers(config: Config, camera_idx: int, stop_event: Event, abort_event: Event | None = None):
+def run_without_handlers(
+    config: Config, camera_idx: int, stop_event: Event, abort_event: Event | None = None, calibration: Calibration | None = None
+):
     _ = signal.signal(signal.SIGINT, signal.SIG_IGN)
     _ = signal.signal(signal.SIGTERM, signal.SIG_IGN)
-    ratrixcam_server.run(config, camera_idx, stop_event, abort_event)
+    ratrixcam_server.run(config, camera_idx, stop_event, abort_event, calibration)
 
 
 # Main loop: check every second and restart any cameras or processes that are not running
-def run(config: Config, stop_event: Event, abort_event: Event | None = None):
+def run(config: Config, stop_event: Event, abort_event: Event | None = None, calibration: Calibration | None = None):
     """abort_event, when given and set by the launcher, tells each camera server at its own
     shutdown to leave its last clip and its pending transfers in temp instead of waiting
-    for the drive; it is passed straight through to the servers."""
+    for the drive; it is passed straight through to the servers, as is calibration, the
+    cameras' measured frame rates."""
     print("Settings successfully loaded")
 
     stills_folder = stills_dir(config.temp_path)
@@ -153,7 +157,7 @@ def run(config: Config, stop_event: Event, abort_event: Event | None = None):
                     time.sleep(CAMERA_LAUNCH_PAUSE)  # wait a bit before launching another one
                 cam_proc = Process(
                     target=run_without_handlers,
-                    args=(config, idx, stop_event, abort_event),
+                    args=(config, idx, stop_event, abort_event, calibration),
                 )
                 cam_proc.start()
                 camera_processes[idx] = cam_proc

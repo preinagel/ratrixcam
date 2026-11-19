@@ -157,9 +157,14 @@ class RunMetadata:
     """One ratrixcam launch: its id, terminal log, and metadata folder, born in the temp folder
     and moved whole to the save drive at shutdown."""
 
-    def __init__(self, config: Config, config_path: str | Path, started: datetime | None = None):
+    def __init__(
+        self, config: Config, config_path: str | Path, started: datetime | None = None, calibration_path: str | Path | None = None
+    ):
+        """calibration_path, when given, is the cameras' calibration file in use for the run;
+        it is kept with the config copy, since the clips' rates come from it."""
         self.config: Config = config
         self.config_path: str | Path = config_path
+        self.calibration_path: str | Path | None = calibration_path
         self.started: datetime = started or datetime.now()
         self.run_id: str = run_id(self.started)
         self.log_path: Path = Path(config.temp_path) / terminal_log_filename(self.run_id)
@@ -206,9 +211,11 @@ class RunMetadata:
         folder on the save drive at once, so the run has a record there even if this computer
         dies mid-run. The notes file exists only in temp, so there is one place to type in;
         the shutdown collection moves the whole folder over the provisional one."""
+        copies = [self.config_path] + ([self.calibration_path] if self.calibration_path is not None else [])
         try:
             self.temp_run_dir.mkdir(parents=True, exist_ok=True)
-            _ = shutil.copy2(self.config_path, self.temp_run_dir / os.path.basename(self.config_path))
+            for path in copies:
+                _ = shutil.copy2(path, self.temp_run_dir / os.path.basename(path))
             notes = self.temp_run_dir / NOTES_FILENAME
             if not notes.exists():
                 _ = notes.write_text(NOTES_TEMPLATE)
@@ -217,7 +224,8 @@ class RunMetadata:
             return
         try:
             self.run_dir.mkdir(parents=True, exist_ok=True)
-            _ = shutil.copy2(self.config_path, self.run_dir / os.path.basename(self.config_path))
+            for path in copies:
+                _ = shutil.copy2(path, self.run_dir / os.path.basename(path))
         except OSError as e:
             print(f"WARNING: could not write the provisional config copy to {self.short(self.run_dir)}: {e.strerror or e}")
 

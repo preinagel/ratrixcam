@@ -92,15 +92,17 @@ def test_close_writer_still_transfers_the_clip_when_the_manifest_fails(tmp_path,
     manifest = ManifestMetadata(str(tmp_path / "temp" / "blocked"), "subj999_view1", "999", "view1", 25)
     state = ratrixcam_server.WriterState(
         StandInWriter(),  # pyright: ignore[reportArgumentType]  (only release() is called)
-        str(save_dir), str(temp_dir), "clip.mp4", datetime.now(),
+        str(save_dir), str(temp_dir), "clip.mp4", datetime.now(), ratrixcam_server.FrameTimes(str(temp_dir / "clip_frames.csv")),
     )
     transfers = []
 
     ratrixcam_server.close_writer(state, transfers, manifest, str(tmp_path / "save"))
 
     assert "WARNING" in capsys.readouterr().out
-    assert len(transfers) == 1
-    transfers[0].join(30)
+    assert len(transfers) == 2  # the clip and its frame-time file
+    for transfer in transfers:
+        transfer.join(30)
     assert (save_dir / "clip.mp4").read_bytes() == b"clip"
-    assert not (temp_dir / "clip.mp4").exists()
+    assert (save_dir / "clip_frames.csv").read_text().startswith("frame,arrived")
+    assert not (temp_dir / "clip.mp4").exists() and not (temp_dir / "clip_frames.csv").exists()
     assert not Path(manifest.path).exists()  # the clip is on disk with no manifest row

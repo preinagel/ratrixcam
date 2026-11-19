@@ -2,6 +2,7 @@
 to what the driver reports; the writer is opened with the measured values. RateWatch: a
 camera whose clips depart from that rate during the run is reported once."""
 
+import os
 import time
 from typing import TYPE_CHECKING, cast
 
@@ -121,7 +122,22 @@ def test_frames_the_reader_missed_do_not_lower_the_rate():
     assert 45 <= m.fps <= 55
 
 
-# ------------------------------------------------- the rate of each clip against the launch measurement
+def test_a_frame_that_never_arrived_is_a_gap_and_widens_nothing():
+    rate, uncertainty, gaps = server.rate_from_intervals([0.02] * 50 + [0.04, 0.02, 0.02])
+    assert 49.9 < rate < 50.1 and gaps == 1
+    assert uncertainty < 0.01  # identical intervals: the mean is exact; the doubled one is left out
+
+
+def test_a_single_interval_has_a_rate_but_no_measure_of_its_error():
+    rate, uncertainty, gaps = server.rate_from_intervals([0.025])
+    assert rate == 40 and uncertainty == rate and gaps == 0
+    assert server.rate_from_intervals([]) == (0.0, 0.0, 0)
+
+
+# ------------------------------------------------- the frame count of each clip against the camera's rate
+
+def calibrated(fps: float, uncertainty: float = 0.004) -> server.Rate:
+    return server.Rate(fps, uncertainty, "the test")
 
 def test_the_rig_is_settled_once_the_last_camera_has_started_its_second_clip():
     from ratrixcam_utils import CAMERA_LAUNCH_PAUSE
@@ -137,30 +153,64 @@ def test_the_rig_is_settled_once_the_last_camera_has_started_its_second_clip():
 
 
 def test_rate_watch_leaves_the_clips_before_the_rig_settled_alone():
-    watch = server.RateWatch("cam1", 30.0, settled_at=1120.0)
+    watch = server.RateWatch("cam1", calibrated(30.0), settled_at=1120.0)
     assert watch.clip_closed(1497, 60.0, clip_started=1000.0) is None  # the ragged launch clips
     assert watch.clip_closed(1497, 60.0, clip_started=1060.0) is None
     assert watch.clip_closed(1497, 60.0, clip_started=1120.0) is not None
 
 
+def test_a_steady_camera_holds_one_of_two_adjacent_counts():
+    watch = server.RateWatch("cam1", calibrated(29.6), settled_at=0.0)  # 29.6 x 60.03 = 1776.9 frames expected
+    assert watch.clip_closed(1777, 60.03, clip_started=10.0) is None  # the boundary fell after a frame
+    assert watch.clip_closed(1776, 60.03, clip_started=70.0) is None  # or before it
+    assert watch.clip_closed(1775, 60.03, clip_started=130.0) is not None  # any other count is a departure
+
+
 def test_rate_watch_says_a_departure_once_and_the_return_once():
-    watch = server.RateWatch("cam1", 29.6, settled_at=100.0)  # a camera measured at 29.6 fps, labelled 30
-    assert watch.clip_closed(1777, 60.03, clip_started=120.0) is None  # 29.6 fps: its own rate
+    watch = server.RateWatch("cam1", calibrated(29.6), settled_at=100.0)
+    assert watch.clip_closed(1777, 60.03, clip_started=120.0) is None  # its own rate
     warning = watch.clip_closed(1497, 60.03, clip_started=180.0)
-    assert warning == "WARNING: camera cam1 delivered 24.9 fps over the last clip, not the 29.6 fps measured at launch"
+    assert warning == "WARNING: camera cam1 delivered 1497 frames in a 60.0-s clip, 280 short of the 1777 expected at 29.60 fps"
     assert watch.clip_closed(1497, 60.03, clip_started=240.0) is None  # still low: silent
-    assert watch.clip_closed(1776, 60.03, clip_started=300.0) == "camera cam1 delivers 29.6 fps again"
+    assert watch.clip_closed(1776, 60.03, clip_started=300.0) == "camera cam1 delivers 29.60 fps again"
     assert watch.clip_closed(1777, 60.03, clip_started=360.0) is None
     assert watch.clip_closed(1497, 60.03, clip_started=420.0) is not None  # a second departure is said again
+    assert "more than" in str(server.RateWatch("cam2", calibrated(29.6), settled_at=0.0).clip_closed(1900, 60.03, clip_started=10.0))
 
 
-def test_rate_watch_compares_with_the_measured_rate_not_the_label():
-    # 1729 frames in 60.03 s is 28.8 fps: 0.8 below a camera measured at 29.6, 1.2 below its label of 30
-    assert server.RateWatch("cam1", 29.6, settled_at=0.0).clip_closed(1729, 60.03, clip_started=10.0) is None
-    # 1764 frames is 29.4 fps: 1.0 below the label of 30, but more than 1 below a camera measured at 30.4
-    assert server.RateWatch("cam2", 30.4, settled_at=0.0).clip_closed(1764, 60.03, clip_started=10.0) is not None
+def test_an_uncalibrated_rate_widens_the_budget_by_its_uncertainty():
+    # a rate measured in a 3-s warm-up is good to about 0.15 fps: nine frames over a minute
+    quick = server.RateWatch("cam1", server.Rate(30.1, 0.15, "the launch measurement"), settled_at=0.0)
+    assert quick.budget(60.0) == 1 + 9.0
+    assert quick.clip_closed(1800, 60.0, clip_started=10.0) is None  # six frames short: within the budget
+    assert quick.clip_closed(1704, 60.0, clip_started=70.0) is not None  # a hundred short: a departure
+    exact = server.RateWatch("cam1", calibrated(30.1, 0.0), settled_at=0.0)
+    assert exact.budget(60.0) == 1
 
 
 def test_rate_watch_ignores_an_empty_clip():
-    watch = server.RateWatch("cam1", 30.0, settled_at=0.0)
+    watch = server.RateWatch("cam1", calibrated(30.0), settled_at=0.0)
     assert watch.clip_closed(0, 0.0, clip_started=120.0) is None
+
+
+# ------------------------------------------------- the frame-time file beside each clip
+
+def test_frame_times_go_beside_the_clip_one_line_per_frame(tmp_path: object):
+    path = os.path.join(str(tmp_path), server.frame_times_filename("rat1_cam1_20261119_10-00-00.mp4"))
+    assert path.endswith("rat1_cam1_20261119_10-00-00_frames.csv")
+    times = server.FrameTimes(path)
+    times.add(0, 1763550000.123456, 0.0310, 0.0021)
+    times.add(1, 1763550000.156789, 0.0333, 0.0019)
+    times.close()
+    with open(path) as f:
+        lines = f.read().splitlines()
+    assert lines[0] == "frame,arrived,waited_s,worked_s"
+    assert len(lines) == 3 and lines[1].startswith("0,") and lines[1].endswith(",0.0310,0.0021")
+    assert lines[2].split(",")[1].endswith(".156789")  # the arrival to the microsecond
+
+
+def test_a_frame_time_file_that_cannot_be_opened_is_reported_and_skipped(tmp_path: object, capsys: pytest.CaptureFixture[str]):
+    times = server.FrameTimes(os.path.join(str(tmp_path), "no_such_folder", "x_frames.csv"))
+    times.add(0, 1763550000.0, 0.03, 0.002)  # nothing to write to, nothing raised
+    times.close()
+    assert "WARNING: could not open the frame-time file x_frames.csv" in capsys.readouterr().out

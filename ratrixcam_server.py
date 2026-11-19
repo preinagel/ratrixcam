@@ -11,7 +11,7 @@ from multiprocessing import Process
 from multiprocessing.synchronize import Event
 from types import FrameType
 from collections.abc import Callable
-from typing import NamedTuple, cast
+from typing import NamedTuple, TextIO, cast
 
 import cv2
 import numpy as np
@@ -20,7 +20,16 @@ from pydantic import BaseModel
 
 from ratrixcam_manifest import ManifestMetadata
 from ratrixcam_naming import camera_name, clip_filename, still_path
-from ratrixcam_utils import CAMERA_LAUNCH_PAUSE, Config, ensure_dir_exists, flush_to_device, load_settings, opens_as_video, stills_dir
+from ratrixcam_utils import (
+    CAMERA_LAUNCH_PAUSE,
+    Calibration,
+    Config,
+    ensure_dir_exists,
+    flush_to_device,
+    load_settings,
+    opens_as_video,
+    stills_dir,
+)
 
 video_codec = cv2.VideoWriter.fourcc(*"mp4v")
 
@@ -252,37 +261,57 @@ def rig_settled_at(started: float, device_id: int, n_cameras: int, time_slice: i
     return last_first_clip + time_slice
 
 
-class RateWatch:
-    """Compares each closed clip's frame rate with the unrounded rate measured at launch (not
-    the clips' label, which a camera at 29.6 fps shares with one at 30.4) and says so once
-    when it departs by more than FPS_TOLERANCE, and once when it is back. A camera changes
-    its rate mid-run on its own, for one, when its auto-exposure lengthens the frame in dim
-    light, which nothing on macOS controls (GitHub #51); without this the change is silent.
-    Clips started before `settled_at` (rig_settled_at) are not compared."""
+class Rate(NamedTuple):
+    fps: float  # frames per second the camera delivers
+    uncertainty: float  # of fps: one standard error of the measurement it came from
+    source: str  # where it came from, for the terminal
 
-    def __init__(self, name: str, rate: float, settled_at: float):
+
+class RateWatch:
+    """Compares each closed clip's frame count with what the camera's rate predicts for the
+    clip's length and says so once when the clip departs, and once when the clips are back.
+    A steady camera's clips hold one of two adjacent counts, the clip boundary falling before
+    or after a frame, so the budget is one frame plus what the rate's own uncertainty amounts
+    to over the clip: next to nothing for a calibrated rate, several frames for a rate
+    measured in a few seconds at launch. A camera changes its rate mid-run on its own, for
+    one, when its auto-exposure lengthens the frame in dim light, which nothing on macOS
+    controls (GitHub #51), or loses frames to a crowded USB link; without this the loss is
+    silent. Clips started before `settled_at` (rig_settled_at) are not compared."""
+
+    def __init__(self, name: str, rate: Rate, settled_at: float):
         self.name: str = name
-        self.rate: float = rate
+        self.rate: Rate = rate
         self.settled_at: float = settled_at
         self.departed: bool = False
+
+    def budget(self, seconds: float) -> float:
+        """Frames a clip of this length may differ from the prediction and still be steady."""
+        return 1 + self.rate.uncertainty * seconds
 
     def clip_closed(self, frames: int, seconds: float, clip_started: float) -> str | None:
         """The line to print for a clip of this many frames over this many seconds, or None."""
         if clip_started < self.settled_at or seconds <= 0:
             return None
-        rate = frames / seconds
-        departed = abs(rate - self.rate) > FPS_TOLERANCE
+        expected = self.rate.fps * seconds
+        departed = abs(frames - expected) > self.budget(seconds)
         if departed == self.departed:
             return None
         self.departed = departed
         if departed:
-            return f"WARNING: camera {self.name} delivered {rate:.1f} fps over the last clip, not the {self.rate:.1f} fps measured at launch"
-        return f"camera {self.name} delivers {self.rate:.1f} fps again"
+            short = expected - frames
+            how = f"{short:.0f} short of" if short > 0 else f"{-short:.0f} more than"
+            return (
+                f"WARNING: camera {self.name} delivered {frames} frames in a {seconds:.1f}-s clip, {how} the "
+                + f"{expected:.0f} expected at {self.rate.fps:.2f} fps"
+            )
+        return f"camera {self.name} delivers {self.rate.fps:.2f} fps again"
 
 
 class Measured(NamedTuple):
-    fps: int  # frames per second the camera really delivers, rounded: the clips' label
-    rate: float  # the same, unrounded: what the clips of the run are compared with
+    fps: int  # frames per second the camera really delivers, rounded: compared with the request
+    rate: float  # the same, unrounded
+    uncertainty: float  # of rate: one standard error
+    gaps: int  # intervals of more than 1.5 typical ones: frames that did not arrive during the measurement
     width: int  # of the frames themselves
     height: int
     reported_fps: float  # what the capture reports for the same properties after the settings
@@ -299,11 +328,12 @@ def measure_camera(
     first_frame_wait: float = FIRST_FRAME_WAIT,
 ) -> Measured | None:
     """Read and discard frames for about `seconds` and return what the camera really delivers:
-    the rate as the median interval between consecutive distinct frames, inverted and
-    rounded, and the frames' own size. The median, not the count over the time: a frame the
-    loop missed while busy (writing a still, a loaded machine at launch) doubles one interval
-    and a burst of buffered frames shortens a few, and neither moves the median, where
-    either would pull a count-based rate away from what the camera is doing. A set() the hardware rounded or refused is reported as accepted
+    the rate from the intervals between consecutive distinct frames, and the frames' own
+    size. The typical interval is the median; the rate is the inverse of the mean of the
+    intervals within half to one and a half times it, with one standard error of that mean
+    as its uncertainty, and the longer intervals counted as gaps. So a frame the loop missed
+    while busy (writing a still, a loaded machine at launch) or one the camera never sent
+    neither pulls the rate down, as a count over the time would, nor hides. A set() the hardware rounded or refused is reported as accepted
     by some drivers and a writer fed the requested values labels every clip wrongly, or
     writes nothing when the size is wrong; so the writer gets these. A frame identical to
     the one before is a backend handing back its latest frame again and is not counted. The
@@ -339,37 +369,52 @@ def measure_camera(
             next_still = now + still_every
     if previous is None:
         return None
-    typical = statistics.median(intervals) if intervals else 0.0
-    rate = 1 / typical if typical > 0 else 0.0
+    rate, uncertainty, gaps = rate_from_intervals(intervals)
     height, width = cast(tuple[int, ...], previous.shape)[:2]
-    return Measured(round(rate), rate, width, height, reported_fps, reported_width, reported_height, frames)
+    return Measured(round(rate), rate, uncertainty, gaps, width, height, reported_fps, reported_width, reported_height, frames)
 
 
-def save_frame_to_writer(
-    capture: cv2.VideoCapture,
-    writer: cv2.VideoWriter,
-    params: CameraParams,
-    current_time: datetime,
-    overlay_text: str
-) -> MatLike | None:
+def rate_from_intervals(intervals: list[float]) -> tuple[float, float, int]:
+    """(rate, its uncertainty, gaps) from the intervals between consecutive frames, as the
+    docstring of measure_camera describes; (0, 0, 0) with no interval at all."""
+    if not intervals:
+        return 0.0, 0.0, 0
+    typical = statistics.median(intervals)
+    kept = [i for i in intervals if 0.5 * typical <= i <= 1.5 * typical]
+    gaps = sum(1 for i in intervals if i > 1.5 * typical)
+    mean = statistics.fmean(kept)
+    rate = 1 / mean
+    # d(1/T) = dT / T^2, with dT the standard error of the mean interval; a single interval
+    # gives a rate with no measure of its error, so its uncertainty is the rate itself
+    uncertainty = rate * rate * statistics.stdev(kept) / math.sqrt(len(kept)) if len(kept) > 1 else rate
+    return rate, uncertainty, gaps
 
-    ret=False
-    frame = None
+
+class Grabbed(NamedTuple):
+    frame: MatLike
+    arrived: float  # the clock (time.time()) the moment the frame came back from the capture: its time stamp
+    waited: float  # seconds spent in the capture waiting for it
+
+
+def grab_frame(capture: cv2.VideoCapture, name: str) -> Grabbed | None:
+    """The next frame with the time it arrived, read just after it came back so that the
+    stamp is the frame's own and not the moment the wait for it began. Up to three reads,
+    since the backend gives up on a slow camera after a while; None, after a line, when the
+    camera delivers nothing."""
+    asked = time.time()
     for _ in range(3):
-        ret, frame = capture.read()
-        if ret:
-            break
-
-    if not ret or frame is None:
-        print(
-            f"Cam_server: Failed to capture a frame from camera {params.name} at {datetime.now().strftime('%H:%M:%S.%f')}"
-        )
-        return
+        ok, frame = capture.read()
+        if ok:
+            arrived = time.time()
+            return Grabbed(frame, arrived, arrived - asked)
+    print(f"Cam_server: Failed to capture a frame from camera {name} at {datetime.now().strftime('%H:%M:%S.%f')}")
+    return None
 
 
-    # time stamp to overlay on video frame
-    date_text = current_time.strftime("%Y%m%d")
-    time_text = current_time.strftime("%H:%M:%S.%f")[:-4] # Truncate to .01s to reflect actual accuracy of timestamps
+def write_frame(writer: cv2.VideoWriter, frame: MatLike, params: CameraParams, stamp: datetime, overlay_text: str) -> None:
+    """Overlay the text and the frame's time stamp, then write the frame to the clip."""
+    date_text = stamp.strftime("%Y%m%d")
+    time_text = stamp.strftime("%H:%M:%S.%f")[:-4]  # truncated to .01 s to reflect the accuracy of the stamps
 
     font = cv2.FONT_HERSHEY_PLAIN
     font_scale = params.height / 480
@@ -384,7 +429,43 @@ def save_frame_to_writer(
 
     writer.write(frame)
 
-    return frame
+
+FRAME_TIMES_SUFFIX = "_frames.csv"  # beside each clip: one line per frame with its arrival time
+FRAME_TIMES_HEADER = "frame,arrived,waited_s,worked_s\n"
+
+
+def frame_times_filename(clip_filename_: str) -> str:
+    """The name of the frame-time file that goes with a clip."""
+    stem, _ = os.path.splitext(clip_filename_)
+    return stem + FRAME_TIMES_SUFFIX
+
+
+class FrameTimes:
+    """The frame-time file of one clip: for every frame its number, the clock when it
+    arrived, the seconds the loop waited for it and the seconds the loop worked between the
+    previous frame and asking for this one. A gap after a long wait is a frame the camera
+    or the link did not deliver; a gap after long work is a frame that was overwritten while
+    the loop was busy; the clip alone cannot tell the two apart."""
+
+    def __init__(self, path: str):
+        self.path: str = path
+        self.file: TextIO | None = None  # None when the file could not be opened: the clip goes on without it
+        try:
+            self.file = open(path, "w")
+            _ = self.file.write(FRAME_TIMES_HEADER)
+        except OSError as e:
+            print(f"WARNING: could not open the frame-time file {os.path.basename(path)}: {e.strerror or e}; the clip is recorded without it")
+
+    def add(self, frame: int, arrived: float, waited: float, worked: float) -> None:
+        if self.file is None:
+            return
+        stamp = datetime.fromtimestamp(arrived).strftime("%Y-%m-%d %H:%M:%S.%f")
+        _ = self.file.write(f"{frame},{stamp},{waited:.4f},{worked:.4f}\n")
+
+    def close(self) -> None:
+        if self.file is not None:
+            self.file.close()
+
 
 class WriterState(NamedTuple):
     writer: cv2.VideoWriter
@@ -392,29 +473,34 @@ class WriterState(NamedTuple):
     temp_dir: str
     file_name: str
     started: datetime  # time of the first frame written to this clip
+    times: FrameTimes  # the clip's frame-time file, transferred with it
 
 
 def close_writer(
     writer_state: WriterState, file_transfer_processes: list[Process], manifest: ManifestMetadata, save_root: str, transfer: bool = True
 ):
-    """Release the clip, write its manifest row, then hand it to a transfer process. With
-    transfer=False (the run is being aborted) the release and the row still happen, in that
-    order, so the clip left in temp is a valid, listed clip; only the transfer is skipped."""
+    """Release the clip and close its frame-time file, write its manifest row, then hand the
+    clip and the frame-time file to a transfer process each. With transfer=False (the run is
+    being aborted) the release and the row still happen, in that order, so the clip left in
+    temp is a valid, listed clip; only the transfers are skipped."""
     writer_state.writer.release()
+    writer_state.times.close()
     _ = manifest.append(os.path.basename(writer_state.day_folder), writer_state.file_name, writer_state.started)
     if not transfer:
         print(f"Cam_server: {writer_state.file_name} closed and left in temp (run aborted)")
         return
 
-    temp_video_path = os.path.join(writer_state.temp_dir, writer_state.file_name)
-    out_path = os.path.join(writer_state.day_folder, writer_state.file_name)
-
-    # spawn a separate process to move the closed tmp file to permanent location
-    print(f"Cam_server: Starting transfer of file:{writer_state.file_name}") # {temp_video_path} to {out_path}")
-    p = Process(target=move_file, args=(temp_video_path, out_path, save_root))
-    p.start()
-    # keep track of process to clean up later
-    file_transfer_processes.append(p)
+    # spawn a separate process to move each closed temp file to its permanent location
+    print(f"Cam_server: Starting transfer of file:{writer_state.file_name}")
+    for file_name in (writer_state.file_name, os.path.basename(writer_state.times.path)):
+        temp_path = os.path.join(writer_state.temp_dir, file_name)
+        if not os.path.isfile(temp_path):
+            continue  # a frame-time file that could not be opened
+        out_path = os.path.join(writer_state.day_folder, file_name)
+        p = Process(target=move_file, args=(temp_path, out_path, save_root))
+        p.start()
+        # keep track of process to clean up later
+        file_transfer_processes.append(p)
 
 
 def release_finished(processes: list[Process]) -> list[Process]:
@@ -457,7 +543,13 @@ def wait_for_transfers(processes: list[Process], abort_event: Event | None) -> t
     return len(processes) - killed, killed
 
 
-def run(config: Config, device_id: int, stop_event: Event, abort_event: Event | None = None):
+def run(
+    config: Config, device_id: int, stop_event: Event, abort_event: Event | None = None, calibration: Calibration | None = None
+):
+    """Record from the camera at device_id until stop_event. calibration, when given, holds
+    the rate each camera delivers on its own, measured by the calibration program; a camera
+    with no valid entry records at the rate measured in its warm-up instead, with the wider
+    uncertainty that implies."""
     camera = config.cameras[device_id]
     params = CameraParams(
         name=camera_name(config.subject_prefix, camera.subjID, camera.view),
@@ -528,34 +620,55 @@ def run(config: Config, device_id: int, stop_event: Event, abort_event: Event | 
             f"WARNING: camera {params.name} delivers {fps} fps at {measured.width}x{measured.height}, not the "
             + f"{params.fps} fps at {params.width}x{params.height} requested"
         )
-        print(f"WARNING: camera {params.name}'s clips are labelled with the true values, {fps} fps at {measured.width}x{measured.height}")
+        print(f"WARNING: camera {params.name}'s clips are labelled with the true values, {measured.width}x{measured.height} at its own rate")
+    # the rate the clips are labelled with and compared against: the calibration's for this
+    # camera in this requested mode, else the warm-up's, which is less certain
+    entry = None
+    if calibration is not None:
+        entry = calibration.for_camera(device_id, params.name, params.width, params.height, params.fps)
+        if entry is None:
+            print(f"WARNING: camera {params.name} has no calibration for {params.width}x{params.height} at {params.fps} fps under this name")
+    if calibration is not None and entry is not None:
+        rate = Rate(entry.rate, entry.uncertainty, f"the calibration of {calibration.calibrated}")
+        if abs(measured.rate - entry.rate) > 3 * (measured.uncertainty + entry.uncertainty):
+            print(
+                f"WARNING: camera {params.name} measures {measured.rate:.2f} fps at launch, not the {entry.rate:.2f} fps of its "
+                + "calibration; the calibration is used and every clip is compared with it"
+            )
+    else:
+        rate = Rate(measured.rate, measured.uncertainty, "the launch measurement, uncalibrated")
+    print(f"Cam_server: camera {params.name} records at {rate.fps:.3f} fps (uncertainty {rate.uncertainty:.3f}) from {rate.source}")
     params = params.model_copy(update={"fps": fps, "width": measured.width, "height": measured.height})
-    rate_watch = RateWatch(params.name, measured.rate, rig_settled_at(time.time(), device_id, len(config.cameras), config.time_slice))
+    rate_watch = RateWatch(params.name, rate, rig_settled_at(time.time(), device_id, len(config.cameras), config.time_slice))
 
     frame_count: int = 0  # frames since the camera started: printed on each frame, paces the still updates
     clip_first_frame: int = 0  # frame_count when the open clip started
     clip_count: int = 0
     file_transfer_processes: list[Process] = []
     writer_state: WriterState | None = None
+    last_arrived: float = time.time()  # when the previous frame came back; the loop's work since then goes in the frame-time file
 
     # this loop is executed once per video frame until the camera is stopped
     while capture.isOpened() and not stop_event.is_set():
-        current_time: float = time.time()
+        # the frame first: its arrival time is its stamp and decides which clip it opens or joins
+        grabbed = grab_frame(capture, params.name)
+        if grabbed is None:
+            break  # if you fail to capture, interpret that camera is down, fall out of loop
+        current_time: float = grabbed.arrived
         current_datetime: datetime = datetime.fromtimestamp(timestamp=current_time)
 
         # if not started yet, open first video file
         # or if video slice duration has been exceeded, close video file and initialize new one
         if writer_state is None or current_time - start > config.time_slice:
-            # close the old writer, compare its clip's rate with the launch measurement, and let
-            # go of the transfers that have finished since the last clip
+            # close the old writer, compare its clip's frame count with the camera's rate, and
+            # let go of the transfers that have finished since the last clip
             if writer_state is not None:
                 close_writer(writer_state, file_transfer_processes, manifest, config.save_path)
                 message = rate_watch.clip_closed(frame_count - clip_first_frame, current_time - start, start)
                 if message is not None:
                     print(message)
                 file_transfer_processes = release_finished(file_transfer_processes)
-            start = current_time # update start time for first frame of new video (time.time() format)
-                                        # note that the next frame captured will be written to the new writer
+            start = current_time  # the clip's clock starts at its first frame; the clip ends at the first frame after time_slice
             clip_first_frame = frame_count
             clip_count += 1
 
@@ -565,34 +678,31 @@ def run(config: Config, device_id: int, stop_event: Event, abort_event: Event | 
                 config.save_path, f"{camera_label}_{current_datetime.strftime('%Y%m%d')}"
             )
             current_file_name = clip_filename(params.name, current_datetime)
-            # Create video writer
+            # Create video writer, labelled with the camera's own rate so that playback keeps clock time
             writer_state = WriterState(
                 cv2.VideoWriter(
                     os.path.join(temp_dir, current_file_name),
                     video_codec,
-                    params.fps,
+                    rate.fps,
                     (params.width, params.height),
                 ),
                 day_folder,
                 temp_dir,
                 current_file_name,
                 current_datetime,
+                FrameTimes(os.path.join(temp_dir, frame_times_filename(current_file_name))),
             )
             print(f"Cam_server: Camera {params.name} will now stream to {current_file_name}")
 
-        # proceed to capture the next frame in the buffer
-        # NOTE maybe should try 2-3x before giving up?  
         overlay_text: str = camera_label + ' frame ' + str(frame_count)
-        frame = save_frame_to_writer(
-            capture, writer_state.writer, params, current_datetime, overlay_text
-        )
-        if frame is None:
-            break #if you fail to capture, interpret that camera is down, fall out of loop
-        
+        write_frame(writer_state.writer, grabbed.frame, params, current_datetime, overlay_text)
+        writer_state.times.add(frame_count, grabbed.arrived, grabbed.waited, grabbed.arrived - grabbed.waited - last_arrived)
+        last_arrived = grabbed.arrived
+
         # once per N sec, try to update the still image
         if frame_count % (config.preview_interval * params.fps) == 0:
             try:
-                result = cv2.imwrite(camera_still_path, frame)
+                result = cv2.imwrite(camera_still_path, grabbed.frame)
                 if result is False:
                     print(
                         f"WARNING: Failed to write still image to {camera_still_path}"
@@ -605,14 +715,6 @@ def run(config: Config, device_id: int, stop_event: Event, abort_event: Event | 
     print(f"Camera server {device_id+1} attempting to shut down nicely")
     capture.release()
     if writer_state is not None:
-        # flush remaining frames 
-        while (
-            save_frame_to_writer(
-                capture, writer_state.writer, params, datetime.now(), camera_label
-            )
-            is not None
-        ):
-            pass
         # on an abort the clip is still released and listed, but not transferred
         aborted = abort_event is not None and abort_event.is_set()
         close_writer(writer_state, file_transfer_processes, manifest, config.save_path, transfer=not aborted)

@@ -24,8 +24,11 @@ from ratrixcam_run_metadata import RunMetadata, save_drive_problem
 from ratrixcam_server import TRANSFER_PAUSE, TRANSFER_RETRY_WINDOW
 from ratrixcam_status import StatusWriter
 from ratrixcam_utils import (
+    Calibration,
     Config,
+    calibration_path,
     ensure_dir_exists,
+    load_calibration,
     load_settings,
     not_writable,
     seconds_until_full,
@@ -64,10 +67,10 @@ def cameras_are_distinct(config: Config) -> bool:
     return ok
 
 
-def run_without_handlers(config: Config, stop_event: Event, abort_event: Event):
+def run_without_handlers(config: Config, stop_event: Event, abort_event: Event, calibration: Calibration | None = None):
     _ = signal.signal(signal.SIGINT, signal.SIG_IGN)
     _ = signal.signal(signal.SIGTERM, signal.SIG_IGN)
-    ratrixcam_multi.run(config, stop_event, abort_event)
+    ratrixcam_multi.run(config, stop_event, abort_event, calibration)
 
 
 def time_left_text(seconds: float) -> str:
@@ -529,8 +532,13 @@ def main():
 
     parser = argparse.ArgumentParser(description="ratrixcam", add_help=False)
     _ = parser.add_argument("-c", "--config", type=str, required=True)
+    _ = parser.add_argument(
+        "-k", "--calibration", type=str, default=None,
+        help="the cameras' frame-rate calibration file, written by ratrixcam_calibrate.py; by default the one beside the config",
+    )
     args = vars(parser.parse_args())
     config_path: str = args["config"]  # pyright: ignore[reportAny]  # argparse hands back Any
+    calibration_file: str = args["calibration"] or calibration_path(config_path)
 
     if not os.path.isfile(config_path):
         print(f"ERROR: config file not found: {config_path}")
@@ -540,6 +548,15 @@ def main():
     if config is None:
         return
     state.config = config
+    # the calibration is optional, a bad one is not: a camera without an entry is measured
+    # at launch, and a file that fails its checks stops the launch like a bad config
+    calibration: Calibration | None = None
+    if os.path.isfile(calibration_file):
+        calibration = load_calibration(calibration_file)
+        if calibration is None:
+            return
+    else:
+        print(f"No calibration file at {calibration_file}: each camera's frame rate is measured at launch instead")
     if not cameras_are_distinct(config):
         return
     if not temp_is_clear(config.temp_path):
@@ -562,13 +579,13 @@ def main():
 
     # from here on, everything printed by this process and the camera processes it spawns
     # also goes to a log file in the temp folder; it moves to the output drive at shutdown
-    state.run_metadata = RunMetadata(config, config_path)
+    state.run_metadata = RunMetadata(config, config_path, calibration_path=calibration_file if calibration is not None else None)
     if not state.run_metadata.start_terminal_log():
         sys.exit(1)
 
     bgcolor = "#3b0a0a"
 
-    state.camera_process = Process(target=run_without_handlers, args=(config, stop_event, abort_event))
+    state.camera_process = Process(target=run_without_handlers, args=(config, stop_event, abort_event, calibration))
     state.camera_process.start()
     state.run_metadata.record_start()
 

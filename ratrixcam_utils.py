@@ -41,6 +41,75 @@ class Config(BaseModel):
     temp_path: str  # temporary folder for video files while streaming
 
 
+class CameraCalibration(BaseModel):
+    """The frame rate one camera delivers when it streams alone, measured by the calibration
+    program, with what identifies the camera and the mode the measurement holds for."""
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
+
+    index: int  # the camera's place in the config's list, counted from 0: the index the server opens
+    name: str  # the camera name the config gave at calibration time, a check against the config in use
+    position: Position
+    unique_id: str | None = None  # the system's id of the camera on that port, once it can be read at launch
+    requested_width: int  # the mode the calibration was made in; another mode needs its own
+    requested_height: int
+    requested_fps: int
+    width: int  # the frame size the camera delivered
+    height: int
+    rate: float  # frames per second the camera delivers on its own
+    uncertainty: float  # of rate: one standard error of the measurement
+    frames: int  # frames the measurement counted
+    seconds: float  # over this long
+    gaps: int  # intervals of more than 1.5 typical ones during the measurement: frames that did not arrive
+
+
+class Calibration(BaseModel):
+    """A calibration file: the rate of each camera of a config, measured one camera at a time."""
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
+
+    version: int = 1
+    calibrated: str  # when the measurements were made
+    code_version: str
+    config_file: str  # the config file's name at calibration time
+    cameras: list[CameraCalibration]
+
+    def for_camera(self, index: int, name: str, width: int, height: int, fps: int) -> CameraCalibration | None:
+        """The entry for the camera at this index, if it was calibrated under this name in this
+        requested mode; otherwise None, and the camera counts as uncalibrated."""
+        for entry in self.cameras:
+            if (entry.index, entry.name, entry.requested_width, entry.requested_height, entry.requested_fps) == (index, name, width, height, fps):
+                return entry
+        return None
+
+
+CALIBRATION_SUFFIX = "_fps_calibration.json"  # the calibration file sits beside the config, named after it
+
+
+def calibration_path(config_path: str) -> str:
+    """Where the calibration of a config file is kept unless another path is given."""
+    stem, _ = os.path.splitext(config_path)
+    return stem + CALIBRATION_SUFFIX
+
+
+def load_calibration(json_path: str) -> Calibration | None:
+    """The calibration file as a Calibration, or None after ERROR lines when it cannot be read
+    or fails the checks. Whether a run may go on without one is the caller's decision."""
+    try:
+        with open(json_path, "r") as f:
+            json = f.read()
+    except OSError as e:
+        print(f"ERROR: cannot read the calibration file {json_path}: {e.strerror or e}")
+        return None
+    try:
+        return Calibration.model_validate_json(json)
+    except ValidationError as e:
+        print(f"ERROR: the calibration file {json_path} fails its checks:")
+        for error in e.errors():
+            print(f"  {'.'.join(map(str, error.get('loc', ())))} : {error['msg']}")
+        return None
+
+
 def ensure_dir_exists(path: str) -> bool:
     # create the folder if it does not exist; True if it exists afterwards
     try:

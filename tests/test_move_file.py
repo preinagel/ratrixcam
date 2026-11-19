@@ -357,13 +357,15 @@ def test_close_writer_without_transfer_releases_and_lists_the_clip(tmp_path: Pat
     writer = cv2.VideoWriter(str(cam_dir / "c.mp4"), cv2.VideoWriter.fourcc(*"mp4v"), 10, (64, 48))
     assert writer.isOpened()
     writer.write(np.zeros((48, 64, 3), dtype=np.uint8))
-    state = server.WriterState(writer, str(tmp_path / "save" / "Test_subj001_cam1_20260102"), str(cam_dir), "c.mp4", datetime(2026, 1, 2, 3, 4, 5))
+    times = server.FrameTimes(str(cam_dir / "c_frames.csv"))
+    state = server.WriterState(writer, str(tmp_path / "save" / "Test_subj001_cam1_20260102"), str(cam_dir), "c.mp4", datetime(2026, 1, 2, 3, 4, 5), times)
     manifest = ManifestMetadata(str(temp), "subj001_cam1", "001", "cam1", 25)
     processes: list[multiprocessing.Process] = []
 
     server.close_writer(state, processes, manifest, str(tmp_path / "save"), transfer=False)
 
     assert processes == []
+    assert (cam_dir / "c_frames.csv").exists() and times.file is not None and times.file.closed  # left in temp with the clip
     assert "c.mp4 closed and left in temp (run aborted)" in capsys.readouterr().out
     assert "Test_subj001_cam1_20260102/c.mp4" in Path(manifest.path).read_text()
     assert cv2.VideoCapture(str(cam_dir / "c.mp4")).isOpened()  # finalised, so it opens
