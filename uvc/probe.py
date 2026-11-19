@@ -307,7 +307,7 @@ def recorder_format(args):
         cam = cams[args.index]
         src = f"{args.config}, entry {args.index}"
         print(f"  config {args.config}: {len(cams)} camera entries; entry {args.index} = {cam} "
-              f"(format only; control requests select cameras by USB id 0x{VID:04x}:0x{PID:04x})")
+              f"(format only; control requests select cameras by kind: vendor id, product id and name string)")
         w = w or cam.get("width") or cfg["default_width"]
         h = h or cam.get("height") or cfg["default_height"]
         f = f or cam.get("fps") or cfg["default_fps"]

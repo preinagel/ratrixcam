@@ -315,6 +315,38 @@ requests no format. From now on every streaming run also prints:
    mode**: in auto, SET_CUR stalls (aetrack run 1), so a setter must select manual first.
    Ranges are in the goal 1 table.
 
+## Kind B (0x6366 "USB 2.0 Camera"): port 2, cv2 index 1
+
+Selected by vendor id, product id and name string; writes went only to port 2. Format is
+config entry 1, 640x480 @ 30.
+
+### Q1, kind B: q1-B run 1 (2026-11-19 12:22:40; `uvc/logs/q1-B-run1.log`)
+
+`uvc/.venv/bin/python uvc/probe.py q1 --kind B --port 2 --index 1`
+- **Identification:** `index 1 is kind B at port 2 (0x01142000): brightness 138.4 -> 0.6 with the
+  marker`. The marker (manual, 0.1 ms, gain 0) was restored to the camera's defaults and read
+  back OK before the experiment.
+- No stream: reads OK (0.4-0.8 ms). ae_mode 8, ae_priority 0, exposure 156 (15.6 ms; B's
+  default), gain 0; exposure INFO 15. The no-op write `ae_mode:=8` was accepted (0.5 ms).
+- Stream: `VideoCapture(1)` opened in 1669 ms; requested, reported and measured 640x480 @ 30;
+  warm-up 92 frames in 3.0 s (30.6 fps). **Camera-side commit: MJPEG (format 1), 640x480 (frame
+  3), 30.0 fps, max payload 800 B**, the same wire format and bandwidth as kind A.
+
+| Kind B, port 2, while streaming | Result |
+|---|---|
+| Reads (INFO, CUR of the four controls) | all OK, 0.5-9.9 ms |
+| ae_priority:=0 (already 0) | accepted, read back 0; no-op; brightness 153.3 -> 153.1 |
+| ae_mode:=manual, exposure:=4.0 ms | accepted (0.8 / 10.7 ms), read back 1 / 40 |
+| Stream brightness before / during / 2 s after restore | **152.7 / 89.2 / 134.9 (-42%)** |
+| fps during | 30.3, 0 failed reads in every window |
+
+- **Q1 for kind B: YES.** Control requests reach the camera while AVFoundation streams it, and
+  the image responds.
+- Kind B answers SET_CUR faster than kind A: 0.3-0.8 ms, with one write each of exposure and
+  gain at about 10 ms, against A's 4.5-6 ms. Its stream runs at 30.3 fps against A's 29.6.
+- Restored to B's own defaults (exposure 156, gain 0, ae_mode 8), read back OK; the Phase C
+  read-back after release equals Phase A.
+
 ## Hook recommendation
 
 **A pass in the supervisor, by USB id, run before every launch and every relaunch of a camera
@@ -752,3 +784,8 @@ It read every second for 40 s while streaming index 0, with cues to cover all le
 - **replug run 3 (2026-11-19 11:50:53)**: clean start (all targets restored to defaults and read
   back OK), then as run 2. At 11:54:07 all three targets were restored (manual, exposure 157,
   gain 0, then ae_mode 8) and read back OK. No control request went to kinds B or C.
+- **q1-B run 1 (2026-11-19 12:22:40), kind B port 2 (0x01142000) only**: identification marker
+  (manual, exposure 1, gain 0), restored to B's defaults (exposure 156, gain 0, ae_mode 8) and
+  read back OK. Then ae_priority 0 (no-op) restored to 0, OK; ae_mode 1 + exposure 40, restored
+  (manual, exposure 156, gain 0, ae_mode 8) and read back OK. Final read-back: ae_mode 8,
+  ae_priority 0, exposure 156, gain 0. No other camera was written to.
