@@ -380,7 +380,9 @@ def rate_from_intervals(intervals: list[float]) -> tuple[float, float, int]:
     if not intervals:
         return 0.0, 0.0, 0
     typical = statistics.median(intervals)
-    kept = [i for i in intervals if 0.5 * typical <= i <= 1.5 * typical]
+    # with an even count the median can fall between two intervals, so a camera that bursts
+    # and stalls can leave nothing within the band: its typical interval then stands alone
+    kept = [i for i in intervals if 0.5 * typical <= i <= 1.5 * typical] or [typical]
     gaps = sum(1 for i in intervals if i > 1.5 * typical)
     mean = statistics.fmean(kept)
     rate = 1 / mean

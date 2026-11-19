@@ -134,6 +134,13 @@ def test_a_single_interval_has_a_rate_but_no_measure_of_its_error():
     assert server.rate_from_intervals([]) == (0.0, 0.0, 0)
 
 
+def test_a_burst_then_a_stall_keeps_no_interval_and_still_gives_a_rate():
+    # two intervals, 10 and 60 ms: the median, 35 ms, lies between them and neither is within
+    # half to one and a half times it, so the band is empty and the median itself is the rate
+    rate, uncertainty, gaps = server.rate_from_intervals([0.01, 0.06])
+    assert abs(rate - 1 / 0.035) < 1e-9 and uncertainty == rate and gaps == 1
+
+
 # ------------------------------------------------- the frame count of each clip against the camera's rate
 
 def calibrated(fps: float, uncertainty: float = 0.004) -> server.Rate:
