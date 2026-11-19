@@ -315,7 +315,7 @@ requests no format. From now on every streaming run also prints:
 ## Hook recommendation
 
 **A pass in the supervisor, by USB id, run before every launch and every relaunch of a camera
-process** (supported by replug run 2; replug run 1 is an unexplained exception). It sets exposure and gain on every 0x0c45:0x6369 camera and reads them back. It is
+process** (supported by replug runs 2 and 3; replug run 1 is an unexplained one-off). It sets exposure and gain on every 0x0c45:0x6369 camera and reads them back. It is
 not a call inside each camera server.
 
 Evidence:
@@ -326,7 +326,7 @@ Evidence:
   pass before launch is enough for a camera that stays plugged in.
 - **Q2, re-enumeration:** a replugged camera comes back in auto. The supervisor already
   handles exactly that moment. Settings written after re-enumeration survive the relaunched
-  process's first stream start (replug run 2). Each pass, the supervisor counts video
+  process's first stream start (replug runs 2 and 3). Each pass, the supervisor counts video
   devices and relaunches any camera process that has died once all are present (`ratrixcam_multi.py:118-160`). A pass placed
   just before those launches reapplies the settings when they are needed.
 - **GitHub #60:** if every target camera gets the same settings, the pass needs no
@@ -420,6 +420,25 @@ for 5 s.
   The restore's read-back checked only ae_mode (8, "OK"), which hid the failure. The final
   read-back shows exposure 40 on all three. Fixed: restores now select manual, write
   exposure and gain defaults, then AE mode, and read back every control.
+
+### Replug follow-up: replug run 3 (2026-11-19 11:50:53; 640x480 @ 30 per config entry)
+
+`uvc/.venv/bin/python uvc/probe.py replug` (`uvc/logs/replug-run3.log`). As run 2, plus a clean
+start: all three targets were restored to defaults and read back OK before the test began.
+- Before the unplug: the marker on index 0 (8.8-9.0; median of the others 134.3); read-backs
+  MATCH, including during a fresh-process stream.
+- Unplug at 11:51:25, back at 11:51:36, at its defaults; re-marked.
+- At t = 3, 34, 65 and 120 s: every read-back of port 1 MATCHES the marker, including during
+  each fresh-process stream. A fresh process finds the dark marker at **index 0** (8.5-10.9;
+  median of the others 128-139). Indices 0-7 deliver; 8 and 9 do not open. The same-process
+  reopen of index 0 got 0 frames each time.
+- No MISMATCH or DIFFERS line anywhere in the run. Restore OK at 11:54:07.
+
+**Run 3 reproduces run 2 exactly. Replug run 1 is treated as a one-off:** two clean runs
+against one unexplained. Run 1's log is the user's second attempt. The user's sequence was:
+the first attempt timed out and ended, the camera was plugged back in, `probe.py restore`
+was run, then the second attempt. That restore finished before the second attempt began, so
+it cannot have overwritten the marker during it. Run 1 remains unexplained.
 
 ### Replug follow-up: replug run 2 (2026-11-19 11:39:57; 640x480 @ 30 per config entry)
 
@@ -715,3 +734,6 @@ It read every second for 40 s while streaming index 0, with cues to cover all le
 - **replug run 2 (2026-11-19 11:39:57)**: as run 1. At 11:43:17 all three targets were restored
   (manual, exposure 157, gain 0, then ae_mode 8) and read back OK. No control request went to
   kinds B or C.
+- **replug run 3 (2026-11-19 11:50:53)**: clean start (all targets restored to defaults and read
+  back OK), then as run 2. At 11:54:07 all three targets were restored (manual, exposure 157,
+  gain 0, then ae_mode 8) and read back OK. No control request went to kinds B or C.
