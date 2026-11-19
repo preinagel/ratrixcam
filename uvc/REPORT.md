@@ -46,6 +46,28 @@ Not ours to touch: sibling 0x0c45:0x6366 (Arducam, serial "SN0001" on every unit
 0x01144000, 0x01142000, 0x00142000 and others on the 0x00 bus. No Logitech webcam was seen;
 the only Logitech device is a mouse.
 
+**Rig as of 2026-11-19 (system_profiler SPUSBDataType, after the user removed three
+cameras):** five live cameras, three on one hub and two on the other. **They are not all the
+target product:**
+
+| Hub | Location | Product | Reported as | Serial |
+|---|---|---|---|---|
+| bus 0x01 hub | 0x01141000 | **0x6369 (target)** | USB 2.0 Camera / Sonix | none |
+| bus 0x01 hub | 0x01143000 | **0x6369 (target)** | USB 2.0 Camera / Sonix | none |
+| bus 0x01 hub | 0x01144000 | 0x6366 (sibling) | USB Camera / Arducam | SN0001 |
+| bus 0x00 hub | 0x00141000 | **0x6369 (target)** | USB 2.0 Camera / Sonix | none |
+| bus 0x00 hub | 0x00143000 | 0x6366 (sibling) | USB Camera / Arducam | SN0001 |
+
+- Every probe run found exactly the three 0x6369 cameras, which is correct: it selects by
+  vendor and product id. No control request has ever been sent to a 0x6366.
+- The brief's statement that "the rig holds only target cameras; any camera the probe opens
+  by index is a target" does not hold for this rig. Two cv2 indices belong to 0x6366
+  cameras. Every streaming run used index 0, which the brightness response identified as
+  the target 0x01141000 each time it was checked (q1 runs 2 and 3, aetrack run 1, gainsweep
+  run 1). track run 1 and persist run 1 are consistent with that but did not check it.
+- persist run 1 saw no target disappear during its 120 s wait (09:30:34-09:32:34). If the
+  camera the user unplugged was a 0x6366, the probe was right to ignore it.
+
 Note for the hook question: the 0x6369 units report **no serial number**, and the 0x6366
 units all share the same one, so neither can be told apart by serial. A by-device pass would
 have to key on USB location ID (the physical port), which changes if a cable is moved.
