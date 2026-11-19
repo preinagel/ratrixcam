@@ -3,9 +3,7 @@
 
 RUN THIS (in your own Terminal, from anywhere; not inside the Claude sandbox):
 
-    cd ~/Desktop/ratrixcam-uvc && uvc/.venv/bin/python uvc/probe.py track 2>&1 | tee uvc/logs/track-run1.log
-
-    (watch the terminal: it tells you when to cover all lenses and when to uncover them)
+    cd ~/Desktop/ratrixcam-uvc && uvc/.venv/bin/python uvc/probe.py aetrack 2>&1 | tee uvc/logs/aetrack-run1.log
 
 Sub-commands:
     list      enumerate 0x0c45:0x6369 devices and parse their VideoControl descriptors
@@ -17,6 +15,9 @@ Sub-commands:
               read back; fps and mean brightness are printed per window.
     track     read-only: stream index 0 and read exposure/gain/AE mode every second while
               you cover and uncover the lenses; shows whether the reads follow auto-exposure
+    aetrack   on each target while index 0 streams: manual 4 ms, then back to auto with the
+              exposure value left at 4 ms; reads exposure 4x/s while AE re-converges.
+              Restores exposure and AE mode and reads them back.
     restore   safety net: exposure, gain and AE mode to each camera's own defaults
 
 Safety: refuses to run if ~/Desktop/temp exists (a recording is in progress). Never claims an
@@ -412,6 +413,63 @@ def cmd_track(args):
     print(f"[{now()}] done (read-only; nothing to restore)")
 
 
+def cmd_aetrack(args):
+    """Does exposure GET_CUR follow the AE loop? Darken with manual 4 ms, hand back to auto
+    without resetting the exposure value, and read it while AE re-converges."""
+    guard()
+    be = usb_backend()
+    devs = find_targets(be)
+    lays = [vc_layout(d) for d in devs]
+    print(f"[{now()}] {len(devs)} target(s)")
+    cv2 = import_cv2()
+    cap = cv2.VideoCapture(args.index, cv2.CAP_AVFOUNDATION)
+    if not cap.isOpened():
+        sys.exit("capture did not open")
+    reader = Reader(cap)
+    reader.start()
+    changed = []
+    try:
+        watch(reader, "warm-up", 3.0)
+        for dev, lay in zip(devs, lays):
+            print(f"  {label(dev)}")
+            mode0, m_err, _ = xfer(dev, lay, "ae_mode", GET_CUR)
+            expo0, e_err, _ = xfer(dev, lay, "exposure", GET_CUR)
+            if m_err or e_err:
+                print("    unreadable; skipped")
+                continue
+            auto = mode0 if mode0 in (AE_AUTO, AE_APERTURE) else auto_mode_for(dev, lay)
+            changed.append(lambda d=dev, l=lay, m=auto, e=expo0: restore_one(d, l, m, e))
+            watch(reader, "auto, before", 2.0)
+            print(f"    write ae_mode:=manual(1): {fmt(*xfer(dev, lay, 'ae_mode', SET_CUR, AE_MANUAL))}")
+            print(f"    write exposure:={TEST_EXPOSURE}: {fmt(*xfer(dev, lay, 'exposure', SET_CUR, TEST_EXPOSURE))}")
+            watch(reader, f"manual {TEST_EXPOSURE / 10:.1f} ms", 2.0)
+            print(f"    write ae_mode:={auto} (auto), exposure value left at {TEST_EXPOSURE}: "
+                  f"{fmt(*xfer(dev, lay, 'ae_mode', SET_CUR, auto))}")
+            t_auto = time.monotonic()
+            while (dt := time.monotonic() - t_auto) < args.seconds:
+                t0 = time.monotonic()
+                time.sleep(args.interval)
+                n, bad, fps, mean = reader.window(t0, time.monotonic())
+                e, ee, ms = xfer(dev, lay, "exposure", GET_CUR)
+                g, ge, _ = xfer(dev, lay, "gain", GET_CUR)
+                exp_s = f"ERR {ee}" if ee else f"{e} ({e / 10:.1f} ms)"
+                print(f"    +{dt + args.interval:4.2f}s bright={mean:5.1f} fps={fps:4.1f} "
+                      f"exposure={exp_s} gain={'ERR' if ge else g}")
+            changed.pop()()
+            watch(reader, "after restore", 2.0)
+    finally:
+        for undo in changed:
+            undo()
+        reader.stop_evt.set()
+        reader.join(timeout=3)
+        cap.release()
+    print(f"\n[{now()}] final read-back, stream released")
+    for dev, lay in zip(devs, lays):
+        print(f"  {label(dev)}")
+        for name in CONTROLS:
+            read_all(dev, lay, name, (GET_CUR,))
+
+
 def cmd_restore(_args):
     """Safety net: exposure and gain to their GET_DEF values, then AE mode to its default (auto)."""
     guard()
@@ -461,6 +519,11 @@ def main():
     tr.add_argument("--cover", type=float, default=10.0, help="seconds in: cue to cover the lenses")
     tr.add_argument("--uncover", type=float, default=25.0, help="seconds in: cue to uncover")
     tr.set_defaults(fn=cmd_track)
+    at = sub.add_parser("aetrack")
+    at.add_argument("--index", type=int, default=0)
+    at.add_argument("--seconds", type=float, default=5.0, help="how long to follow AE after handing back")
+    at.add_argument("--interval", type=float, default=0.25)
+    at.set_defaults(fn=cmd_aetrack)
     sub.add_parser("restore").set_defaults(fn=cmd_restore)
     args = ap.parse_args()
     sys.stdout.reconfigure(line_buffering=True)  # cues must appear live through tee

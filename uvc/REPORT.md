@@ -177,6 +177,25 @@ LIBUSB_DEBUG=4 uvc/.venv/bin/python uvc/probe.py controls
   and the stream in run 1 was unaffected (0 failed reads). The probe now calls the libusb
   backend directly on the device handle, with no claim.
 
+### Goal 1 follow-up: track run 1 (2026-11-19 08:56:53), inconclusive
+
+`uvc/.venv/bin/python uvc/probe.py track` (`uvc/logs/track-run1.log`). This was read-only.
+It read every second for 40 s while streaming index 0, with cues to cover all lenses at
+10 s and uncover at 25 s.
+
+- Exposure read 157 (15.7 ms), gain 0 and AE mode 8 on all three cameras in every one of
+  the 40 reads.
+- Stream brightness stayed 136-138 through the "covered" window. There were one-second
+  dips to 128.6 (t=16 s) and 116.3 (t=31 s), each recovering within about 3 s. fps was
+  29.1-30.3 with 0 failed reads throughout.
+- Since the streamed image never went dark for long, the run cannot tell "the read does
+  not track AE" from "the light at the streamed camera barely changed". The dips do look
+  like AE correcting a brief change while the read stayed at 15.7 ms, which is suggestive
+  but not proof.
+- Next: `probe.py aetrack` makes the change itself. It darkens with manual 4 ms, hands
+  back to auto with the stored value left at 4 ms, and reads exposure 4x/s while
+  brightness recovers.
+
 ## Installed
 
 - `uvc/.venv`: a Python 3.13.5 venv with pyusb 1.3.1 (installed by the user; my sandboxed
