@@ -3,10 +3,11 @@
 Status: Q1 answered yes, at 1920x1080 (q1 run 2) and at the recorder's 640x480 (q1 run 3).
 Reads and writes work without root, with and without an AVFoundation stream. **Goal 1 by
 the UVC exposure read: no.** In auto mode the camera returns the stored manual value, not
-the exposure its AE loop uses (aetrack run 1). Open: gain writes and compensation (goal 3),
-and Q2 (stream start, re-enumeration).
+the exposure its AE loop uses (aetrack run 1). **Goal 3 compensation: at 4.0 ms, gain 50
+matches the auto brightness in the room's light** (gainsweep run 1). Q3 is answered yes for
+all three controls. Open: Q2 (stream start, re-enumeration), and compensation in dim light.
 
-**Rig state: restored** (restore run 1, 2026-11-19 09:21:33). All three cameras read ae_mode 8
+**Rig state: restored** (restore run 1, 2026-11-19 09:21:33; again after gainsweep run 1, 09:28:22). All three cameras read ae_mode 8
 (auto), exposure 157 (15.7 ms), gain 0 and ae_priority 0. These are the cameras' defaults
 and the values found at the start. aetrack run 1 had left the stored exposure at 40; see
 Restored.
@@ -111,13 +112,13 @@ Observations:
    480p), with 0 failed reads and no fps change. Run 1's refusals were caused by the probe
    itself: pyusb's implicit interface claim, now removed.
 2. Settings persistence across stream start and re-enumeration: not yet tested.
-3. **Yes for AE mode and exposure time; gain is reported settable but not yet written.**
-   AE mode (manual or aperture-priority) and exposure time absolute (0.1-500 ms in 0.1 ms
-   steps, default 15.7 ms) were written and read back in q1 runs 2 and 3, with a visible
-   effect on the image. **Exposure accepts writes only in manual mode**: in auto, SET_CUR
-   stalls (aetrack run 1), so a setter must select manual first. Gain (0-100, unitless,
-   step 1, default 0) reports get+set in GET_INFO but has not been written. Ranges are in
-   the goal 1 table.
+3. **YES: AE mode, exposure time and gain are all writable**, with a visible effect on the
+   image. AE mode is manual (1) or aperture-priority auto (8). Exposure time absolute is
+   0.1-500 ms in 0.1 ms steps, default 15.7 ms. Gain is 0-100, unitless, step 1, default 0.
+   AE mode and exposure were written in q1 runs 2 and 3; gain at 0-100 in gainsweep run 1.
+   All were read back equal to the written value. **Exposure accepts writes only in manual
+   mode**: in auto, SET_CUR stalls (aetrack run 1), so a setter must select manual first.
+   Ranges are in the goal 1 table.
 
 ## Evidence
 
@@ -192,6 +193,38 @@ for 5 s.
   The restore's read-back checked only ae_mode (8, "OK"), which hid the failure. The final
   read-back shows exposure 40 on all three. Fixed: restores now select manual, write
   exposure and gain defaults, then AE mode, and read back every control.
+
+### Goal 3: gainsweep run 1 (2026-11-19 09:27:16; stream 640x480 @ 30, the recorder's format)
+
+`uvc/.venv/bin/python uvc/probe.py gainsweep` (`uvc/logs/gainsweep-run1.log`). Requested,
+reported and measured 640x480 @ 30. On each camera while index 0 streamed:
+1. 2 s of auto brightness as the reference.
+2. Manual + exposure 40 (4.0 ms).
+3. Gain 0 to 100 in steps of 10. At each step: write, read back, discard 0.5 s, measure 1 s.
+4. Restore to defaults and read back.
+
+Every gain write (33 of them, 5.5-14.8 ms each) read back equal to the value written.
+
+On the capture (0x01141000; auto reference 139.2), mean brightness at exposure 4.0 ms:
+
+| gain | 0 | 10 | 20 | 30 | 40 | **50** | 60 | 70 | 80 | 90 | 100 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| brightness | 75.6 | 88.2 | 101.2 | 114.0 | 127.0 | **139.2** | 151.7 | 161.7 | 171.0 | 179.7 | 188.5 |
+
+- **At 4.0 ms, gain 50 reproduces the auto brightness (139.2 vs 139.2) in this room's
+  light.** Brightness rises about 12.5 per 10 gain up to 60, then flattens to about 9 per
+  10. No step saturated (max 188.5).
+- fps was 29.2-30.3 at every step with 0 failed reads: neither manual exposure nor gain
+  affected the frame rate.
+- The other two cameras stayed flat (139.0-139.1 and 138.1-138.4) because they were not
+  the capture. Their gain writes were accepted and read back.
+- Limits of this result:
+  - It holds for the room's lighting at 09:27, not for the dim light that causes the
+    problem. Gain 100 gave 2.5x the gain-0 brightness, so at 4 ms in light more than about
+    2.5x dimmer than gain 0 needs, the image will be darker than auto makes it. A fixed
+    setting for dim conditions has to be measured in those conditions.
+  - The cost in image noise of high gain was not measured: the probe records mean
+    brightness only.
 
 ### Q1, run 3 (2026-11-19 09:12:45; stream 640x480 @ 30, the recorder's format)
 
@@ -311,3 +344,8 @@ It read every second for 40 s while streaming index 0, with cues to cover all le
   exposure 157 OK, gain 0 OK, ae_mode 8 OK, ae_priority 0. The script reported "restore OK
   on all targets". **The rig is back to its starting state** (ae_mode 8, ae_priority 0,
   exposure 157, gain 0) on all three cameras.
+- **gainsweep run 1 (2026-11-19 09:27:16)**: on each camera, ae_mode, exposure and gain were
+  changed (gain 0-100). Each was restored straight after its sweep: manual, exposure 157,
+  gain 0, then ae_mode 8, with read-back OK on all three. After the stream was released,
+  the final read-back on all three cameras matched the defaults (ae_mode 8, exposure 157,
+  gain 0). ae_priority was not touched.

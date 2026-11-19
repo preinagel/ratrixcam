@@ -1,0 +1,91 @@
+[2026-11-19 09:27:16] probe.py gainsweep  python 3.13.5  pid 6035
+[2026-11-19 09:27:16] recording check: /Users/rat_hub_01/Desktop/temp absent, ok
+[2026-11-19 09:27:16] 3 target(s); exposure fixed at 4.0 ms, gain step 10
+  cv2 4.11.0 VideoCapture(0) isOpened=True backend=AVFOUNDATION open+set took 1217 ms
+  FORMAT requested 640x480 @ 30 fps (from /Users/rat_hub_01/Desktop/camera_config.json); capture reports 640x480 @ 30.0 fps
+    stream [warm-up] 3.0s: frames=89 failed_reads=0 fps=29.6 mean_brightness=138.1
+  FORMAT measured frame size: 640x480
+  loc 0x01143000 (bus 1 addr 6 ports (1, 4, 3))
+    stream [auto (reference)] 2.0s: frames=59 failed_reads=0 fps=29.3 mean_brightness=138.9
+    write ae_mode:=manual(1): 1 [4.7 ms]
+    write exposure:=40 (4.0 ms): 40 [4.6 ms]
+    write gain:=0: 0 [5.6 ms]
+    [after write] 01143000 ae_mode=1 exposure=40 (4.0 ms) gain=0: MATCHES (expected ae_mode=1 exposure=40 gain=0)
+    stream [gain 0 (write 0 [5.5 ms], read back 0)] 1.0s: frames=29 failed_reads=0 fps=29.3 mean_brightness=139.0
+    stream [gain 10 (write 10 [5.8 ms], read back 10)] 1.0s: frames=29 failed_reads=0 fps=29.3 mean_brightness=139.0
+    stream [gain 20 (write 20 [5.9 ms], read back 20)] 1.0s: frames=30 failed_reads=0 fps=29.4 mean_brightness=139.0
+    stream [gain 30 (write 30 [5.8 ms], read back 30)] 1.0s: frames=30 failed_reads=0 fps=29.4 mean_brightness=139.0
+    stream [gain 40 (write 40 [5.7 ms], read back 40)] 1.0s: frames=30 failed_reads=0 fps=29.3 mean_brightness=139.0
+    stream [gain 50 (write 50 [5.7 ms], read back 50)] 1.0s: frames=30 failed_reads=0 fps=29.3 mean_brightness=139.0
+    stream [gain 60 (write 60 [5.7 ms], read back 60)] 1.0s: frames=29 failed_reads=0 fps=29.2 mean_brightness=139.0
+    stream [gain 70 (write 70 [5.7 ms], read back 70)] 1.0s: frames=30 failed_reads=0 fps=30.4 mean_brightness=139.1
+    stream [gain 80 (write 80 [5.9 ms], read back 80)] 1.0s: frames=30 failed_reads=0 fps=30.2 mean_brightness=139.1
+    stream [gain 90 (write 90 [5.9 ms], read back 90)] 1.0s: frames=30 failed_reads=0 fps=30.3 mean_brightness=139.0
+    stream [gain 100 (write 100 [5.6 ms], read back 100)] 1.0s: frames=31 failed_reads=0 fps=30.3 mean_brightness=139.0
+    restore: ae_mode:=manual(1) first, so exposure accepts the write: 1 [0.7 ms]
+    restore exposure:=157 (default): 157 [4.5 ms]
+    restore gain:=0 (default): 0 [5.6 ms]
+    restore ae_mode:=8 (default): 8 [4.5 ms]
+    read-back exposure=157 [0.8 ms] OK
+    read-back gain=0 [0.8 ms] OK
+    read-back ae_mode=8 [0.8 ms] OK
+    stream [after restore] 2.0s: frames=59 failed_reads=0 fps=29.3 mean_brightness=139.1
+    gain sweep: brightness flat (139.0-139.1): not the capture
+  loc 0x01141000 (bus 1 addr 5 ports (1, 4, 1))
+    stream [auto (reference)] 2.0s: frames=60 failed_reads=0 fps=29.8 mean_brightness=139.2
+    write ae_mode:=manual(1): 1 [24.8 ms]
+    write exposure:=40 (4.0 ms): 40 [6.0 ms]
+    write gain:=0: 0 [25.8 ms]
+    [after write] 01141000 ae_mode=1 exposure=40 (4.0 ms) gain=0: MATCHES (expected ae_mode=1 exposure=40 gain=0)
+    stream [gain 0 (write 0 [6.6 ms], read back 0)] 1.0s: frames=30 failed_reads=0 fps=30.3 mean_brightness=75.6
+    stream [gain 10 (write 10 [7.0 ms], read back 10)] 1.0s: frames=31 failed_reads=0 fps=30.2 mean_brightness=88.2
+    stream [gain 20 (write 20 [14.3 ms], read back 20)] 1.0s: frames=30 failed_reads=0 fps=29.2 mean_brightness=101.2
+    stream [gain 30 (write 30 [14.8 ms], read back 30)] 1.0s: frames=30 failed_reads=0 fps=29.3 mean_brightness=114.0
+    stream [gain 40 (write 40 [14.3 ms], read back 40)] 1.0s: frames=29 failed_reads=0 fps=29.3 mean_brightness=127.0
+    stream [gain 50 (write 50 [12.0 ms], read back 50)] 1.0s: frames=29 failed_reads=0 fps=29.3 mean_brightness=139.2
+    stream [gain 60 (write 60 [8.9 ms], read back 60)] 1.0s: frames=29 failed_reads=0 fps=29.3 mean_brightness=151.7
+    stream [gain 70 (write 70 [11.7 ms], read back 70)] 1.0s: frames=29 failed_reads=0 fps=29.3 mean_brightness=161.7
+    stream [gain 80 (write 80 [9.1 ms], read back 80)] 1.0s: frames=29 failed_reads=0 fps=29.3 mean_brightness=171.0
+    stream [gain 90 (write 90 [8.8 ms], read back 90)] 1.0s: frames=29 failed_reads=0 fps=29.3 mean_brightness=179.7
+    stream [gain 100 (write 100 [12.8 ms], read back 100)] 1.0s: frames=29 failed_reads=0 fps=29.2 mean_brightness=188.5
+    restore: ae_mode:=manual(1) first, so exposure accepts the write: 1 [0.8 ms]
+    restore exposure:=157 (default): 157 [4.6 ms]
+    restore gain:=0 (default): 0 [7.0 ms]
+    restore ae_mode:=8 (default): 8 [24.8 ms]
+    read-back exposure=157 [0.8 ms] OK
+    read-back gain=0 [0.7 ms] OK
+    read-back ae_mode=8 [0.7 ms] OK
+    stream [after restore] 2.0s: frames=59 failed_reads=0 fps=29.3 mean_brightness=137.8
+    gain sweep on the capture: auto reference 139.2; at 4.0 ms the nearest is gain 50 -> 139.2
+    table gain:brightness 0:75.6 10:88.2 20:101.2 30:114.0 40:127.0 50:139.2 60:151.7 70:161.7 80:171.0 90:179.7 100:188.5
+  loc 0x00141000 (bus 0 addr 5 ports (1, 4, 1))
+    stream [auto (reference)] 2.0s: frames=59 failed_reads=0 fps=29.8 mean_brightness=138.5
+    write ae_mode:=manual(1): 1 [4.7 ms]
+    write exposure:=40 (4.0 ms): 40 [4.8 ms]
+    write gain:=0: 0 [5.8 ms]
+    [after write] 00141000 ae_mode=1 exposure=40 (4.0 ms) gain=0: MATCHES (expected ae_mode=1 exposure=40 gain=0)
+    stream [gain 0 (write 0 [5.8 ms], read back 0)] 1.0s: frames=30 failed_reads=0 fps=29.2 mean_brightness=138.4
+    stream [gain 10 (write 10 [6.0 ms], read back 10)] 1.0s: frames=30 failed_reads=0 fps=30.3 mean_brightness=138.2
+    stream [gain 20 (write 20 [5.9 ms], read back 20)] 1.0s: frames=30 failed_reads=0 fps=30.3 mean_brightness=138.3
+    stream [gain 30 (write 30 [5.6 ms], read back 30)] 1.0s: frames=30 failed_reads=0 fps=30.3 mean_brightness=138.2
+    stream [gain 40 (write 40 [6.1 ms], read back 40)] 1.0s: frames=30 failed_reads=0 fps=30.4 mean_brightness=138.1
+    stream [gain 50 (write 50 [5.9 ms], read back 50)] 1.0s: frames=30 failed_reads=0 fps=30.3 mean_brightness=138.3
+    stream [gain 60 (write 60 [6.0 ms], read back 60)] 1.0s: frames=29 failed_reads=0 fps=29.2 mean_brightness=138.3
+    stream [gain 70 (write 70 [5.8 ms], read back 70)] 1.0s: frames=29 failed_reads=0 fps=29.2 mean_brightness=138.4
+    stream [gain 80 (write 80 [5.7 ms], read back 80)] 1.0s: frames=29 failed_reads=0 fps=29.2 mean_brightness=138.4
+    stream [gain 90 (write 90 [5.7 ms], read back 90)] 1.0s: frames=29 failed_reads=0 fps=29.2 mean_brightness=138.3
+    stream [gain 100 (write 100 [5.9 ms], read back 100)] 1.0s: frames=29 failed_reads=0 fps=29.2 mean_brightness=138.4
+    restore: ae_mode:=manual(1) first, so exposure accepts the write: 1 [0.7 ms]
+    restore exposure:=157 (default): 157 [4.6 ms]
+    restore gain:=0 (default): 0 [5.6 ms]
+    restore ae_mode:=8 (default): 8 [4.7 ms]
+    read-back exposure=157 [0.8 ms] OK
+    read-back gain=0 [0.8 ms] OK
+    read-back ae_mode=8 [0.8 ms] OK
+    stream [after restore] 2.0s: frames=59 failed_reads=0 fps=29.7 mean_brightness=138.5
+    gain sweep: brightness flat (138.1-138.4): not the capture
+
+[2026-11-19 09:28:22] final read-back, stream released
+    [final, expected = defaults] 01143000 ae_mode=8 exposure=157 (15.7 ms) gain=0: MATCHES (expected ae_mode=8 exposure=157 gain=0)
+    [final, expected = defaults] 01141000 ae_mode=8 exposure=157 (15.7 ms) gain=0: MATCHES (expected ae_mode=8 exposure=157 gain=0)
+    [final, expected = defaults] 00141000 ae_mode=8 exposure=157 (15.7 ms) gain=0: MATCHES (expected ae_mode=8 exposure=157 gain=0)
