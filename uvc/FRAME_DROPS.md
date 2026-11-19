@@ -141,6 +141,14 @@ sizes are from the descriptors (`uvc/logs/list-all-run2.log`).
 - So the camera would have to be detached from Apple's driver, which libusb on macOS does
   only with root, and isochronous transfers would have to be read directly. pyusb has no
   isochronous support, so that means a ctypes reader over libusb.
-- That is outside this prototype's brief and needs root, so it awaits a decision (see the
-  conversation of 2026-11-19). The request's alternative, a Linux host with the stock
-  uvcvideo driver and its trace options, avoids both.
+- That is outside this prototype's brief and needs root, so it is not started; whether to
+  do it on this Mac or move to a Linux host is the rig owner's decision. The request's
+  alternative, a Linux host with the stock uvcvideo driver and its trace options, avoids
+  both.
+
+## What to hand over
+
+This file and `uvc/frames_analysis.py` (standard library only; run it on the
+`for_uvc_developer/` folder to reproduce section 2). The logs and `uvc/REPORT.md` cited above
+are on branch `uvc-prototype` of the UVC prototype clone, not pushed. They are only needed to
+check sections 1, 3, 4 and 5 against the raw output.
