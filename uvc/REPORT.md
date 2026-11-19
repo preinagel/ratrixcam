@@ -312,6 +312,40 @@ requests no format. From now on every streaming run also prints:
    mode**: in auto, SET_CUR stalls (aetrack run 1), so a setter must select manual first.
    Ranges are in the goal 1 table.
 
+## Hook recommendation
+
+**A pass in the supervisor, by USB id, run before every launch and every relaunch of a camera
+process.** It sets exposure and gain on every 0x0c45:0x6369 camera and reads them back. It is
+not a call inside each camera server.
+
+Evidence:
+- **Q1:** requests work with or without an AVFoundation stream, so a pass may run while
+  other cameras are already recording. Writing the same values to a camera that is
+  streaming was harmless in every run: 0 failed reads, no fps change.
+- **Q2, stream start:** settings applied before the capture opens survive the open, so a
+  pass before launch is enough for a camera that stays plugged in.
+- **Q2, re-enumeration:** a replugged camera comes back in auto. The supervisor already
+  handles exactly that moment: each pass it counts video devices and relaunches any camera
+  process that has died once all are present (`ratrixcam_multi.py:118-160`). A pass placed
+  just before those launches reapplies the settings when they are needed.
+- **GitHub #60:** if every target camera gets the same settings, the pass needs no
+  index-to-device mapping at all. It selects by vendor and product id, as `probe.py` does.
+  A per-server call would need that mapping, because the server knows only its cv2 index,
+  and the probe's control requests address USB devices.
+- If cameras ever need different settings from each other, the pass would need the mapping.
+  Keying by USB location works, because the 0x6369 cameras have no serial numbers.
+
+The values for goal 3 (manual, exposure under 5 ms, gain to compensate) cannot be fixed from
+this prototype. Gain 50 at 4 ms matched auto only in the room's light at 640x480
+(gainsweep run 1), and the problem case is dim light.
+
+Caveats not resolved here:
+- After port 1 was replugged, `VideoCapture(0)` opened but delivered no frames for 3 s
+  (persist run 2). The recorder's relaunch path may meet the same thing; it is outside this
+  prototype.
+- The pass must select manual mode before writing exposure: exposure writes stall in auto.
+- Nothing here is merged. The recorder code was read only, not changed.
+
 ## Evidence
 
 ### Q1, run 2 (2026-11-19 08:45:26, user's Terminal, not root; stream 1920x1080 @ 30, camera default, not the recorder's format)
