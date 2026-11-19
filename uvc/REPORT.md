@@ -565,31 +565,51 @@ light that motivates goal 3 has not been tested on any kind.
 
 ## Hook recommendation
 
-**A pass in the supervisor, by USB id, run before every launch and every relaunch of a camera
-process** (supported by replug runs 2 and 3; replug run 1 is an unexplained one-off). It sets exposure and gain on every 0x0c45:0x6369 camera and reads them back. It is
-not a call inside each camera server.
+**A pass in the supervisor, by USB id and name string, run before every launch and every
+relaunch of a camera process.** It is not a call inside each camera server. The pass selects
+every target camera of all three kinds, by vendor id 0x0c45 plus:
+- **kind A:** product 0x6369, name string "USB 2.0 Camera";
+- **kind B:** product 0x6366, name string "USB 2.0 Camera";
+- **kind C:** product 0x6366, name string **"USB Camera"**.
 
-Evidence:
-- **Q1:** requests work with or without an AVFoundation stream, so a pass may run while
-  other cameras are already recording. Writing the same values to a camera that is
-  streaming was harmless in every run: 0 failed reads, no fps change.
-- **Q2, stream start:** settings applied before the capture opens survive the open, so a
-  pass before launch is enough for a camera that stays plugged in.
-- **Q2, re-enumeration:** a replugged camera comes back in auto. The supervisor already
-  handles exactly that moment. Settings written after re-enumeration survive the relaunched
-  process's first stream start (replug runs 2 and 3). Each pass, the supervisor counts video
-  devices and relaunches any camera process that has died once all are present (`ratrixcam_multi.py:118-160`). A pass placed
+B and C share every USB id field, so **the name string is required to tell them apart**; the
+product id alone would pool them. The pass sets exposure mode, exposure time and gain on
+each camera and reads them back. It selects manual mode before writing exposure, because
+on all three kinds exposure writes stall in auto. Restores use each camera's own GET_DEF
+(kind B's exposure default is 156, A's and C's 157), not a fixed value.
+
+Evidence, per kind:
+- **Q1:** requests work with or without an AVFoundation stream on all three kinds (A: q1 runs
+  2 and 3; B: q1-B run 1; C: q1-C run 1). So a pass may run while other cameras are already
+  recording. Writing to a camera that is streaming was harmless in every run: 0 failed
+  reads, no fps change.
+- **Q2, stream start:** settings applied before the capture opens survive the open on all
+  three kinds (A: persist runs 1 and 2; B: persist-B run 1; C: persist-C run 2). So a pass
+  before launch is enough for a camera that stays plugged in.
+- **Q2, re-enumeration:** a replugged camera comes back at its defaults on all three kinds
+  (A: persist run 2, replug runs 1-3; B: persist-B run 1; C: persist-C run 2). The supervisor
+  already handles that moment. Each pass, it counts video devices and relaunches any camera
+  process that has died once all are present (`ratrixcam_multi.py:118-160`). A pass placed
   just before those launches reapplies the settings when they are needed.
-- **GitHub #60:** if every target camera gets the same settings, the pass needs no
-  index-to-device mapping at all. It selects by vendor and product id, as `probe.py` does.
-  A per-server call would need that mapping, because the server knows only its cv2 index,
-  and the probe's control requests address USB devices.
-- If cameras ever need different settings from each other, the pass would need the mapping.
-  Keying by USB location works, because the 0x6369 cameras have no serial numbers.
+  - Settings rewritten after re-enumeration survived the relaunched process's first stream
+    start in replug runs 2 and 3. **That was tested on kind A only** (port 1); on B and C it
+    is untested. Replug run 1 is the unexplained exception (below).
+- **GitHub #60:** the pass needs no index-to-device mapping as long as the settings are the
+  same for every camera of a kind. **The kind is known from the USB ids and name string**,
+  so per-kind settings need no mapping either. A per-server call would need the mapping,
+  because the server knows only its cv2 index, and control requests address USB devices.
+- **Per-kind settings are likely needed:** the gain that compensates 4.0 ms differed by kind
+  in each camera's own scene. Kind A needed 50, kind B 40, and kind C none (4 ms was already
+  brighter than auto at 352x288).
+- **Per-camera settings would need a per-camera key, and only the USB location is
+  available.** No camera can be told apart by serial: kind A reports none, and every B and
+  C unit reports the same "SN0001". The location is stable while cables stay put; it
+  changes if a camera moves to another port. Within the recorder, index order follows port
+  order (user's tests; replug runs 1-3).
 
 The values for goal 3 (manual, exposure under 5 ms, gain to compensate) cannot be fixed from
-this prototype. Gain 50 at 4 ms matched auto only in the room's light at 640x480
-(gainsweep run 1), and the problem case is dim light.
+this prototype. The gains above matched auto only in each camera's own scene and light at
+the time of its run, and the problem case, dim light, was tested on no kind.
 
 **Verify after the capture opens; do not rely on the pass alone.** In replug run 1 the marker
 written to port 1 after re-enumeration was not visible in any fresh-process scan, while
