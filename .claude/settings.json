@@ -1,0 +1,64 @@
+{
+  "permissions": {
+    "defaultMode": "acceptEdits",
+    "disableAutoMode": "disable",
+    "allow": [
+      "Edit(/uvc/**)"
+    ],
+    "deny": [
+      "Edit(/ratrixcam_*.py)",
+      "Edit(/config.json)",
+      "Edit(/gui/**)",
+      "Edit(/videoproc/**)",
+      "Edit(/tests/**)",
+      "Edit(/docs/**)",
+      "Edit(/.github/**)",
+      "Edit(/.claude/**)",
+      "Edit(/.gitattributes)",
+      "Edit(/.gitignore)",
+      "Edit(/pyrightconfig.json)",
+      "Edit(/requirements-dev.txt)",
+      "Edit(/README.txt)",
+      "Edit(/readme.md)",
+      "Edit(/blanks/**)",
+      "Edit(/*.applescript)",
+      "Read(//Volumes/rlab2/**)",
+      "Read(//Users/rat_hub_01/Desktop/ratrixcam/**)",
+      "Read(//Users/rat_hub_01/Desktop/ratrixcam-gui/**)",
+      "Read(//Users/rat_hub_01/Desktop/ratrixcam-legacy/**)",
+      "Bash(git push *)",
+      "Bash(git worktree *)",
+      "Bash(git remote *)",
+      "Bash(rm *)",
+      "Bash(sudo *)",
+      "Bash(brew *)",
+      "Agent",
+      "Edit(~/.claude/**)"
+    ]
+  },
+  "env": {
+    "CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS": "2",
+    "CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH": "1"
+  },
+  "workflowSizeGuideline": "small",
+  "sandbox": {
+    "enabled": true,
+    "failIfUnavailable": true,
+    "allowUnsandboxedCommands": false,
+    "autoAllowBashIfSandboxed": true,
+    "filesystem": {
+      "denyRead": ["/Volumes/rlab2", "~/.ssh", "~/.aws"]
+    },
+    "network": {
+      "allowedDomains": [
+        "github.com",
+        "codeload.github.com",
+        "objects.githubusercontent.com",
+        "raw.githubusercontent.com",
+        "pypi.org",
+        "files.pythonhosted.org"
+      ],
+      "allowLocalBinding": false
+    }
+  }
+}
