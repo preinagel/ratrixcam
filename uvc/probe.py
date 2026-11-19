@@ -3,7 +3,7 @@
 
 RUN THIS (in your own Terminal, from anywhere; not inside the Claude sandbox):
 
-    cd ~/Desktop/ratrixcam-uvc && uvc/.venv/bin/python uvc/probe.py q1 --kind B --port 2 --index 1 2>&1 | tee uvc/logs/q1-B-run1.log
+    cd ~/Desktop/ratrixcam-uvc && uvc/.venv/bin/python uvc/probe.py q1 --kind C --port 4 --index 3 2>&1 | tee uvc/logs/q1-C-run1.log
 
 Sub-commands:
     list      read-only, no device opened: full descriptors of every 0x0c45 camera (all
