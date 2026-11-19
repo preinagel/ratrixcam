@@ -326,8 +326,8 @@ Evidence:
   pass before launch is enough for a camera that stays plugged in.
 - **Q2, re-enumeration:** a replugged camera comes back in auto. The supervisor already
   handles exactly that moment. Settings written after re-enumeration survive the relaunched
-  process's first stream start (replug run 2). The supervisor each pass it counts video devices and relaunches any camera
-  process that has died once all are present (`ratrixcam_multi.py:118-160`). A pass placed
+  process's first stream start (replug run 2). Each pass, the supervisor counts video
+  devices and relaunches any camera process that has died once all are present (`ratrixcam_multi.py:118-160`). A pass placed
   just before those launches reapplies the settings when they are needed.
 - **GitHub #60:** if every target camera gets the same settings, the pass needs no
   index-to-device mapping at all. It selects by vendor and product id, as `probe.py` does.
