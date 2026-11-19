@@ -3,7 +3,7 @@
 
 RUN THIS (in your own Terminal, from anywhere; not inside the Claude sandbox):
 
-    cd ~/Desktop/ratrixcam-uvc && uvc/.venv/bin/python uvc/probe.py replug 2>&1 | tee uvc/logs/replug-run1.log
+    cd ~/Desktop/ratrixcam-uvc && uvc/.venv/bin/python uvc/probe.py replug 2>&1 | tee uvc/logs/replug-run2.log
 
     (when told, unplug the camera on PORT 1 and plug it back into port 1; then leave the
     rig alone for about 3 minutes while it checks at 3, 30, 60 and 120 s)
@@ -1042,6 +1042,29 @@ def marker_verdict(result):
     return text
 
 
+MARK = (AE_MANUAL, 1, 0)  # the replug marker: manual, exposure 0.1 ms, gain 0 (near-black image)
+
+
+def fresh_hold(args, dev, lay, label_):
+    """A NEW process streams args.index for 6 s; meanwhile this process reads the marked
+    camera's controls (at about 3 s, once the child's capture is open), then reports the
+    child's frames and brightness. Shows whether a fresh stream start resets the controls."""
+    import subprocess
+    cmd = [sys.executable, os.path.abspath(__file__), "scan", "--config", args.config,
+           "--first", str(args.index), "--last", str(args.index), "--seconds", "6"]
+    print(f"  [{now()}] {label_}: fresh process streams index {args.index} for 6 s; controls read while it streams")
+    child = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    time.sleep(3.0)
+    readback_line(dev, lay, MARK, f"{label_}: DURING fresh-process stream")
+    out, err = child.communicate(timeout=60)
+    for line in out.splitlines():
+        if "SCAN index" in line:
+            print(f"    | {line.strip()}")
+    if child.returncode != 0:
+        print(f"    | hold exited {child.returncode}: {err.strip()[-300:]}")
+    readback_line(dev, lay, MARK, f"{label_}: after fresh-process stream")
+
+
 def in_process_index(cv2, args, label_):
     """Open args.index in THIS process (as persist run 2 did after the replug)."""
     opened, n, bad, mean = scan_index(cv2, args.config, args.index, 2.0)
@@ -1074,7 +1097,10 @@ def cmd_replug(args):
         set_manual(dev, lay, 1, 0)
         print(f"\n[{now()}] BEFORE the unplug")
         in_process_index(cv2, args, "before")
+        readback_line(dev, lay, MARK, "before: after same-process open")
+        fresh_hold(args, dev, lay, "before")
         scan_fresh_process(args, "before")
+        readback_line(dev, lay, MARK, "before: after fresh-process scan")
 
         for d in state["devs"]:
             usb.util.dispose_resources(d)
@@ -1105,8 +1131,12 @@ def cmd_replug(args):
             if wait > 0:
                 time.sleep(wait)
             print(f"\n[{now()}] CHECK at t={time.monotonic() - t_back:.0f} s after re-enumeration")
+            readback_line(dev, lay, MARK, f"t+{at:g}s: start of check")
             in_process_index(cv2, args, f"t+{at:g}s")
+            readback_line(dev, lay, MARK, f"t+{at:g}s: after same-process open")
+            fresh_hold(args, dev, lay, f"t+{at:g}s")
             scan_fresh_process(args, f"t+{at:g}s")
+            readback_line(dev, lay, MARK, f"t+{at:g}s: after fresh-process scan")
     finally:
         print(f"\n[{now()}] RESTORE every target to its defaults")
         results = []

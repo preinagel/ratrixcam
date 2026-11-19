@@ -314,8 +314,8 @@ requests no format. From now on every streaming run also prints:
 
 ## Hook recommendation
 
-**A pass in the supervisor, by USB id, run before every launch and every relaunch of a camera
-process.** It sets exposure and gain on every 0x0c45:0x6369 camera and reads them back. It is
+**Provisional, pending replug run 2: a pass in the supervisor, by USB id, run before every
+launch and every relaunch of a camera process.** It sets exposure and gain on every 0x0c45:0x6369 camera and reads them back. It is
 not a call inside each camera server.
 
 Evidence:
@@ -419,6 +419,38 @@ for 5 s.
   The restore's read-back checked only ae_mode (8, "OK"), which hid the failure. The final
   read-back shows exposure 40 on all three. Fixed: restores now select manual, write
   exposure and gain defaults, then AE mode, and read back every control.
+
+### Replug follow-up: replug run 1 (2026-11-19 11:29:15; 640x480 @ 30 per config entry)
+
+`uvc/.venv/bin/python uvc/probe.py replug` (`uvc/logs/replug-run1.log`). This is the reproduction
+of persist run 2's empty stream that the user asked for. Port 1 (0x01141000, cv2 index 0) was
+marked by setting it to manual, exposure 1 (0.1 ms), gain 0, which gives a near-black image.
+Same-process reopens of index 0 were compared with fresh-process scans of indices 0-9 (one new
+Python process per scan, as the recorder starts one process per camera).
+
+- **Before the unplug:** index 0 was dark in both the same process (5.6) and a fresh process
+  (6.2); the other indices read 133-206. So index 0 = port 1. Indices 0-7 delivered frames;
+  8 and 9 did not open.
+- Unplug at 11:29:43, back at 11:29:57. Port 1 came back at its defaults (8/157/0), as in
+  persist run 2. The marker was rewritten and read back as set.
+- **Same process, reopening index 0 at t = 3, 30, 60 and 120 s: opened, but 0 frames every
+  time.** persist run 2's empty stream is reproduced, and waiting does not cure it. A process
+  that streamed a camera before it was replugged cannot stream it again by index.
+- **Fresh process at the same times: all of indices 0-7 delivered about 30 frames per second;
+  8 and 9 still did not open.** No new index appeared. That is consistent with the user's
+  finding that a replugged camera keeps its index, though this run cannot prove which index
+  port 1 had.
+- **The marker was not visible after the replug: no index was dark in any fresh scan.** Index
+  0 read 68-81, which matches neither the marker (about 6) nor port 1's auto brightness at
+  640x480 in earlier runs (about 135-140). The probe did not read port 1's controls after the
+  fresh scans, so the run cannot tell whether the first stream start after re-enumeration
+  reset its controls, or whether index 0 now shows another camera. Probe gap, fixed for run 2:
+  it now reads the marked camera's controls before, during and after each fresh-process
+  stream.
+- If a freshly enumerated camera's controls are reset at its first stream start, a supervisor
+  pass *before* the relaunch would be undone, and the hook would have to run after the
+  capture opens. The hook recommendation below is conditional on replug run 2.
+- Restore: all three targets restored to defaults and read back OK (11:32:22).
 
 ### Q2: persist run 2 (2026-11-19 10:35:14; stream 640x480 @ 30 from uvc/camera_config_5.json entry 0, the test format)
 
@@ -640,3 +672,8 @@ It read every second for 40 s while streaming index 0, with cues to cover all le
   At 10:37:36 all three were restored (manual, exposure 157, gain 0, then ae_mode 8) and read
   back OK ("restore OK on all targets present"). ae_priority was not touched. The user also
   unplugged and replugged port 4 (kind C, never written).
+- **replug run 1 (2026-11-19 11:29:15)**: port 1 was set to the marker (manual, exposure 1,
+  gain 0) before and again after its replug. At 11:32:22 all three targets were restored
+  (manual, exposure 157, gain 0, then ae_mode 8) and read back OK. No other control was
+  written; the fresh-process scans streamed all eight cameras, but no control request went
+  to kinds B or C.
