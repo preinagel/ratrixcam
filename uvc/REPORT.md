@@ -1,7 +1,7 @@
 # UVC exposure/gain control on macOS: prototype report
 
-Status: **blocked before any camera was touched.** No control request has been sent to any
-camera, so nothing needed restoring.
+Status: Q1 run 1 done (pyusb, unprivileged: refused). No control has been changed on any
+camera, so nothing has needed restoring.
 
 ## Rig inventory (system_profiler SPUSBDataType, 2026-11-18)
 
@@ -53,14 +53,49 @@ the brief forbids, and could open a sibling 0x6366, which is off limits. Stopped
 
 ## Answers
 
-1. UVC requests while AVFoundation streams: not yet tested.
+1. **UVC requests while AVFoundation streams: no, for an unprivileged user process via
+   pyusb/libusb. But AVFoundation is not the cause:** the same requests are refused with no
+   stream open. Whether streaming *additionally* blocks requests is untested until some route
+   gets requests through with no stream open. Evidence below (q1 run 1).
 2. Settings persistence across stream start and re-enumeration: not yet tested.
 3. Exposure mode, exposure time and gain as writable controls: not yet tested.
 
+## Evidence
+
+### Q1, run 1 (2026-11-18 16:56:59, user's Terminal, not sandboxed, not root)
+
+Command (full output in `uvc/logs/q1-run1.log`):
+
+```
+uvc/.venv/bin/python uvc/probe.py q1 --index 0
+```
+
+- Descriptors (read without opening the device) are identical on all three targets. They
+  show VC interface 0, camera terminal id 1 (bmControls 0xe), processing unit id 2
+  (bmControls 0x177f) and extension unit id 3 (guid 7033f02811632e4aba2c6890eb334016).
+  The AE mode, AE priority, exposure time (absolute) and gain are all **advertised**. This
+  is partial evidence for Q3: advertised does not yet mean writable, and no ranges were read.
+- Phase A, no stream open: every class request (GET_INFO, GET_CUR on all four controls, all
+  three cameras) failed with `USBError errno=13 code=-3: Access denied (insufficient
+  permissions)` (LIBUSB_ERROR_ACCESS) within 0.1-0.2 ms. That is too fast to have reached
+  the camera, so libusb/IOKit refused locally.
+- Phase B, `cv2.VideoCapture(0, CAP_AVFOUNDATION)`: opened in 740 ms, reported 1920x1080 @
+  30 fps, and streamed 89 frames in 3.0 s (29.6 fps, 0 failed reads, mean brightness 132.1).
+  No permission dialog was reported. The same requests failed with the same error (0.2-0.6 ms).
+- Phase C, stream released: same error.
+- No SET_CUR was sent: the script only writes after a successful read. So the index-0 to
+  USB-port mapping was not learned.
+
+This matches public reports that on macOS 12 and later, non-root libusb control requests
+to a camera held by Apple's UVC driver are refused. That explanation is not verified here.
+
 ## Installed
 
-- `uvc/.venv`: a Python 3.13.5 venv, currently empty (the pyusb install failed).
+- `uvc/.venv`: a Python 3.13.5 venv with pyusb 1.3.1 (installed by the user; my sandboxed
+  `pip install` failed on the proxy certificate). cv2 4.11.0 is borrowed from the base
+  interpreter's site-packages at runtime, not installed.
+- libusb: `/opt/homebrew/lib/libusb-1.0.dylib`, pre-installed by the user.
 
 ## Restored
 
-Nothing; no camera control was changed.
+Nothing; no camera control was changed (q1 run 1 sent no SET_CUR: every read was refused).

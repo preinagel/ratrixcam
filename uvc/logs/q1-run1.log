@@ -1,0 +1,82 @@
+[2026-11-18 16:56:59] probe.py q1  python 3.13.5  pid 90087
+[2026-11-18 16:56:59] recording check: /Users/rat_hub_01/Desktop/temp absent, ok
+[2026-11-18 16:56:59] 3 target(s) 0x0c45:0x6369
+  loc 0x01143000 (bus 1 addr 6 ports (1, 4, 3))  manufacturer/product strings not read (would open the device)
+  VC interface 0; camera terminal id 1 bmControls 0xe; processing unit id 2 bmControls 0x177f
+    ae_mode      CT bit 1: advertised  (bitmap 1=manual 2=auto 4=shutter-prio 8=aperture-prio)
+    ae_priority  CT bit 2: advertised  (0=constant frame rate, 1=frame rate may vary)
+    exposure     CT bit 3: advertised  (units of 100 us)
+    gain         PU bit 9: advertised  (unitless)
+    extension unit id 3 guid 7033f02811632e4aba2c6890eb334016
+  loc 0x01141000 (bus 1 addr 5 ports (1, 4, 1))  manufacturer/product strings not read (would open the device)
+  VC interface 0; camera terminal id 1 bmControls 0xe; processing unit id 2 bmControls 0x177f
+    ae_mode      CT bit 1: advertised  (bitmap 1=manual 2=auto 4=shutter-prio 8=aperture-prio)
+    ae_priority  CT bit 2: advertised  (0=constant frame rate, 1=frame rate may vary)
+    exposure     CT bit 3: advertised  (units of 100 us)
+    gain         PU bit 9: advertised  (unitless)
+    extension unit id 3 guid 7033f02811632e4aba2c6890eb334016
+  loc 0x00141000 (bus 0 addr 5 ports (1, 4, 1))  manufacturer/product strings not read (would open the device)
+  VC interface 0; camera terminal id 1 bmControls 0xe; processing unit id 2 bmControls 0x177f
+    ae_mode      CT bit 1: advertised  (bitmap 1=manual 2=auto 4=shutter-prio 8=aperture-prio)
+    ae_priority  CT bit 2: advertised  (0=constant frame rate, 1=frame rate may vary)
+    exposure     CT bit 3: advertised  (units of 100 us)
+    gain         PU bit 9: advertised  (unitless)
+    extension unit id 3 guid 7033f02811632e4aba2c6890eb334016
+
+[2026-11-18 16:56:59] PHASE A: no stream open
+  loc 0x01143000 (bus 1 addr 6 ports (1, 4, 3))
+    ae_mode      INFO=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.2 ms]  CUR=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]
+    ae_priority  INFO=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  CUR=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]
+    exposure     INFO=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  CUR=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]
+    gain         INFO=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  CUR=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]
+  loc 0x01141000 (bus 1 addr 5 ports (1, 4, 1))
+    ae_mode      INFO=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  CUR=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]
+    ae_priority  INFO=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  CUR=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]
+    exposure     INFO=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  CUR=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]
+    gain         INFO=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  CUR=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]
+  loc 0x00141000 (bus 0 addr 5 ports (1, 4, 1))
+    ae_mode      INFO=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  CUR=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]
+    ae_priority  INFO=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  CUR=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]
+    exposure     INFO=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  CUR=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]
+    gain         INFO=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]  CUR=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]
+
+[2026-11-18 16:56:59] PHASE B: cv2 4.11.0 VideoCapture(0, CAP_AVFOUNDATION)
+  isOpened=True backend=AVFOUNDATION open took 740 ms
+  reported 1920x1080 @ 30.0 fps
+    stream [warm-up] 3.0s: frames=89 failed_reads=0 fps=29.6 mean_brightness=132.1
+  loc 0x01143000 (bus 1 addr 6 ports (1, 4, 3)) while streaming
+    ae_mode      INFO=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.6 ms]  CUR=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.3 ms]
+    ae_priority  INFO=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.2 ms]  CUR=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.2 ms]
+    exposure     INFO=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.2 ms]  CUR=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.2 ms]
+    gain         INFO=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.2 ms]  CUR=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.2 ms]
+    ae_mode unreadable while streaming; skipping writes on this device
+  loc 0x01141000 (bus 1 addr 5 ports (1, 4, 1)) while streaming
+    ae_mode      INFO=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.2 ms]  CUR=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.2 ms]
+    ae_priority  INFO=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.2 ms]  CUR=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.2 ms]
+    exposure     INFO=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.2 ms]  CUR=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.2 ms]
+    gain         INFO=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.2 ms]  CUR=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.2 ms]
+    ae_mode unreadable while streaming; skipping writes on this device
+  loc 0x00141000 (bus 0 addr 5 ports (1, 4, 1)) while streaming
+    ae_mode      INFO=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.2 ms]  CUR=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.2 ms]
+    ae_priority  INFO=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.2 ms]  CUR=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.2 ms]
+    exposure     INFO=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.2 ms]  CUR=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.2 ms]
+    gain         INFO=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.2 ms]  CUR=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.2 ms]
+    ae_mode unreadable while streaming; skipping writes on this device
+
+[2026-11-18 16:57:03] PHASE C: stream released; final read-back
+  loc 0x01143000 (bus 1 addr 6 ports (1, 4, 3))
+    ae_mode      CUR=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.3 ms]
+    ae_priority  CUR=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.2 ms]
+    exposure     CUR=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.2 ms]
+    gain         CUR=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.2 ms]
+  loc 0x01141000 (bus 1 addr 5 ports (1, 4, 1))
+    ae_mode      CUR=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.2 ms]
+    ae_priority  CUR=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.2 ms]
+    exposure     CUR=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]
+    gain         CUR=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]
+  loc 0x00141000 (bus 0 addr 5 ports (1, 4, 1))
+    ae_mode      CUR=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.2 ms]
+    ae_priority  CUR=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]
+    exposure     CUR=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.2 ms]
+    gain         CUR=ERR USBError errno=13 code=-3: [Errno 13] Access denied (insufficient permissions) [0.1 ms]
+[2026-11-18 16:57:03] done
