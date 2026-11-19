@@ -46,6 +46,18 @@ GitHub #60), or a call in each camera server after its capture opens.
 - macOS may show a camera-permission dialog the first time a new program opens a camera;
   you cannot click it. Stop and tell the user.
 
+## Division of labour (added 2026-11-18)
+The sandbox cannot reach the camera subsystem: the camera report is empty inside it, and
+nothing can be opened. So you write, the user runs. Develop each probe as a script under
+uvc/ (uvc/probe.py, with a sub-command per experiment), print at the top of the script
+the exact terminal command the user should run, and ask the user to run it and paste the
+output back. Interpret the output, revise, and repeat. Build tools under uvc/ the same way.
+- For the duration of this prototype the rig holds only target cameras (0x0c45:0x6369);
+  any camera the probe opens by index is a target. Control requests still select by
+  vendor and product id, so the script stays correct when other cameras return.
+- Never create ~/Desktop/temp; it belongs to the recording program and is the
+  recording check. Your scratch space is uvc/.
+
 ## Deliverables, all under uvc/
 - uvc/REPORT.md: the three answers with evidence (commands, outputs, timings), the hook
   recommendation, what was installed and how, and what was restored.
