@@ -3,7 +3,7 @@
 
 RUN THIS (in your own Terminal, from anywhere; not inside the Claude sandbox):
 
-    cd ~/Desktop/ratrixcam-uvc && uvc/.venv/bin/python uvc/probe.py list 2>&1 | tee uvc/logs/list-all-run1.log && uvc/.venv/bin/python uvc/probe.py controls --all-vendor 2>&1 | tee uvc/logs/controls-all-run1.log
+    cd ~/Desktop/ratrixcam-uvc && uvc/.venv/bin/python uvc/probe.py list 2>&1 | tee uvc/logs/list-all-run2.log
 
 Sub-commands:
     list      read-only, no device opened: full descriptors of every 0x0c45 camera (all
@@ -388,13 +388,17 @@ def describe(dev):
                     off = 25 if sub != 0x11 else 21
                     default = int.from_bytes(d[21:25], "little") if sub != 0x11 else int.from_bytes(d[17:21], "little")
                     n = d[off]
+                    count = 3 if n == 0 else n
+                    ivs = [int.from_bytes(d[off + 1 + 4 * k:off + 5 + 4 * k], "little") for k in range(count)]
+                    fps = lambda v: f"{1e7 / v:g}" if v else "INVALID(0)"
                     if n == 0:
-                        lo, hi, st = (int.from_bytes(d[off + 1 + 4 * k:off + 5 + 4 * k], "little") for k in range(3))
-                        rates = f"continuous {1e7 / hi:.1f}-{1e7 / lo:.1f} fps step {st}"
+                        rates = f"continuous {fps(ivs[1])}-{fps(ivs[0])} fps step {ivs[2]}"
                     else:
-                        ivs = [int.from_bytes(d[off + 1 + 4 * k:off + 5 + 4 * k], "little") for k in range(n)]
-                        rates = "/".join(f"{1e7 / v:g}" for v in ivs) + " fps"
-                    lines.append(f"    frame {d[3]} {w}x{h}: {rates} (default {1e7 / default:g} fps)")
+                        rates = "/".join(fps(v) for v in ivs) + " fps"
+                    malformed = (len(d) < off + 1 + 4 * count or 0 in ivs[: 2 if n == 0 else n]
+                                 or default == 0)
+                    lines.append(f"    frame {d[3]} {w}x{h}: {rates} (default {fps(default)} fps)"
+                                 + (f"  MALFORMED bLength={d[0]} raw={d.hex()}" if malformed else ""))
                 elif sub == 0x03:
                     sizes = [f"{int.from_bytes(d[4 + 4 * k:6 + 4 * k], 'little')}x{int.from_bytes(d[6 + 4 * k:8 + 4 * k], 'little')}"
                              for k in range(d[3])]
@@ -418,7 +422,10 @@ def cmd_list(_args):
     print(f"[{now()}] {len(devs)} device(s) with vendor 0x{VID:04x}; target product is 0x{PID:04x}")
     groups = {}
     for dev in devs:
-        lines = describe(dev)
+        try:
+            lines = describe(dev)
+        except Exception as e:  # one camera's odd descriptors must not hide the others
+            lines = [f"DESCRIPTOR DECODE FAILED: {type(e).__name__}: {e}"]
         fp = hashlib.sha256("\n".join([f"{dev.idProduct:#06x}"] + lines).encode()).hexdigest()[:12]
         groups.setdefault(fp, []).append(dev)
         tag = "TARGET" if dev.idProduct == PID else "not target"

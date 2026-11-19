@@ -1,0 +1,68 @@
+[2026-11-19 10:16:24] probe.py list  python 3.13.5  pid 7303
+[2026-11-19 10:16:24] 8 device(s) with vendor 0x0c45; target product is 0x6369
+
+  port 5  loc 0x00141000 (bus 0 addr 5 ports (1, 4, 1))  product 0x6369 (TARGET)  fingerprint 1d1708dffaca
+    device: usb 2.00 bcdDevice 1.00 class 0xef/0x02/0x01 ep0 64 configs 1 string indices manufacturer 2 product 1 serial 0
+    config: 2 interfaces, attributes 0x80, max power 500 mA
+    interface 0 alt 0: class 0x0e/0x01 endpoints [ep0x83/3/0x0010]
+      VC header: UVC 1.00, clock 15000000 Hz
+      output terminal id 5 type 0x0101 source 3
+      extension unit id 3 guid 7033f02811632e4aba2c6890eb334016 controls 8 bmControls 0x1f
+      camera terminal id 1: bmControls 0xe = AE mode, AE priority, exposure abs
+      processing unit id 2 source 1: bmControls 0x177f = brightness, contrast, hue, saturation, sharpness, gamma, WB temperature, backlight comp, gain, power line freq, WB temperature auto
+    interface 1 alt 0: class 0x0e/0x02 endpoints []
+      VS input header: 2 formats, endpoint 0x81, still method 0
+      format 1 MJPEG: 14 frame sizes
+        frame 1 1920x1080: 30 fps (default 30 fps)
+        frame 2 640x480: 30 fps (default 30 fps)
+        frame 3 1280x720: 30 fps (default 30 fps)
+        frame 4 640x360: 30 fps (default 30 fps)
+        frame 5 320x240: 30 fps (default 30 fps)
+        frame 6 800x600: 30 fps (default 30 fps)
+        frame 7 960x720: 30 fps (default 30 fps)
+        frame 8 352x288: 30 fps (default 30 fps)
+        frame 9 432x240: 30 fps (default 30 fps)
+        frame 10 320x184: 30 fps (default 30 fps)
+        frame 11 176x144: 30 fps (default 30 fps)
+        frame 12 1280x960: 30 fps (default 30 fps)
+        frame 13 1280x1024: 30 fps (default 30 fps)
+        frame 14 1024x768: 30 fps (default 30 fps)
+        color matching: primaries 1 transfer 1 matrix 4
+      format 2 UNCOMPRESSED guid 5955593200001000800000aa00389b71: 14 frame sizes
+        frame 1 1920x1080: 5 fps (default 5 fps)
+        frame 2 640x480: 30 fps (default 30 fps)
+        frame 3 1280x720: 10 fps (default 10 fps)
+        frame 4 432x240: 30 fps (default 30 fps)
+        frame 5 1024x768: 10 fps (default 10 fps)
+        frame 6 352x288: 30 fps (default 30 fps)
+        frame 7 320x240: 30 fps (default 30 fps)
+        frame 8 176x144: 30 fps (default 30 fps)
+        frame 9 160x120: 30 fps (default 30 fps)
+        frame 10 800x600: 20 fps (default 20 fps)
+        frame 11 1280x720: 10/5 fps (default 10 fps)
+        frame 12 960x720: 15 fps (default 15 fps)
+        frame 13 1280x960: 5 fps (default 5 fps)
+        frame 14 1280x1024: 5 fps (default 5 fps)
+        color matching: primaries 1 transfer 1 matrix 4
+    interface 1 alt 1: class 0x0e/0x02 endpoints [ep0x81/1/0x0080]
+    interface 1 alt 2: class 0x0e/0x02 endpoints [ep0x81/1/0x0100]
+    interface 1 alt 3: class 0x0e/0x02 endpoints [ep0x81/1/0x0320]
+    interface 1 alt 4: class 0x0e/0x02 endpoints [ep0x81/1/0x0b20]
+    interface 1 alt 5: class 0x0e/0x02 endpoints [ep0x81/1/0x1320]
+    interface 1 alt 6: class 0x0e/0x02 endpoints [ep0x81/1/0x1400]
+Traceback (most recent call last):
+  File "/Users/rat_hub_01/Desktop/ratrixcam-uvc/uvc/probe.py", line 936, in <module>
+    main()
+    ~~~~^^
+  File "/Users/rat_hub_01/Desktop/ratrixcam-uvc/uvc/probe.py", line 932, in main
+    args.fn(args)
+    ~~~~~~~^^^^^^
+  File "/Users/rat_hub_01/Desktop/ratrixcam-uvc/uvc/probe.py", line 421, in cmd_list
+    lines = describe(dev)
+  File "/Users/rat_hub_01/Desktop/ratrixcam-uvc/uvc/probe.py", line 396, in describe
+    rates = "/".join(f"{1e7 / v:g}" for v in ivs) + " fps"
+            ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rat_hub_01/Desktop/ratrixcam-uvc/uvc/probe.py", line 396, in <genexpr>
+    rates = "/".join(f"{1e7 / v:g}" for v in ivs) + " fps"
+                        ~~~~^~~
+ZeroDivisionError: float division by zero

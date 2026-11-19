@@ -160,6 +160,60 @@ Observations:
   mode. "Autoupdate" claims the value changes on its own, yet it did not change in 5 s
   while AE visibly re-converged.
 
+## Kinds A, B, C compared (read-only; secondary question, for information only)
+
+The user approved reading descriptors and GET requests on all eight 0x0c45 cameras.
+Development stays on kind A (0x6369). Kinds are as in the eight-camera table above.
+
+### Controls: controls --all-vendor run 1 (2026-11-19 10:16:24, `uvc/logs/controls-all-run1.log`)
+
+GET requests only, no stream open, all eight cameras. Every request answered or stalled
+exactly as on kind A.
+
+| | A (ports 1, 3, 5) | B (ports 2, 6, 8) | C (ports 4, 7) |
+|---|---|---|---|
+| AE mode INFO / RES / DEF / CUR | 3 / 9 / 8 / 8 | 3 / 9 / 8 / 8 | 3 / 9 / 8 / 8 |
+| AE priority CUR | 0 | 0 | 0 |
+| Exposure MIN / MAX / RES | 1 / 5000 / 1 | 1 / 5000 / 1 | 1 / 5000 / 1 |
+| **Exposure DEF = CUR** | 157 (15.7 ms) | **156 (15.6 ms)** | 157 (15.7 ms) |
+| **Exposure INFO** | 15 | 15 | **3** |
+| Gain INFO / MIN / MAX / RES / DEF / CUR | 3 / 0 / 100 / 1 / 0 / 0 | same | same |
+
+- All three kinds offer the same exposure and gain controls with the same ranges, so the
+  kind A method should carry over unchanged, if writes behave the same (untested on B and C).
+- B's exposure default differs from A's and C's by one unit (156 vs 157). That is a
+  firmware-level difference between B and C, which share USB ids.
+- Exposure INFO: kind A read 3 at its first read this morning (controls run 2) and 15 only
+  after our first manual-to-auto hand-back (aetrack run 1). Kind B reads 15 although we
+  never wrote to it; kind C reads 3. So the starting INFO may differ by kind, or something
+  else (power history, a previous host) set the B cameras' state. These runs cannot tell.
+
+### Descriptors: list run 1 (2026-11-19 10:16:24, `uvc/logs/list-all-run1.log`), incomplete
+
+Read-only; no device was opened. It decoded the first camera in location order (port 5,
+kind A), then **crashed on port 6 (kind B)**: a frame descriptor gave a frame interval of 0,
+and the probe divided by it. That is a probe bug, now fixed: zero or truncated intervals
+print as `INVALID(0)` / `MALFORMED` with the raw bytes, and one camera's decode failure no
+longer stops the rest. The crash itself suggests kind B's descriptors contain a frame
+descriptor that a strict parser rejects, which would fit "performing strangely". The
+rerun will show it.
+
+Kind A (port 5), for reference:
+- USB 2.00, bcdDevice 1.00, composite class (0xef/0x02/0x01), declares 500 mA; UVC 1.00.
+- Camera terminal controls: AE mode, AE priority, exposure absolute. Processing unit:
+  brightness, contrast, hue, saturation, sharpness, gamma, WB temperature, backlight comp,
+  gain, power-line frequency, WB temperature auto. Extension unit id 3 (Sonix guid
+  7033f028...), 8 controls.
+- MJPEG: 14 sizes, all at 30 fps, **including 800x600 @ 30**. Uncompressed YUY2: 14 sizes,
+  but **800x600 only at 20 fps**, 1920x1080 at 5, 1280x720 at 10 (listed twice, as frames 3
+  and 11).
+- Streaming alternate settings: max packet 0x0080 up to 0x1400 (3 x 1024 bytes per
+  microframe).
+
+**Consequence for the user's 800x600 @ 30 config:** the camera gives 800x600 at 30 fps only
+as MJPEG. If AVFoundation picks the uncompressed format for 800x600, the stream will run at
+20 fps. The recorder's measured rate would show this; the 800x600 reruns will measure it.
+
 ## Answers
 
 1. **UVC requests while AVFoundation streams: YES**, as an ordinary user, with no root. In q1
