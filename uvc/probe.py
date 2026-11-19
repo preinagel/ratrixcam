@@ -3,7 +3,10 @@
 
 RUN THIS (in your own Terminal, from anywhere; not inside the Claude sandbox):
 
-    cd ~/Desktop/ratrixcam-uvc && uvc/.venv/bin/python uvc/probe.py q1 --kind C --port 4 --index 3 2>&1 | tee uvc/logs/q1-C-run1.log
+    cd ~/Desktop/ratrixcam-uvc && uvc/.venv/bin/python uvc/probe.py soak --minutes 20 2>&1 | tee uvc/logs/soak-run1.log
+
+    (kind C ports 4 and 7 and kind A port 1, about 21 minutes; leave the rig alone; Ctrl-C
+    stops early and still prints the summary)
 
 Sub-commands:
     list      read-only, no device opened: full descriptors of every 0x0c45 camera (all
@@ -30,6 +33,10 @@ Sub-commands:
     replug    marks the camera on --port dark (manual, 0.1 ms), cues its unplug/replug,
               then at 3/30/60/120 s compares a same-process reopen of index 0 with a
               fresh-process scan of indices 0-9, to find where the marked camera went
+    soak      kind C stall rate: identify each --streams camera (kind:port:index; default
+              C:4:3 C:7:6 A:1:0), then stream each in its own new process for --minutes,
+              read-only, logging every gap of --stall s without a frame and whether frames
+              return; per-camera summary at the end (soakone is its per-camera child)
     restore   safety net: exposure, gain and AE mode to each camera's own defaults
 
 Every sub-command that writes restores each target to its defaults in a finally block
@@ -1287,6 +1294,154 @@ def cmd_replug(args):
         print(f"[{now()}] restore {'OK on all targets present' if all(results) else 'INCOMPLETE: see MISMATCH lines'}")
 
 
+def parse_streams(specs):
+    """'C:4:3' -> ('C', 4, 3): kind, rig port, cv2 index."""
+    out = []
+    for spec in specs:
+        kind, port, index = spec.split(":")
+        if kind not in KINDS:
+            sys.exit(f"--streams {spec}: kind must be one of {sorted(KINDS)}")
+        out.append((kind, int(port), int(index)))
+    return out
+
+
+def cmd_soakone(args):
+    """Child of `soak`, read-only (cv2 only, no control requests): stream one index for
+    --minutes in this fresh process, report every --report s, log every gap of at least
+    --stall s between good frames, keep reading through a stall to see if frames return,
+    and end with one SOAK_SUMMARY line. Stops early if a recording starts."""
+    cv2 = import_cv2()
+    ns = argparse.Namespace(index=args.index, config=args.config, width=None, height=None, fps=None)
+    cap = open_capture(cv2, ns)
+    tag = args.label
+    if not cap.isOpened():
+        print(f"SOAK_SUMMARY {json.dumps({'label': tag, 'opened': False})}", flush=True)
+        return
+    t_start = time.monotonic()
+    t_end = t_start + args.minutes * 60
+    last_good = t_start
+    stalls = []          # [start offset s, duration s, recovered]
+    in_stall = None      # start offset of an ongoing stall
+    frames = failed = 0
+    win = {"frames": 0, "failed": 0, "sum": 0.0, "max_gap": 0.0}
+    next_report = t_start + args.report
+    stop_reason = "time"
+    try:
+        while True:
+            now_t = time.monotonic()
+            if now_t >= t_end:
+                break
+            ok, frame = cap.read()
+            t = time.monotonic()
+            if ok:
+                gap = t - last_good
+                win["max_gap"] = max(win["max_gap"], gap)
+                if in_stall is not None:
+                    stalls[-1][1], stalls[-1][2] = round(t - t_start - in_stall, 2), True
+                    print(f"  [{now()}] {tag} STALL ENDED after {stalls[-1][1]:.1f} s: frames resumed", flush=True)
+                    in_stall = None
+                last_good = t
+                frames += 1
+                win["frames"] += 1
+                win["sum"] += float(frame.mean())
+            else:
+                failed += 1
+                win["failed"] += 1
+            if in_stall is None and t - last_good >= args.stall:
+                in_stall = round(last_good - t_start, 2)
+                stalls.append([in_stall, None, False])
+                print(f"  [{now()}] {tag} STALL: no frame for {args.stall:g} s "
+                      f"(last good frame at +{in_stall:.1f} s)", flush=True)
+            if t >= next_report:
+                span = args.report
+                mean = win["sum"] / win["frames"] if win["frames"] else float("nan")
+                print(f"  [{now()}] {tag} +{(t - t_start) / 60:4.1f} min: frames={win['frames']} "
+                      f"fps={win['frames'] / span:4.1f} failed_reads={win['failed']} "
+                      f"mean_brightness={mean:5.1f} longest_gap={win['max_gap']:.2f} s"
+                      + (" (IN STALL)" if in_stall is not None else ""), flush=True)
+                win = {"frames": 0, "failed": 0, "sum": 0.0, "max_gap": 0.0}
+                next_report += args.report
+                if os.path.exists(RECORDING_FLAG):
+                    stop_reason = "recording started"
+                    print(f"  [{now()}] {tag} STOPPING: {RECORDING_FLAG} appeared", flush=True)
+                    break
+    except KeyboardInterrupt:
+        stop_reason = "interrupted"
+    finally:
+        cap.release()
+    if in_stall is not None:
+        stalls[-1][1] = round(time.monotonic() - t_start - in_stall, 2)
+    dur = time.monotonic() - t_start
+    summary = {"label": tag, "opened": True, "seconds": round(dur, 1), "frames": frames,
+               "expected_at_30fps": int(dur * 30), "failed_reads": failed, "stalls": stalls,
+               "stall_seconds": round(sum(s[1] or 0 for s in stalls), 2), "stop": stop_reason}
+    print(f"SOAK_SUMMARY {json.dumps(summary)}", flush=True)
+
+
+def cmd_soak(args):
+    """Read-only soak after identification: each --streams camera is identified (marker,
+    restored and read back: the only writes), then streamed by a new process per camera for
+    --minutes, counting stalls. Default: kind C ports 4 and 7, with kind A port 1 as the
+    reference."""
+    import subprocess
+    guard()
+    be = usb_backend()
+    cv2 = import_cv2()
+    streams = parse_streams(args.streams)
+    print(f"[{now()}] SOAK {args.minutes:g} min; streams (kind:port:index) {args.streams}; "
+          f"stall = no frame for {args.stall:g} s; report every {args.report:g} s")
+    for kind, port, index in streams:
+        devs = find_kind(be, kind, port)
+        if not devs:
+            sys.exit(f"no kind {kind} camera on port {port}")
+        ns = argparse.Namespace(index=index, config=args.config, width=None, height=None, fps=None)
+        if identify_index(cv2, ns, devs) is None:
+            sys.exit(f"[{now()}] stopped: index {index} not identified as kind {kind} at port {port}; nothing streamed")
+    print(f"\n[{now()}] all {len(streams)} identified; starting the soak (read-only from here on)")
+    children = []
+    for kind, port, index in streams:
+        label = f"kind {kind} port {port} index {index}"
+        cmd = [sys.executable, os.path.abspath(__file__), "soakone", "--index", str(index),
+               "--config", args.config, "--minutes", str(args.minutes), "--report", str(args.report),
+               "--stall", str(args.stall), "--label", label]
+        children.append((label, subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)))
+    summaries = {}
+
+    def relay(label, proc):
+        for line in proc.stdout:
+            if line.startswith("SOAK_SUMMARY "):
+                summaries[label] = json.loads(line[len("SOAK_SUMMARY "):])
+            elif "FORMAT" in line or "STALL" in line or " min:" in line or "STOPPING" in line:
+                print(line.rstrip(), flush=True)
+
+    threads = [threading.Thread(target=relay, args=c, daemon=True) for c in children]
+    for t in threads:
+        t.start()
+    try:
+        for _, proc in children:
+            proc.wait()
+    except KeyboardInterrupt:
+        print(f"[{now()}] interrupted; stopping the streams")
+        for _, proc in children:
+            proc.send_signal(2)
+        for _, proc in children:
+            proc.wait()
+    for t in threads:
+        t.join(timeout=5)
+    print(f"\n[{now()}] SOAK SUMMARY (per camera; never pooled)")
+    for label, _ in children:
+        s = summaries.get(label)
+        if not s:
+            print(f"  {label}: no summary (child failed)")
+        elif not s["opened"]:
+            print(f"  {label}: did not open")
+        else:
+            stall_txt = "; ".join(f"at +{st[0]:.0f} s for {st[1]:.1f} s{'' if st[2] else ' (NOT recovered)'}" for st in s["stalls"]) or "none"
+            print(f"  {label}: {s['seconds']:.0f} s, frames {s['frames']} of ~{s['expected_at_30fps']} at 30 fps, "
+                  f"failed reads {s['failed_reads']}, stalls {len(s['stalls'])} ({s['stall_seconds']:.1f} s): {stall_txt}; "
+                  f"stopped by {s['stop']}")
+
+
 def restore_priority(dev, lay, value):
     print(f"    restore ae_priority:={value}: {fmt(*xfer(dev, lay, 'ae_priority', SET_CUR, value))}")
     res, err, ms = xfer(dev, lay, "ae_priority", GET_CUR)
@@ -1346,6 +1501,22 @@ def main():
     rp.add_argument("--scan-seconds", type=float, default=1.0)
     rp.add_argument("--timeout", type=float, default=120.0)
     rp.set_defaults(fn=cmd_replug)
+    sk = sub.add_parser("soak")
+    sk.add_argument("--streams", nargs="+", default=["C:4:3", "C:7:6", "A:1:0"],
+                    help="kind:port:index for each camera to soak (default C:4:3 C:7:6 A:1:0)")
+    sk.add_argument("--minutes", type=float, default=20.0)
+    sk.add_argument("--report", type=float, default=60.0, help="seconds between status lines")
+    sk.add_argument("--stall", type=float, default=1.0, help="a gap of this many seconds without a frame is a stall")
+    sk.add_argument("--config", default=RECORDER_CONFIG)
+    sk.set_defaults(fn=cmd_soak)
+    so = sub.add_parser("soakone")
+    so.add_argument("--index", type=int, required=True)
+    so.add_argument("--minutes", type=float, required=True)
+    so.add_argument("--report", type=float, default=60.0)
+    so.add_argument("--stall", type=float, default=1.0)
+    so.add_argument("--label", default="")
+    so.add_argument("--config", default=RECORDER_CONFIG)
+    so.set_defaults(fn=cmd_soakone)
     rs = sub.add_parser("restore")
     rs.add_argument("--kind", choices=sorted(KINDS) + ["all"], default="A")
     rs.add_argument("--port", type=int, help="only the camera on this rig port")

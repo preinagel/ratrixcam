@@ -514,6 +514,12 @@ kinds A and B: different format, different camera, different scene.
     (`ratrixcam_server.py:358-367, 589-590`) and the supervisor relaunches it, would turn such
     a stall into a recording gap and a relaunch.
   - A long read-only soak test of kind C, alongside kind A, would measure the stall rate.
+    It is written (`probe.py soak`) but **not yet run**: the rig is on loan to the camera
+    developer. It identifies each camera (marker, restored and read back: the only writes),
+    then streams kind C ports 4 and 7 and kind A port 1 for 20 minutes. Each camera runs in
+    its own new process, as the recorder runs them, with no control requests. It logs
+    every gap of 1 s or more without a frame and whether frames resume. The stall logic
+    was checked offline against a simulated 0.6 s stall.
 
 ## The three kinds compared
 
