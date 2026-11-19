@@ -35,8 +35,9 @@ cameras launch (settings applied by device, sidestepping the index-to-device que
 GitHub #60), or a call in each camera server after its capture opens.
 
 ## Hardware rules
-- Never run anything against a camera while a recording is in progress. Check first:
-  `pgrep -fl ratrixcam` must be empty and ~/Desktop/temp must not exist.
+- Never run anything against a camera while a recording is in progress. The check: the
+  folder ~/Desktop/temp must not exist (a run always has it; the cleanup removes it).
+  Process listing is not available inside the sandbox, so do not rely on pgrep.
 - After every experiment, restore every control you changed to its automatic mode and
   read it back to confirm; some cameras keep a manual setting across power cycles, and a
   rig left in manual would record wrongly later. Say in the report what you restored.
