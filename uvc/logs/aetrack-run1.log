@@ -1,0 +1,113 @@
+[2026-11-19 09:12:07] probe.py aetrack  python 3.13.5  pid 5750
+[2026-11-19 09:12:07] recording check: /Users/rat_hub_01/Desktop/temp absent, ok
+[2026-11-19 09:12:07] 3 target(s)
+  cv2 4.11.0 VideoCapture(0) isOpened=True backend=AVFOUNDATION open+set took 1256 ms
+  FORMAT requested 640x480 @ 30 fps (from /Users/rat_hub_01/Desktop/camera_config.json); capture reports 640x480 @ 30.0 fps
+    stream [warm-up] 3.0s: frames=89 failed_reads=0 fps=29.6 mean_brightness=138.2
+  FORMAT measured frame size: 640x480
+  loc 0x01143000 (bus 1 addr 6 ports (1, 4, 3))
+    stream [auto, before] 2.0s: frames=59 failed_reads=0 fps=29.3 mean_brightness=139.3
+    write ae_mode:=manual(1): 1 [4.6 ms]
+    write exposure:=40: 40 [4.6 ms]
+    stream [manual 4.0 ms] 2.0s: frames=60 failed_reads=0 fps=29.8 mean_brightness=139.3
+    write ae_mode:=8 (auto), exposure value left at 40: 8 [4.6 ms]
+    +0.25s bright=139.3 fps=29.9 exposure=40 (4.0 ms) gain=0
+    +0.51s bright=139.2 fps=30.2 exposure=40 (4.0 ms) gain=0
+    +0.76s bright=139.3 fps=25.9 exposure=40 (4.0 ms) gain=0
+    +1.02s bright=139.2 fps=30.2 exposure=40 (4.0 ms) gain=0
+    +1.28s bright=139.3 fps=30.0 exposure=40 (4.0 ms) gain=0
+    +1.53s bright=139.3 fps=30.4 exposure=40 (4.0 ms) gain=0
+    +1.79s bright=139.3 fps=30.4 exposure=40 (4.0 ms) gain=0
+    +2.04s bright=139.3 fps=30.2 exposure=40 (4.0 ms) gain=0
+    +2.30s bright=139.4 fps=30.3 exposure=40 (4.0 ms) gain=0
+    +2.55s bright=139.3 fps=30.2 exposure=40 (4.0 ms) gain=0
+    +2.81s bright=139.3 fps=30.2 exposure=40 (4.0 ms) gain=0
+    +3.07s bright=139.5 fps=30.7 exposure=40 (4.0 ms) gain=0
+    +3.32s bright=139.4 fps=30.0 exposure=40 (4.0 ms) gain=0
+    +3.57s bright=139.4 fps=26.1 exposure=40 (4.0 ms) gain=0
+    +3.83s bright=139.5 fps=30.2 exposure=40 (4.0 ms) gain=0
+    +4.08s bright=139.5 fps=30.6 exposure=40 (4.0 ms) gain=0
+    +4.34s bright=139.6 fps=30.1 exposure=40 (4.0 ms) gain=0
+    +4.60s bright=139.6 fps=30.1 exposure=40 (4.0 ms) gain=0
+    +4.85s bright=139.5 fps=30.9 exposure=40 (4.0 ms) gain=0
+    +5.11s bright=139.5 fps=30.1 exposure=40 (4.0 ms) gain=0
+    restore exposure:=157: ERR USBError errno=32 code=-9: [Errno 32] Pipe error [1.3 ms]
+    restore ae_mode:=8 (auto): 8 [0.9 ms]
+    read-back ae_mode=8 [0.9 ms] OK
+    stream [after restore] 2.0s: frames=60 failed_reads=0 fps=29.8 mean_brightness=139.6
+  loc 0x01141000 (bus 1 addr 5 ports (1, 4, 1))
+    stream [auto, before] 2.0s: frames=58 failed_reads=0 fps=29.8 mean_brightness=139.5
+    write ae_mode:=manual(1): 1 [25.0 ms]
+    write exposure:=40: 40 [5.9 ms]
+    stream [manual 4.0 ms] 2.0s: frames=60 failed_reads=0 fps=29.8 mean_brightness=79.9
+    write ae_mode:=8 (auto), exposure value left at 40: 8 [15.5 ms]
+    +0.25s bright=115.9 fps=30.2 exposure=40 (4.0 ms) gain=0
+    +0.52s bright=138.8 fps=30.1 exposure=40 (4.0 ms) gain=0
+    +0.79s bright=135.6 fps=26.0 exposure=40 (4.0 ms) gain=0
+    +1.06s bright=135.6 fps=30.6 exposure=40 (4.0 ms) gain=0
+    +1.33s bright=135.5 fps=30.0 exposure=40 (4.0 ms) gain=0
+    +1.60s bright=135.5 fps=30.1 exposure=40 (4.0 ms) gain=0
+    +1.87s bright=135.5 fps=30.4 exposure=40 (4.0 ms) gain=0
+    +2.14s bright=135.6 fps=30.0 exposure=40 (4.0 ms) gain=0
+    +2.41s bright=135.6 fps=29.9 exposure=40 (4.0 ms) gain=0
+    +2.68s bright=135.4 fps=30.4 exposure=40 (4.0 ms) gain=0
+    +2.95s bright=135.4 fps=30.2 exposure=40 (4.0 ms) gain=0
+    +3.22s bright=135.5 fps=30.3 exposure=40 (4.0 ms) gain=0
+    +3.50s bright=135.3 fps=30.1 exposure=40 (4.0 ms) gain=0
+    +3.77s bright=135.4 fps=26.2 exposure=40 (4.0 ms) gain=0
+    +4.04s bright=135.4 fps=30.5 exposure=40 (4.0 ms) gain=0
+    +4.31s bright=135.5 fps=30.1 exposure=40 (4.0 ms) gain=0
+    +4.58s bright=135.7 fps=30.4 exposure=40 (4.0 ms) gain=0
+    +4.85s bright=135.7 fps=30.0 exposure=40 (4.0 ms) gain=0
+    +5.12s bright=135.5 fps=26.3 exposure=40 (4.0 ms) gain=0
+    restore exposure:=157: ERR USBError errno=32 code=-9: [Errno 32] Pipe error [1.0 ms]
+    restore ae_mode:=8 (auto): 8 [0.9 ms]
+    read-back ae_mode=8 [1.3 ms] OK
+    stream [after restore] 2.0s: frames=60 failed_reads=0 fps=29.8 mean_brightness=135.5
+  loc 0x00141000 (bus 0 addr 5 ports (1, 4, 1))
+    stream [auto, before] 2.0s: frames=60 failed_reads=0 fps=29.8 mean_brightness=135.5
+    write ae_mode:=manual(1): 1 [4.7 ms]
+    write exposure:=40: 40 [4.6 ms]
+    stream [manual 4.0 ms] 2.0s: frames=59 failed_reads=0 fps=29.3 mean_brightness=135.6
+    write ae_mode:=8 (auto), exposure value left at 40: 8 [4.9 ms]
+    +0.25s bright=135.6 fps=30.5 exposure=40 (4.0 ms) gain=0
+    +0.50s bright=135.6 fps=30.8 exposure=40 (4.0 ms) gain=0
+    +0.76s bright=135.6 fps=29.9 exposure=40 (4.0 ms) gain=0
+    +1.02s bright=135.6 fps=25.9 exposure=40 (4.0 ms) gain=0
+    +1.27s bright=135.5 fps=30.1 exposure=40 (4.0 ms) gain=0
+    +1.53s bright=135.6 fps=30.7 exposure=40 (4.0 ms) gain=0
+    +1.79s bright=135.5 fps=30.5 exposure=40 (4.0 ms) gain=0
+    +2.04s bright=135.6 fps=30.3 exposure=40 (4.0 ms) gain=0
+    +2.30s bright=135.6 fps=30.6 exposure=40 (4.0 ms) gain=0
+    +2.55s bright=135.5 fps=30.2 exposure=40 (4.0 ms) gain=0
+    +2.81s bright=135.6 fps=30.4 exposure=40 (4.0 ms) gain=0
+    +3.07s bright=135.6 fps=30.0 exposure=40 (4.0 ms) gain=0
+    +3.33s bright=135.7 fps=30.3 exposure=40 (4.0 ms) gain=0
+    +3.58s bright=135.6 fps=30.3 exposure=40 (4.0 ms) gain=0
+    +3.84s bright=135.7 fps=26.3 exposure=40 (4.0 ms) gain=0
+    +4.09s bright=135.7 fps=29.9 exposure=40 (4.0 ms) gain=0
+    +4.35s bright=135.6 fps=30.3 exposure=40 (4.0 ms) gain=0
+    +4.61s bright=135.6 fps=30.3 exposure=40 (4.0 ms) gain=0
+    +4.86s bright=135.5 fps=30.6 exposure=40 (4.0 ms) gain=0
+    +5.12s bright=135.7 fps=30.8 exposure=40 (4.0 ms) gain=0
+    restore exposure:=157: ERR USBError errno=32 code=-9: [Errno 32] Pipe error [0.9 ms]
+    restore ae_mode:=8 (auto): 8 [0.9 ms]
+    read-back ae_mode=8 [0.7 ms] OK
+    stream [after restore] 2.0s: frames=59 failed_reads=0 fps=29.7 mean_brightness=135.6
+
+[2026-11-19 09:12:45] final read-back, stream released
+  loc 0x01143000 (bus 1 addr 6 ports (1, 4, 3))
+    ae_mode      CUR=8 [0.9 ms]
+    ae_priority  CUR=0 [0.8 ms]
+    exposure     CUR=40 [0.7 ms](4.0 ms) under 5 ms
+    gain         CUR=0 [0.9 ms]
+  loc 0x01141000 (bus 1 addr 5 ports (1, 4, 1))
+    ae_mode      CUR=8 [0.9 ms]
+    ae_priority  CUR=0 [0.8 ms]
+    exposure     CUR=40 [0.7 ms](4.0 ms) under 5 ms
+    gain         CUR=0 [0.8 ms]
+  loc 0x00141000 (bus 0 addr 5 ports (1, 4, 1))
+    ae_mode      CUR=8 [0.9 ms]
+    ae_priority  CUR=0 [0.6 ms]
+    exposure     CUR=40 [0.9 ms](4.0 ms) under 5 ms
+    gain         CUR=0 [0.9 ms]

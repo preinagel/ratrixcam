@@ -3,7 +3,7 @@
 
 RUN THIS (in your own Terminal, from anywhere; not inside the Claude sandbox):
 
-    cd ~/Desktop/ratrixcam-uvc && uvc/.venv/bin/python uvc/probe.py aetrack 2>&1 | tee uvc/logs/aetrack-run1.log
+    cd ~/Desktop/ratrixcam-uvc && uvc/.venv/bin/python uvc/probe.py restore 2>&1 | tee uvc/logs/restore-run1.log
 
 Sub-commands:
     list      enumerate 0x0c45:0x6369 devices and parse their VideoControl descriptors
@@ -282,7 +282,9 @@ class Reader(threading.Thread):
         return len(good), len(s) - len(good), fps, mean
 
 
-def watch(reader, label_, seconds):
+def watch(reader, label_, seconds, settle=0.0):
+    """Measure over `seconds`, after first discarding `settle` seconds of frames."""
+    time.sleep(settle)
     t0 = time.monotonic()
     time.sleep(seconds)
     n, bad, fps, mean = reader.window(t0, time.monotonic())
@@ -386,9 +388,8 @@ def cmd_q1(args):
                 print("    exposure range unreadable; skipping the manual-exposure test")
                 continue
             target = min(max(TEST_EXPOSURE, emin), emax)
-            restore_mode = mode0 if mode0 in (AE_AUTO, AE_APERTURE) else auto_mode_for(dev, lay)
             before = watch(reader, "before exposure change", 2.0)
-            changed.append(lambda d=dev, l=lay, m=restore_mode, e=expo0: restore_one(d, l, m, e))
+            changed.append(lambda d=dev, l=lay: restore_defaults(d, l))
             print(f"    write ae_mode:=manual(1): {fmt(*xfer(dev, lay, 'ae_mode', SET_CUR, AE_MANUAL))}")
             print(f"    write exposure:={target} ({target / 10:.1f} ms): "
                   f"{fmt(*xfer(dev, lay, 'exposure', SET_CUR, target))}")
@@ -487,7 +488,7 @@ def cmd_aetrack(args):
                 print("    unreadable; skipped")
                 continue
             auto = mode0 if mode0 in (AE_AUTO, AE_APERTURE) else auto_mode_for(dev, lay)
-            changed.append(lambda d=dev, l=lay, m=auto, e=expo0: restore_one(d, l, m, e))
+            changed.append(lambda d=dev, l=lay: restore_defaults(d, l))
             watch(reader, "auto, before", 2.0)
             print(f"    write ae_mode:=manual(1): {fmt(*xfer(dev, lay, 'ae_mode', SET_CUR, AE_MANUAL))}")
             print(f"    write exposure:={TEST_EXPOSURE}: {fmt(*xfer(dev, lay, 'exposure', SET_CUR, TEST_EXPOSURE))}")
@@ -520,37 +521,51 @@ def cmd_aetrack(args):
 
 
 def cmd_restore(_args):
-    """Safety net: exposure and gain to their GET_DEF values, then AE mode to its default (auto)."""
+    """Safety net: every target to its own defaults (exposure, gain, then AE mode = auto)."""
     guard()
     be = usb_backend()
+    results = []
     for dev in find_targets(be):
         lay = vc_layout(dev)
         print(f"  {label(dev)}")
-        for name in ("exposure", "gain", "ae_mode"):
-            d, err, _ = xfer(dev, lay, name, GET_DEF)
-            if err and name == "ae_mode":
-                d, err = auto_mode_for(dev, lay), None
-            if err:
-                print(f"    {name}: GET_DEF failed ({err}); left as is")
-                continue
-            print(f"    {name}:={d}: {fmt(*xfer(dev, lay, name, SET_CUR, d))}")
-        for name in CONTROLS:
-            read_all(dev, lay, name, (GET_DEF, GET_CUR) if name != "ae_priority" else (GET_CUR,))
+        results.append(restore_defaults(dev, lay))
+        read_all(dev, lay, "ae_priority", (GET_CUR,))
+    print(f"[{now()}] restore {'OK on all targets' if all(results) else 'INCOMPLETE: see MISMATCH lines'}")
+
+
+def restore_defaults(dev, lay):
+    """Exposure and gain to GET_DEF, then AE mode to GET_DEF (auto); read every one back.
+    This camera stalls exposure writes in auto mode (aetrack run 1), so the writes go via
+    manual mode. Returns True when every read-back matches."""
+    defs = {}
+    for name in ("exposure", "gain", "ae_mode"):
+        d, err, _ = xfer(dev, lay, name, GET_DEF)
+        if err and name == "ae_mode":
+            d, err = auto_mode_for(dev, lay), None
+        defs[name] = None if err else d
+    print(f"    restore: ae_mode:=manual(1) first, so exposure accepts the write: "
+          f"{fmt(*xfer(dev, lay, 'ae_mode', SET_CUR, AE_MANUAL))}")
+    ok = True
+    for name in ("exposure", "gain", "ae_mode"):
+        if defs[name] is None:
+            print(f"    restore {name}: no default readable; left as is")
+            ok = False
+            continue
+        print(f"    restore {name}:={defs[name]} (default): {fmt(*xfer(dev, lay, name, SET_CUR, defs[name]))}")
+    for name, want in defs.items():
+        if want is None:
+            continue
+        got, err, ms = xfer(dev, lay, name, GET_CUR)
+        good = got == want
+        ok = ok and good
+        print(f"    read-back {name}={fmt(got, err, ms)} {'OK' if good else f'MISMATCH (want {want})'}")
+    return ok
 
 
 def restore_priority(dev, lay, value):
     print(f"    restore ae_priority:={value}: {fmt(*xfer(dev, lay, 'ae_priority', SET_CUR, value))}")
     res, err, ms = xfer(dev, lay, "ae_priority", GET_CUR)
     print(f"    read-back ae_priority={fmt(res, err, ms)} {'OK' if res == value else 'MISMATCH'}")
-
-
-def restore_one(dev, lay, mode, expo):
-    if expo is not None:
-        print(f"    restore exposure:={expo}: {fmt(*xfer(dev, lay, 'exposure', SET_CUR, expo))}")
-    print(f"    restore ae_mode:={mode} (auto): {fmt(*xfer(dev, lay, 'ae_mode', SET_CUR, mode))}")
-    res, err, ms = xfer(dev, lay, "ae_mode", GET_CUR)
-    ok = "OK" if res == mode else "MISMATCH"
-    print(f"    read-back ae_mode={fmt(res, err, ms)} {ok}")
 
 
 def main():

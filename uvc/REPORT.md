@@ -1,11 +1,18 @@
 # UVC exposure/gain control on macOS: prototype report
 
-Status: Q1 answered yes (q1 run 2). Reads and writes work without root, with and without
-an AVFoundation stream. Open: whether the exposure read tracks auto-exposure (goal 1),
-gain writes, and Q2 (stream start, re-enumeration). Controls were changed in q1 run 2 and
-all were restored and read back (see Restored). Runs up to and including track run 1
-streamed at the camera default, 1920x1080. From aetrack on, the probes stream at the
-recorder's format, 640x480 @ 30 fps (`~/Desktop/camera_config.json` defaults).
+Status: Q1 answered yes, at 1920x1080 (q1 run 2) and at the recorder's 640x480 (q1 run 3).
+Reads and writes work without root, with and without an AVFoundation stream. **Goal 1 by
+the UVC exposure read: no.** In auto mode the camera returns the stored manual value, not
+the exposure its AE loop uses (aetrack run 1). Open: gain writes and compensation (goal 3),
+and Q2 (stream start, re-enumeration).
+
+**Rig state: NOT fully restored.** aetrack run 1's restore failed. All three cameras are in
+auto mode (8) with gain 0 and AE priority 0, but their stored exposure is 40 (4.0 ms), not
+the default 157 (15.7 ms). See Restored; `probe.py restore` (fixed) is pending.
+
+Runs up to and including track run 1 streamed at the camera default, 1920x1080. From
+aetrack run 1 on, the probes stream at the recorder's format, 640x480 @ 30 fps
+(`~/Desktop/camera_config.json` defaults).
 
 Goals in the order the brief values them (since 2026-11-19): (1) read exposure time and gain,
 (2) clear AE priority, (3) exposure under 5 ms with gain compensation, sticking across stream
@@ -60,7 +67,14 @@ cv2 opens AVFoundation devices by index only. With the camera report empty, noth
 index to vendor/product 0x0c45:0x6369. Opening an index would select by position, which
 the brief forbids, and could open a sibling 0x6366, which is off limits. Stopped to ask.
 
-## Goal 1 (read exposure and gain): YES, with no stream open, as an ordinary user
+## Goal 1 (read exposure and gain): the controls can be read, but in auto mode the exposure read is not the live exposure
+
+The table below shows the controls are readable as an ordinary user. aetrack run 1 (in
+Evidence) shows that in auto mode the exposure value read back is the stored manual value,
+so it cannot warn of long exposures. In manual mode the read equals what was written,
+which makes it known by construction.
+
+### Readable: controls run 2
 
 `probe.py controls`, run 2, 2026-11-19 08:41:33 (`uvc/logs/controls-run2.log`). All three
 cameras gave identical values; each request took 0.5-0.9 ms. libusb printed no warnings.
@@ -77,27 +91,32 @@ UVC spec does not require for that control (AE mode and AE priority are not rang
 not an access problem.
 
 Observations:
-- AE priority already reads 0 with no stream open. If it stays 0 while streaming, the
-  frame-rate drops the recorder sees are not explained by this control: either the firmware
-  ignores it, or something sets it to 1 at stream start. q1 run 2 reads it while streaming.
-- Exposure's INFO does not set the "disabled due to automatic mode" bit (D2) while AE mode
-  is auto (8), even though the camera chooses the value itself.
-- Exposure 15.7 ms equals the default. With no stream open the value may be stale; the
-  while-streaming reads in q1 will show whether it tracks the scene.
+- AE priority reads 0 with and without a stream (q1 runs 2 and 3), so stream start does
+  not set it to 1. The frame-rate drops the recorder sees are therefore not explained by
+  this control being 1. Either the firmware ignores it, or the drops have another cause.
+  This has not been reproduced in dim light.
+- Exposure's INFO was 3 (get, set) at first. After the first manual-to-auto hand-back
+  (aetrack run 1) it reads 15 (get, set, **disabled-by-auto**, **autoupdate**) while in auto.
+  "Disabled by auto" matches the observed behaviour: exposure SET_CUR stalls in auto
+  mode. "Autoupdate" claims the value changes on its own, yet it did not change in 5 s
+  while AE visibly re-converged.
 
 ## Answers
 
 1. **UVC requests while AVFoundation streams: YES**, as an ordinary user, with no root. In q1
-   run 2, cv2 streamed index 0 at 1920x1080 / ~29.7 fps. Reads and writes succeeded on all
-   three cameras, including the streamed one, and the streamed camera's image responded to
-   the write (brightness -68%) with 0 failed reads and no fps change. Run 1's refusals were
-   caused by the probe itself: pyusb's implicit interface claim, now removed.
+   run 2 (1920x1080) and q1 run 3 (the recorder's 640x480 @ 30, opened as the recorder
+   opens it), reads and writes succeeded on all three cameras, including the streamed one.
+   The streamed camera's image responded to manual 4 ms (brightness -68% at 1080p, -44% at
+   480p), with 0 failed reads and no fps change. Run 1's refusals were caused by the probe
+   itself: pyusb's implicit interface claim, now removed.
 2. Settings persistence across stream start and re-enumeration: not yet tested.
 3. **Yes for AE mode and exposure time; gain is reported settable but not yet written.**
    AE mode (manual or aperture-priority) and exposure time absolute (0.1-500 ms in 0.1 ms
-   steps, default 15.7 ms) were written and read back in q1 run 2, with a visible effect on
-   the image. Gain (0-100, unitless, step 1, default 0) reports get+set in GET_INFO but has
-   not been written. Ranges are in the goal 1 table.
+   steps, default 15.7 ms) were written and read back in q1 runs 2 and 3, with a visible
+   effect on the image. **Exposure accepts writes only in manual mode**: in auto, SET_CUR
+   stalls (aetrack run 1), so a setter must select manual first. Gain (0-100, unitless,
+   step 1, default 0) reports get+set in GET_INFO but has not been written. Ranges are in
+   the goal 1 table.
 
 ## Evidence
 
@@ -117,8 +136,10 @@ probe then opened with `VideoCapture(0, CAP_AVFOUNDATION)` and set no format.
 | **0x01141000 (the streamed one)** | accepted, read back 0 | 1 / 40 | **142.3 / 45.2 / 127.1 (-68%)** | 29.6 |
 | 0x00141000 | accepted, read back 0 | 1 / 40 | 131.2 / 131.6 / 131.9 | 29.6 |
 
-  Brightness drops by -68% where 4.0/15.7 ms predicts about -75% for a linear sensor.
-  After the restore it had recovered to 127.1 within 2 s, as auto-exposure re-converged.
+  Brightness dropped by 68%. (An earlier version of this report compared that with "4.0/15.7
+  ms predicts about -75%". That comparison is withdrawn: 15.7 ms is the stored value, not
+  AE's live exposure; see aetrack run 1.) After the restore it had recovered to 127.1
+  within 2 s, as auto-exposure re-converged.
   Writes took 4.5-4.9 ms; a few on the streamed camera took 20-27 ms. No frame was lost
   in any window.
 - **Brightness is measured on the one stream (index 0) only.** The ~0% rows for 0x01143000
@@ -135,13 +156,60 @@ probe then opened with `VideoCapture(0, CAP_AVFOUNDATION)` and set no format.
 - After the stream was released, all three cameras read ae_mode 8, ae_priority 0,
   exposure 157 and gain 0, identical to Phase A.
 
-**Open problem for goal 1: in auto mode, exposure GET_CUR may not be the camera's live
-exposure.** It read 157 (15.7 ms) on all three cameras, with and without a stream, which
-is exactly the GET_DEF value. So in aperture-priority mode the camera may return the
-stored manual value, not the exposure its AE loop is actually using. If so, a read cannot
-warn of long exposures. (Only one camera's image was measured, so the run cannot show
-whether the three cameras saw different light.) `probe.py track` (read every 1 s while the
-light changes) and `probe.py aetrack` (AE forced to re-converge) test this.
+This run raised the goal 1 question: exposure read 157 (15.7 ms), exactly GET_DEF, on all
+three cameras with and without a stream. aetrack run 1 settles it: in auto mode the read is
+the stored value.
+
+### Goal 1: aetrack run 1 (2026-11-19 09:12:07; stream 640x480 @ 30, the recorder's format)
+
+`uvc/.venv/bin/python uvc/probe.py aetrack` (`uvc/logs/aetrack-run1.log`). The capture was
+opened as the recorder opens it: it requested, reported and measured 640x480 @ 30. On each
+camera, while streaming index 0: manual + exposure 40 for 2 s; then ae_mode back to 8
+(auto) *with the stored exposure left at 40*; then exposure and gain read every 0.25 s
+for 5 s.
+
+| Camera | auto before | manual 4.0 ms | after hand-back to auto: brightness | exposure read during those 5 s |
+|---|---|---|---|---|
+| 0x01143000 (not the capture) | 139.3 | 139.3 | 139.2-139.6 | 40 (4.0 ms), all 20 reads |
+| **0x01141000 (the capture)** | 139.5 | **79.9** | **115.9 at +0.25 s, 138.8 at +0.52 s, ~135.5 to +5.1 s** | **40 (4.0 ms), all 20 reads** |
+| 0x00141000 (not the capture) | 135.5 | 135.6 | 135.5-135.7 | 40 (4.0 ms), all 20 reads |
+
+- On the streamed camera, AE restored brightness within about 0.5 s, so its real exposure
+  moved well above 4 ms. Yet exposure GET_CUR read 4.0 ms throughout. **In auto mode, the
+  camera's exposure read is the stored manual value, not AE's live exposure.** Gain read 0
+  throughout too, so the read does not show whether AE used gain either.
+- So goal 1 cannot be met through the UVC exposure control on this camera. Possible routes
+  not tried: (a) the Sonix extension unit (id 3, guid 7033f028...) may expose the OV2710's
+  own exposure registers; that is undocumented, and writes there could misconfigure the
+  sensor. (b) Brightness and fps measured from the frames. (c) Run in manual mode (goal 3),
+  where exposure is known by construction.
+- fps values of 25.9-26.3 in some 0.25 s windows are window quantization (7 frames instead
+  of 8 per 0.25 s), not frame drops. The 2 s windows read 29.3-29.8 throughout, with 0
+  failed reads.
+- **Restore failed (probe bug).** The restore wrote exposure:=157 *after* the hand-back to
+  auto, and the camera stalled it (`USBError errno=32 Pipe error`) on all three cameras.
+  The restore's read-back checked only ae_mode (8, "OK"), which hid the failure. The final
+  read-back shows exposure 40 on all three. Fixed: restores now select manual, write
+  exposure and gain defaults, then AE mode, and read back every control.
+
+### Q1, run 3 (2026-11-19 09:12:45; stream 640x480 @ 30, the recorder's format)
+
+`uvc/.venv/bin/python uvc/probe.py q1` (`uvc/logs/q1-run3.log`). It ran straight after
+aetrack, so every camera started with stored exposure 40 (the leftover above).
+
+- The capture opened as the recorder opens it: 1171 ms; requested, reported and measured
+  640x480 @ 30. Warm-up was 89 frames in 3.0 s (29.6 fps).
+- All reads and writes succeeded with and without the stream (0.6-1.1 ms, writes 4.4-6.0
+  ms, a few 20-27 ms on the streamed camera). There were 0 failed reads in every window.
+- On the capture, still 0x01141000, so the index mapping is unchanged at 640x480: manual
+  4.0 ms gave brightness 140.3 to 78.6 (-44%), then 130.7 two seconds after restore. The
+  other two cameras stayed flat because they were not the capture.
+- AE priority: 0 before and during the stream; the write of 0 was a no-op.
+- The restore wrote exposure "back" to 40, the leftover it found, so the rig stayed at
+  exposure 40 (see Restored).
+- -44% here vs -68% at 1920x1080: the response to the same 4 ms differs by format. Since
+  the live AE exposure cannot be read, the cause (different AE operating point, sensor
+  binning) cannot be separated. So the gain compensation must be measured at 640x480.
 
 ### Q1, run 1 (2026-11-18 16:56:59, user's Terminal, not sandboxed, not root; stream 1920x1080 @ 30, camera default)
 
@@ -226,3 +294,14 @@ It read every second for 40 s while streaming index 0, with cues to cover all le
   - gain was not written.
   The final state of all three (ae_mode 8, ae_priority 0, exposure 157, gain 0) equals the
   starting state.
+- track run 1: read-only, nothing changed.
+- **aetrack run 1: restore FAILED for exposure.** ae_mode was restored to 8 and read back
+  OK. exposure:=157 stalled because the camera was already in auto, so all three cameras
+  were left with stored exposure **40 (4.0 ms)**. gain and ae_priority were never changed.
+- **q1 run 3** started from that leftover: it restored ae_mode 8 (OK) and ae_priority 0
+  (OK), and wrote exposure back to 40, the value it found.
+- **Current rig state: ae_mode 8 (auto), ae_priority 0, gain 0, stored exposure 40.** The
+  auto loop ignores the stored exposure while in auto: brightness re-converged normally in
+  aetrack and q1 run 3. But it is a changed control and must go back to 157. The fixed
+  `probe.py restore` (manual, then exposure 157, gain 0, then auto 8, all read back) is
+  pending.
