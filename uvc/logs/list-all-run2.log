@@ -1,0 +1,379 @@
+[2026-11-19 10:18:38] probe.py list  python 3.13.5  pid 7379
+[2026-11-19 10:18:38] 8 device(s) with vendor 0x0c45; target product is 0x6369
+
+  port 5  loc 0x00141000 (bus 0 addr 5 ports (1, 4, 1))  product 0x6369 (TARGET)  fingerprint 1d1708dffaca
+    device: usb 2.00 bcdDevice 1.00 class 0xef/0x02/0x01 ep0 64 configs 1 string indices manufacturer 2 product 1 serial 0
+    config: 2 interfaces, attributes 0x80, max power 500 mA
+    interface 0 alt 0: class 0x0e/0x01 endpoints [ep0x83/3/0x0010]
+      VC header: UVC 1.00, clock 15000000 Hz
+      output terminal id 5 type 0x0101 source 3
+      extension unit id 3 guid 7033f02811632e4aba2c6890eb334016 controls 8 bmControls 0x1f
+      camera terminal id 1: bmControls 0xe = AE mode, AE priority, exposure abs
+      processing unit id 2 source 1: bmControls 0x177f = brightness, contrast, hue, saturation, sharpness, gamma, WB temperature, backlight comp, gain, power line freq, WB temperature auto
+    interface 1 alt 0: class 0x0e/0x02 endpoints []
+      VS input header: 2 formats, endpoint 0x81, still method 0
+      format 1 MJPEG: 14 frame sizes
+        frame 1 1920x1080: 30 fps (default 30 fps)
+        frame 2 640x480: 30 fps (default 30 fps)
+        frame 3 1280x720: 30 fps (default 30 fps)
+        frame 4 640x360: 30 fps (default 30 fps)
+        frame 5 320x240: 30 fps (default 30 fps)
+        frame 6 800x600: 30 fps (default 30 fps)
+        frame 7 960x720: 30 fps (default 30 fps)
+        frame 8 352x288: 30 fps (default 30 fps)
+        frame 9 432x240: 30 fps (default 30 fps)
+        frame 10 320x184: 30 fps (default 30 fps)
+        frame 11 176x144: 30 fps (default 30 fps)
+        frame 12 1280x960: 30 fps (default 30 fps)
+        frame 13 1280x1024: 30 fps (default 30 fps)
+        frame 14 1024x768: 30 fps (default 30 fps)
+        color matching: primaries 1 transfer 1 matrix 4
+      format 2 UNCOMPRESSED guid 5955593200001000800000aa00389b71: 14 frame sizes
+        frame 1 1920x1080: 5 fps (default 5 fps)
+        frame 2 640x480: 30 fps (default 30 fps)
+        frame 3 1280x720: 10 fps (default 10 fps)
+        frame 4 432x240: 30 fps (default 30 fps)
+        frame 5 1024x768: 10 fps (default 10 fps)
+        frame 6 352x288: 30 fps (default 30 fps)
+        frame 7 320x240: 30 fps (default 30 fps)
+        frame 8 176x144: 30 fps (default 30 fps)
+        frame 9 160x120: 30 fps (default 30 fps)
+        frame 10 800x600: 20 fps (default 20 fps)
+        frame 11 1280x720: 10/5 fps (default 10 fps)
+        frame 12 960x720: 15 fps (default 15 fps)
+        frame 13 1280x960: 5 fps (default 5 fps)
+        frame 14 1280x1024: 5 fps (default 5 fps)
+        color matching: primaries 1 transfer 1 matrix 4
+    interface 1 alt 1: class 0x0e/0x02 endpoints [ep0x81/1/0x0080]
+    interface 1 alt 2: class 0x0e/0x02 endpoints [ep0x81/1/0x0100]
+    interface 1 alt 3: class 0x0e/0x02 endpoints [ep0x81/1/0x0320]
+    interface 1 alt 4: class 0x0e/0x02 endpoints [ep0x81/1/0x0b20]
+    interface 1 alt 5: class 0x0e/0x02 endpoints [ep0x81/1/0x1320]
+    interface 1 alt 6: class 0x0e/0x02 endpoints [ep0x81/1/0x1400]
+
+  port 6  loc 0x00142000 (bus 0 addr 7 ports (1, 4, 2))  product 0x6366 (not target)  fingerprint 67c39429d729
+    device: usb 2.00 bcdDevice 1.00 class 0xef/0x02/0x01 ep0 64 configs 1 string indices manufacturer 2 product 1 serial 3
+    config: 5 interfaces, attributes 0x80, max power 500 mA
+    interface 0 alt 0: class 0x0e/0x01 endpoints [ep0x83/3/0x0010]
+      VC header: UVC 1.00, clock 15000000 Hz
+      output terminal id 5 type 0x0101 source 4
+      extension unit id 3 guid 7033f02811632e4aba2c6890eb334016 controls 24 bmControls 0xffffff
+      extension unit id 4 guid 9473dfdd3e972747bed904ed6426dc67 controls 8 bmControls 0xff
+      camera terminal id 1: bmControls 0x200e = AE mode, AE priority, exposure abs, roll abs
+      processing unit id 2 source 1: bmControls 0x177f = brightness, contrast, hue, saturation, sharpness, gamma, WB temperature, backlight comp, gain, power line freq, WB temperature auto
+      output terminal id 6 type 0x0101 source 4
+    interface 1 alt 0: class 0x0e/0x02 endpoints []
+      VS input header: 2 formats, endpoint 0x81, still method 0
+      format 1 MJPEG: 4 frame sizes
+        frame 1 1920x1080: 30 fps (default 30 fps)
+        frame 2 1280x720: 30 fps (default 30 fps)
+        frame 3 640x480: 30 fps (default 30 fps)
+        frame 4 320x240: 30 fps (default 30 fps)
+      format 2 UNCOMPRESSED guid 5955593200001000800000aa00389b71: 2 frame sizes
+        frame 1 640x480: 30 fps (default 30 fps)
+        frame 2 320x240: 30 fps (default 30 fps)
+        color matching: primaries 1 transfer 1 matrix 4
+    interface 1 alt 1: class 0x0e/0x02 endpoints [ep0x81/1/0x0080]
+    interface 1 alt 2: class 0x0e/0x02 endpoints [ep0x81/1/0x0100]
+    interface 1 alt 3: class 0x0e/0x02 endpoints [ep0x81/1/0x0320]
+    interface 1 alt 4: class 0x0e/0x02 endpoints [ep0x81/1/0x0b20]
+    interface 1 alt 5: class 0x0e/0x02 endpoints [ep0x81/1/0x1320]
+    interface 1 alt 6: class 0x0e/0x02 endpoints [ep0x81/1/0x1400]
+    interface 2 alt 0: class 0x0e/0x02 endpoints []
+      VS input header: 1 formats, endpoint 0x82, still method 0
+      format 1 FRAME_BASED guid 4832363400001000800000aa00389b71: 4 frame sizes
+        frame 1 1920x1080: INVALID(0) fps (default 30 fps)  MALFORMED bLength=30 raw=1e24110100800738040080c6130080c61315160500010000000015160500
+        frame 2 1280x720: INVALID(0) fps (default 30 fps)  MALFORMED bLength=30 raw=1e241102000005d0020000ca080000ca0815160500010000000015160500
+        frame 3 640x480: INVALID(0) fps (default 30 fps)  MALFORMED bLength=30 raw=1e241103008002e0010000ee020000ee0215160500010000000015160500
+        frame 4 640x360: INVALID(0) fps (default 30 fps)  MALFORMED bLength=30 raw=1e2411040080026801008032020080320215160500010000000015160500
+        color matching: primaries 1 transfer 1 matrix 4
+    interface 2 alt 1: class 0x0e/0x02 endpoints [ep0x82/1/0x0080]
+    interface 2 alt 2: class 0x0e/0x02 endpoints [ep0x82/1/0x0100]
+    interface 2 alt 3: class 0x0e/0x02 endpoints [ep0x82/1/0x0320]
+    interface 2 alt 4: class 0x0e/0x02 endpoints [ep0x82/1/0x0b20]
+    interface 2 alt 5: class 0x0e/0x02 endpoints [ep0x82/1/0x1320]
+    interface 2 alt 6: class 0x0e/0x02 endpoints [ep0x82/1/0x1400]
+    interface 3 alt 0: class 0x01/0x01 endpoints []
+    interface 4 alt 0: class 0x01/0x02 endpoints []
+    interface 4 alt 1: class 0x01/0x02 endpoints [ep0x84/1/0x00c0]
+
+  port 7  loc 0x00143000 (bus 0 addr 6 ports (1, 4, 3))  product 0x6366 (not target)  fingerprint aab67cb06e1d
+    device: usb 2.00 bcdDevice 1.00 class 0xef/0x02/0x01 ep0 64 configs 1 string indices manufacturer 2 product 1 serial 3
+    config: 4 interfaces, attributes 0x80, max power 500 mA
+    interface 0 alt 0: class 0x0e/0x01 endpoints [ep0x83/3/0x0010]
+      VC header: UVC 1.00, clock 15000000 Hz
+      output terminal id 4 type 0x0101 source 3
+      extension unit id 3 guid 7033f02811632e4aba2c6890eb334016 controls 32 bmControls 0xffffffff
+      camera terminal id 1: bmControls 0x1e = AE mode, AE priority, exposure abs, exposure rel
+      processing unit id 2 source 1: bmControls 0x177f = brightness, contrast, hue, saturation, sharpness, gamma, WB temperature, backlight comp, gain, power line freq, WB temperature auto
+    interface 1 alt 0: class 0x0e/0x02 endpoints []
+      VS input header: 2 formats, endpoint 0x81, still method 0
+      format 1 MJPEG: 9 frame sizes
+        frame 1 1920x1080: 30 fps (default 30 fps)
+        frame 2 1280x1024: 30 fps (default 30 fps)
+        frame 3 1280x960: 30 fps (default 30 fps)
+        frame 4 1280x720: 30 fps (default 30 fps)
+        frame 5 1024x768: 30 fps (default 30 fps)
+        frame 6 800x600: 30 fps (default 30 fps)
+        frame 7 640x480: 30 fps (default 30 fps)
+        frame 8 352x288: 30 fps (default 30 fps)
+        frame 9 320x240: 30 fps (default 30 fps)
+      format 2 UNCOMPRESSED guid 5955593200001000800000aa00389b71: 9 frame sizes
+        frame 1 640x480: 15 fps (default 15 fps)
+        frame 2 1920x1080: 5 fps (default 5 fps)
+        frame 3 1280x1024: 5 fps (default 5 fps)
+        frame 4 1280x960: 5 fps (default 5 fps)
+        frame 5 1280x720: 10 fps (default 10 fps)
+        frame 6 1024x768: 10 fps (default 10 fps)
+        frame 7 800x600: 20 fps (default 20 fps)
+        frame 8 352x288: 30 fps (default 30 fps)
+        frame 9 320x240: 30 fps (default 30 fps)
+        color matching: primaries 1 transfer 1 matrix 4
+    interface 1 alt 1: class 0x0e/0x02 endpoints [ep0x81/1/0x0080]
+    interface 1 alt 2: class 0x0e/0x02 endpoints [ep0x81/1/0x0100]
+    interface 1 alt 3: class 0x0e/0x02 endpoints [ep0x81/1/0x0320]
+    interface 1 alt 4: class 0x0e/0x02 endpoints [ep0x81/1/0x0b20]
+    interface 1 alt 5: class 0x0e/0x02 endpoints [ep0x81/1/0x1320]
+    interface 1 alt 6: class 0x0e/0x02 endpoints [ep0x81/1/0x1400]
+    interface 2 alt 0: class 0x01/0x01 endpoints []
+    interface 3 alt 0: class 0x01/0x02 endpoints []
+    interface 3 alt 1: class 0x01/0x02 endpoints [ep0x84/1/0x00c0]
+
+  port 8  loc 0x00144000 (bus 0 addr 8 ports (1, 4, 4))  product 0x6366 (not target)  fingerprint 67c39429d729
+    device: usb 2.00 bcdDevice 1.00 class 0xef/0x02/0x01 ep0 64 configs 1 string indices manufacturer 2 product 1 serial 3
+    config: 5 interfaces, attributes 0x80, max power 500 mA
+    interface 0 alt 0: class 0x0e/0x01 endpoints [ep0x83/3/0x0010]
+      VC header: UVC 1.00, clock 15000000 Hz
+      output terminal id 5 type 0x0101 source 4
+      extension unit id 3 guid 7033f02811632e4aba2c6890eb334016 controls 24 bmControls 0xffffff
+      extension unit id 4 guid 9473dfdd3e972747bed904ed6426dc67 controls 8 bmControls 0xff
+      camera terminal id 1: bmControls 0x200e = AE mode, AE priority, exposure abs, roll abs
+      processing unit id 2 source 1: bmControls 0x177f = brightness, contrast, hue, saturation, sharpness, gamma, WB temperature, backlight comp, gain, power line freq, WB temperature auto
+      output terminal id 6 type 0x0101 source 4
+    interface 1 alt 0: class 0x0e/0x02 endpoints []
+      VS input header: 2 formats, endpoint 0x81, still method 0
+      format 1 MJPEG: 4 frame sizes
+        frame 1 1920x1080: 30 fps (default 30 fps)
+        frame 2 1280x720: 30 fps (default 30 fps)
+        frame 3 640x480: 30 fps (default 30 fps)
+        frame 4 320x240: 30 fps (default 30 fps)
+      format 2 UNCOMPRESSED guid 5955593200001000800000aa00389b71: 2 frame sizes
+        frame 1 640x480: 30 fps (default 30 fps)
+        frame 2 320x240: 30 fps (default 30 fps)
+        color matching: primaries 1 transfer 1 matrix 4
+    interface 1 alt 1: class 0x0e/0x02 endpoints [ep0x81/1/0x0080]
+    interface 1 alt 2: class 0x0e/0x02 endpoints [ep0x81/1/0x0100]
+    interface 1 alt 3: class 0x0e/0x02 endpoints [ep0x81/1/0x0320]
+    interface 1 alt 4: class 0x0e/0x02 endpoints [ep0x81/1/0x0b20]
+    interface 1 alt 5: class 0x0e/0x02 endpoints [ep0x81/1/0x1320]
+    interface 1 alt 6: class 0x0e/0x02 endpoints [ep0x81/1/0x1400]
+    interface 2 alt 0: class 0x0e/0x02 endpoints []
+      VS input header: 1 formats, endpoint 0x82, still method 0
+      format 1 FRAME_BASED guid 4832363400001000800000aa00389b71: 4 frame sizes
+        frame 1 1920x1080: INVALID(0) fps (default 30 fps)  MALFORMED bLength=30 raw=1e24110100800738040080c6130080c61315160500010000000015160500
+        frame 2 1280x720: INVALID(0) fps (default 30 fps)  MALFORMED bLength=30 raw=1e241102000005d0020000ca080000ca0815160500010000000015160500
+        frame 3 640x480: INVALID(0) fps (default 30 fps)  MALFORMED bLength=30 raw=1e241103008002e0010000ee020000ee0215160500010000000015160500
+        frame 4 640x360: INVALID(0) fps (default 30 fps)  MALFORMED bLength=30 raw=1e2411040080026801008032020080320215160500010000000015160500
+        color matching: primaries 1 transfer 1 matrix 4
+    interface 2 alt 1: class 0x0e/0x02 endpoints [ep0x82/1/0x0080]
+    interface 2 alt 2: class 0x0e/0x02 endpoints [ep0x82/1/0x0100]
+    interface 2 alt 3: class 0x0e/0x02 endpoints [ep0x82/1/0x0320]
+    interface 2 alt 4: class 0x0e/0x02 endpoints [ep0x82/1/0x0b20]
+    interface 2 alt 5: class 0x0e/0x02 endpoints [ep0x82/1/0x1320]
+    interface 2 alt 6: class 0x0e/0x02 endpoints [ep0x82/1/0x1400]
+    interface 3 alt 0: class 0x01/0x01 endpoints []
+    interface 4 alt 0: class 0x01/0x02 endpoints []
+    interface 4 alt 1: class 0x01/0x02 endpoints [ep0x84/1/0x00c0]
+
+  port 1  loc 0x01141000 (bus 1 addr 5 ports (1, 4, 1))  product 0x6369 (TARGET)  fingerprint 1d1708dffaca
+    device: usb 2.00 bcdDevice 1.00 class 0xef/0x02/0x01 ep0 64 configs 1 string indices manufacturer 2 product 1 serial 0
+    config: 2 interfaces, attributes 0x80, max power 500 mA
+    interface 0 alt 0: class 0x0e/0x01 endpoints [ep0x83/3/0x0010]
+      VC header: UVC 1.00, clock 15000000 Hz
+      output terminal id 5 type 0x0101 source 3
+      extension unit id 3 guid 7033f02811632e4aba2c6890eb334016 controls 8 bmControls 0x1f
+      camera terminal id 1: bmControls 0xe = AE mode, AE priority, exposure abs
+      processing unit id 2 source 1: bmControls 0x177f = brightness, contrast, hue, saturation, sharpness, gamma, WB temperature, backlight comp, gain, power line freq, WB temperature auto
+    interface 1 alt 0: class 0x0e/0x02 endpoints []
+      VS input header: 2 formats, endpoint 0x81, still method 0
+      format 1 MJPEG: 14 frame sizes
+        frame 1 1920x1080: 30 fps (default 30 fps)
+        frame 2 640x480: 30 fps (default 30 fps)
+        frame 3 1280x720: 30 fps (default 30 fps)
+        frame 4 640x360: 30 fps (default 30 fps)
+        frame 5 320x240: 30 fps (default 30 fps)
+        frame 6 800x600: 30 fps (default 30 fps)
+        frame 7 960x720: 30 fps (default 30 fps)
+        frame 8 352x288: 30 fps (default 30 fps)
+        frame 9 432x240: 30 fps (default 30 fps)
+        frame 10 320x184: 30 fps (default 30 fps)
+        frame 11 176x144: 30 fps (default 30 fps)
+        frame 12 1280x960: 30 fps (default 30 fps)
+        frame 13 1280x1024: 30 fps (default 30 fps)
+        frame 14 1024x768: 30 fps (default 30 fps)
+        color matching: primaries 1 transfer 1 matrix 4
+      format 2 UNCOMPRESSED guid 5955593200001000800000aa00389b71: 14 frame sizes
+        frame 1 1920x1080: 5 fps (default 5 fps)
+        frame 2 640x480: 30 fps (default 30 fps)
+        frame 3 1280x720: 10 fps (default 10 fps)
+        frame 4 432x240: 30 fps (default 30 fps)
+        frame 5 1024x768: 10 fps (default 10 fps)
+        frame 6 352x288: 30 fps (default 30 fps)
+        frame 7 320x240: 30 fps (default 30 fps)
+        frame 8 176x144: 30 fps (default 30 fps)
+        frame 9 160x120: 30 fps (default 30 fps)
+        frame 10 800x600: 20 fps (default 20 fps)
+        frame 11 1280x720: 10/5 fps (default 10 fps)
+        frame 12 960x720: 15 fps (default 15 fps)
+        frame 13 1280x960: 5 fps (default 5 fps)
+        frame 14 1280x1024: 5 fps (default 5 fps)
+        color matching: primaries 1 transfer 1 matrix 4
+    interface 1 alt 1: class 0x0e/0x02 endpoints [ep0x81/1/0x0080]
+    interface 1 alt 2: class 0x0e/0x02 endpoints [ep0x81/1/0x0100]
+    interface 1 alt 3: class 0x0e/0x02 endpoints [ep0x81/1/0x0320]
+    interface 1 alt 4: class 0x0e/0x02 endpoints [ep0x81/1/0x0b20]
+    interface 1 alt 5: class 0x0e/0x02 endpoints [ep0x81/1/0x1320]
+    interface 1 alt 6: class 0x0e/0x02 endpoints [ep0x81/1/0x1400]
+
+  port 2  loc 0x01142000 (bus 1 addr 8 ports (1, 4, 2))  product 0x6366 (not target)  fingerprint 67c39429d729
+    device: usb 2.00 bcdDevice 1.00 class 0xef/0x02/0x01 ep0 64 configs 1 string indices manufacturer 2 product 1 serial 3
+    config: 5 interfaces, attributes 0x80, max power 500 mA
+    interface 0 alt 0: class 0x0e/0x01 endpoints [ep0x83/3/0x0010]
+      VC header: UVC 1.00, clock 15000000 Hz
+      output terminal id 5 type 0x0101 source 4
+      extension unit id 3 guid 7033f02811632e4aba2c6890eb334016 controls 24 bmControls 0xffffff
+      extension unit id 4 guid 9473dfdd3e972747bed904ed6426dc67 controls 8 bmControls 0xff
+      camera terminal id 1: bmControls 0x200e = AE mode, AE priority, exposure abs, roll abs
+      processing unit id 2 source 1: bmControls 0x177f = brightness, contrast, hue, saturation, sharpness, gamma, WB temperature, backlight comp, gain, power line freq, WB temperature auto
+      output terminal id 6 type 0x0101 source 4
+    interface 1 alt 0: class 0x0e/0x02 endpoints []
+      VS input header: 2 formats, endpoint 0x81, still method 0
+      format 1 MJPEG: 4 frame sizes
+        frame 1 1920x1080: 30 fps (default 30 fps)
+        frame 2 1280x720: 30 fps (default 30 fps)
+        frame 3 640x480: 30 fps (default 30 fps)
+        frame 4 320x240: 30 fps (default 30 fps)
+      format 2 UNCOMPRESSED guid 5955593200001000800000aa00389b71: 2 frame sizes
+        frame 1 640x480: 30 fps (default 30 fps)
+        frame 2 320x240: 30 fps (default 30 fps)
+        color matching: primaries 1 transfer 1 matrix 4
+    interface 1 alt 1: class 0x0e/0x02 endpoints [ep0x81/1/0x0080]
+    interface 1 alt 2: class 0x0e/0x02 endpoints [ep0x81/1/0x0100]
+    interface 1 alt 3: class 0x0e/0x02 endpoints [ep0x81/1/0x0320]
+    interface 1 alt 4: class 0x0e/0x02 endpoints [ep0x81/1/0x0b20]
+    interface 1 alt 5: class 0x0e/0x02 endpoints [ep0x81/1/0x1320]
+    interface 1 alt 6: class 0x0e/0x02 endpoints [ep0x81/1/0x1400]
+    interface 2 alt 0: class 0x0e/0x02 endpoints []
+      VS input header: 1 formats, endpoint 0x82, still method 0
+      format 1 FRAME_BASED guid 4832363400001000800000aa00389b71: 4 frame sizes
+        frame 1 1920x1080: INVALID(0) fps (default 30 fps)  MALFORMED bLength=30 raw=1e24110100800738040080c6130080c61315160500010000000015160500
+        frame 2 1280x720: INVALID(0) fps (default 30 fps)  MALFORMED bLength=30 raw=1e241102000005d0020000ca080000ca0815160500010000000015160500
+        frame 3 640x480: INVALID(0) fps (default 30 fps)  MALFORMED bLength=30 raw=1e241103008002e0010000ee020000ee0215160500010000000015160500
+        frame 4 640x360: INVALID(0) fps (default 30 fps)  MALFORMED bLength=30 raw=1e2411040080026801008032020080320215160500010000000015160500
+        color matching: primaries 1 transfer 1 matrix 4
+    interface 2 alt 1: class 0x0e/0x02 endpoints [ep0x82/1/0x0080]
+    interface 2 alt 2: class 0x0e/0x02 endpoints [ep0x82/1/0x0100]
+    interface 2 alt 3: class 0x0e/0x02 endpoints [ep0x82/1/0x0320]
+    interface 2 alt 4: class 0x0e/0x02 endpoints [ep0x82/1/0x0b20]
+    interface 2 alt 5: class 0x0e/0x02 endpoints [ep0x82/1/0x1320]
+    interface 2 alt 6: class 0x0e/0x02 endpoints [ep0x82/1/0x1400]
+    interface 3 alt 0: class 0x01/0x01 endpoints []
+    interface 4 alt 0: class 0x01/0x02 endpoints []
+    interface 4 alt 1: class 0x01/0x02 endpoints [ep0x84/1/0x00c0]
+
+  port 3  loc 0x01143000 (bus 1 addr 6 ports (1, 4, 3))  product 0x6369 (TARGET)  fingerprint 1d1708dffaca
+    device: usb 2.00 bcdDevice 1.00 class 0xef/0x02/0x01 ep0 64 configs 1 string indices manufacturer 2 product 1 serial 0
+    config: 2 interfaces, attributes 0x80, max power 500 mA
+    interface 0 alt 0: class 0x0e/0x01 endpoints [ep0x83/3/0x0010]
+      VC header: UVC 1.00, clock 15000000 Hz
+      output terminal id 5 type 0x0101 source 3
+      extension unit id 3 guid 7033f02811632e4aba2c6890eb334016 controls 8 bmControls 0x1f
+      camera terminal id 1: bmControls 0xe = AE mode, AE priority, exposure abs
+      processing unit id 2 source 1: bmControls 0x177f = brightness, contrast, hue, saturation, sharpness, gamma, WB temperature, backlight comp, gain, power line freq, WB temperature auto
+    interface 1 alt 0: class 0x0e/0x02 endpoints []
+      VS input header: 2 formats, endpoint 0x81, still method 0
+      format 1 MJPEG: 14 frame sizes
+        frame 1 1920x1080: 30 fps (default 30 fps)
+        frame 2 640x480: 30 fps (default 30 fps)
+        frame 3 1280x720: 30 fps (default 30 fps)
+        frame 4 640x360: 30 fps (default 30 fps)
+        frame 5 320x240: 30 fps (default 30 fps)
+        frame 6 800x600: 30 fps (default 30 fps)
+        frame 7 960x720: 30 fps (default 30 fps)
+        frame 8 352x288: 30 fps (default 30 fps)
+        frame 9 432x240: 30 fps (default 30 fps)
+        frame 10 320x184: 30 fps (default 30 fps)
+        frame 11 176x144: 30 fps (default 30 fps)
+        frame 12 1280x960: 30 fps (default 30 fps)
+        frame 13 1280x1024: 30 fps (default 30 fps)
+        frame 14 1024x768: 30 fps (default 30 fps)
+        color matching: primaries 1 transfer 1 matrix 4
+      format 2 UNCOMPRESSED guid 5955593200001000800000aa00389b71: 14 frame sizes
+        frame 1 1920x1080: 5 fps (default 5 fps)
+        frame 2 640x480: 30 fps (default 30 fps)
+        frame 3 1280x720: 10 fps (default 10 fps)
+        frame 4 432x240: 30 fps (default 30 fps)
+        frame 5 1024x768: 10 fps (default 10 fps)
+        frame 6 352x288: 30 fps (default 30 fps)
+        frame 7 320x240: 30 fps (default 30 fps)
+        frame 8 176x144: 30 fps (default 30 fps)
+        frame 9 160x120: 30 fps (default 30 fps)
+        frame 10 800x600: 20 fps (default 20 fps)
+        frame 11 1280x720: 10/5 fps (default 10 fps)
+        frame 12 960x720: 15 fps (default 15 fps)
+        frame 13 1280x960: 5 fps (default 5 fps)
+        frame 14 1280x1024: 5 fps (default 5 fps)
+        color matching: primaries 1 transfer 1 matrix 4
+    interface 1 alt 1: class 0x0e/0x02 endpoints [ep0x81/1/0x0080]
+    interface 1 alt 2: class 0x0e/0x02 endpoints [ep0x81/1/0x0100]
+    interface 1 alt 3: class 0x0e/0x02 endpoints [ep0x81/1/0x0320]
+    interface 1 alt 4: class 0x0e/0x02 endpoints [ep0x81/1/0x0b20]
+    interface 1 alt 5: class 0x0e/0x02 endpoints [ep0x81/1/0x1320]
+    interface 1 alt 6: class 0x0e/0x02 endpoints [ep0x81/1/0x1400]
+
+  port 4  loc 0x01144000 (bus 1 addr 7 ports (1, 4, 4))  product 0x6366 (not target)  fingerprint aab67cb06e1d
+    device: usb 2.00 bcdDevice 1.00 class 0xef/0x02/0x01 ep0 64 configs 1 string indices manufacturer 2 product 1 serial 3
+    config: 4 interfaces, attributes 0x80, max power 500 mA
+    interface 0 alt 0: class 0x0e/0x01 endpoints [ep0x83/3/0x0010]
+      VC header: UVC 1.00, clock 15000000 Hz
+      output terminal id 4 type 0x0101 source 3
+      extension unit id 3 guid 7033f02811632e4aba2c6890eb334016 controls 32 bmControls 0xffffffff
+      camera terminal id 1: bmControls 0x1e = AE mode, AE priority, exposure abs, exposure rel
+      processing unit id 2 source 1: bmControls 0x177f = brightness, contrast, hue, saturation, sharpness, gamma, WB temperature, backlight comp, gain, power line freq, WB temperature auto
+    interface 1 alt 0: class 0x0e/0x02 endpoints []
+      VS input header: 2 formats, endpoint 0x81, still method 0
+      format 1 MJPEG: 9 frame sizes
+        frame 1 1920x1080: 30 fps (default 30 fps)
+        frame 2 1280x1024: 30 fps (default 30 fps)
+        frame 3 1280x960: 30 fps (default 30 fps)
+        frame 4 1280x720: 30 fps (default 30 fps)
+        frame 5 1024x768: 30 fps (default 30 fps)
+        frame 6 800x600: 30 fps (default 30 fps)
+        frame 7 640x480: 30 fps (default 30 fps)
+        frame 8 352x288: 30 fps (default 30 fps)
+        frame 9 320x240: 30 fps (default 30 fps)
+      format 2 UNCOMPRESSED guid 5955593200001000800000aa00389b71: 9 frame sizes
+        frame 1 640x480: 15 fps (default 15 fps)
+        frame 2 1920x1080: 5 fps (default 5 fps)
+        frame 3 1280x1024: 5 fps (default 5 fps)
+        frame 4 1280x960: 5 fps (default 5 fps)
+        frame 5 1280x720: 10 fps (default 10 fps)
+        frame 6 1024x768: 10 fps (default 10 fps)
+        frame 7 800x600: 20 fps (default 20 fps)
+        frame 8 352x288: 30 fps (default 30 fps)
+        frame 9 320x240: 30 fps (default 30 fps)
+        color matching: primaries 1 transfer 1 matrix 4
+    interface 1 alt 1: class 0x0e/0x02 endpoints [ep0x81/1/0x0080]
+    interface 1 alt 2: class 0x0e/0x02 endpoints [ep0x81/1/0x0100]
+    interface 1 alt 3: class 0x0e/0x02 endpoints [ep0x81/1/0x0320]
+    interface 1 alt 4: class 0x0e/0x02 endpoints [ep0x81/1/0x0b20]
+    interface 1 alt 5: class 0x0e/0x02 endpoints [ep0x81/1/0x1320]
+    interface 1 alt 6: class 0x0e/0x02 endpoints [ep0x81/1/0x1400]
+    interface 2 alt 0: class 0x01/0x01 endpoints []
+    interface 3 alt 0: class 0x01/0x02 endpoints []
+    interface 3 alt 1: class 0x01/0x02 endpoints [ep0x84/1/0x00c0]
+
+[2026-11-19 10:18:38] 3 distinct descriptor set(s):
+  1d1708dffaca: product 0x6369, ports 5 (0x00141000), 1 (0x01141000), 3 (0x01143000)
+  67c39429d729: product 0x6366, ports 6 (0x00142000), 8 (0x00144000), 2 (0x01142000)
+  aab67cb06e1d: product 0x6366, ports 7 (0x00143000), 4 (0x01144000)

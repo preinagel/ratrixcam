@@ -385,11 +385,16 @@ def describe(dev):
                                  + f": {d[4]} frame sizes")
                 elif sub in VS_FRAME_SUBTYPES:
                     w, h = int.from_bytes(d[5:7], "little"), int.from_bytes(d[7:9], "little")
-                    off = 25 if sub != 0x11 else 21
+                    # Uncompressed/MJPEG: dwDefaultFrameInterval at 21, bFrameIntervalType at 25,
+                    # intervals from 26. Frame-based (0x11): default at 17, type at 21, then
+                    # dwBytesPerLine at 22-25, intervals from 26 (list run 2 misread this).
+                    n_at = 25 if sub != 0x11 else 21
+                    iv_at = 26
                     default = int.from_bytes(d[21:25], "little") if sub != 0x11 else int.from_bytes(d[17:21], "little")
-                    n = d[off]
+                    n = d[n_at]
                     count = 3 if n == 0 else n
-                    ivs = [int.from_bytes(d[off + 1 + 4 * k:off + 5 + 4 * k], "little") for k in range(count)]
+                    ivs = [int.from_bytes(d[iv_at + 4 * k:iv_at + 4 + 4 * k], "little") for k in range(count)]
+                    off = iv_at - 1
                     fps = lambda v: f"{1e7 / v:g}" if v else "INVALID(0)"
                     if n == 0:
                         rates = f"continuous {fps(ivs[1])}-{fps(ivs[0])} fps step {ivs[2]}"

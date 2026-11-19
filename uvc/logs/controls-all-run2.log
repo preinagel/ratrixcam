@@ -1,0 +1,110 @@
+[2026-11-19 10:18:38] probe.py controls  python 3.13.5  pid 7381
+[2026-11-19 10:18:38] recording check: /Users/rat_hub_01/Desktop/temp absent, ok
+[2026-11-19 10:18:38] 8 camera(s) with vendor 0x0c45 (all products); GET requests only; no stream open
+
+  port 5  product 0x6369 (TARGET)
+  loc 0x00141000 (bus 0 addr 5 ports (1, 4, 1))  manufacturer/product strings not read (would open the device)
+  VC interface 0; camera terminal id 1 bmControls 0xe; processing unit id 2 bmControls 0x177f
+    ae_mode      CT bit 1: advertised  (bitmap 1=manual 2=auto 4=shutter-prio 8=aperture-prio)
+    ae_priority  CT bit 2: advertised  (0=constant frame rate, 1=frame rate may vary)
+    exposure     CT bit 3: advertised  (units of 100 us)
+    gain         PU bit 9: advertised  (unitless)
+    extension unit id 3 guid 7033f02811632e4aba2c6890eb334016
+    ae_mode      INFO=3 [1.0 ms](get,set)  MIN=ERR USBError errno=32 code=-9: [Errno 32] Pipe error [0.5 ms]  MAX=ERR USBError errno=32 code=-9: [Errno 32] Pipe error [0.6 ms]  RES=9 [0.8 ms]  DEF=8 [1.0 ms]  CUR=8 [0.7 ms]
+    ae_priority  INFO=3 [0.9 ms](get,set)  MIN=ERR USBError errno=32 code=-9: [Errno 32] Pipe error [0.5 ms]  MAX=ERR USBError errno=32 code=-9: [Errno 32] Pipe error [0.5 ms]  RES=ERR USBError errno=32 code=-9: [Errno 32] Pipe error [0.6 ms]  DEF=ERR USBError errno=32 code=-9: [Errno 32] Pipe error [0.5 ms]  CUR=0 [0.6 ms]
+    exposure     INFO=15 [0.9 ms](get,set,disabled-by-auto,autoupdate)  MIN=1 [0.9 ms](0.1 ms)  MAX=5000 [0.9 ms](500.0 ms)  RES=1 [0.7 ms](0.1 ms)  DEF=157 [0.7 ms](15.7 ms)  CUR=157 [0.9 ms](15.7 ms) OVER 5 ms
+    gain         INFO=3 [0.9 ms](get,set)  MIN=0 [0.8 ms]  MAX=100 [0.9 ms]  RES=1 [0.7 ms]  DEF=0 [0.7 ms]  CUR=0 [0.9 ms]
+
+  port 6  product 0x6366 (not target)
+  loc 0x00142000 (bus 0 addr 7 ports (1, 4, 2))  manufacturer/product strings not read (would open the device)
+  VC interface 0; camera terminal id 1 bmControls 0x200e; processing unit id 2 bmControls 0x177f
+    ae_mode      CT bit 1: advertised  (bitmap 1=manual 2=auto 4=shutter-prio 8=aperture-prio)
+    ae_priority  CT bit 2: advertised  (0=constant frame rate, 1=frame rate may vary)
+    exposure     CT bit 3: advertised  (units of 100 us)
+    gain         PU bit 9: advertised  (unitless)
+    extension unit id 3 guid 7033f02811632e4aba2c6890eb334016
+    extension unit id 4 guid 9473dfdd3e972747bed904ed6426dc67
+    ae_mode      INFO=3 [0.6 ms](get,set)  MIN=ERR USBError errno=32 code=-9: [Errno 32] Pipe error [0.4 ms]  MAX=ERR USBError errno=32 code=-9: [Errno 32] Pipe error [0.3 ms]  RES=9 [0.5 ms]  DEF=8 [0.6 ms]  CUR=8 [0.6 ms]
+    ae_priority  INFO=3 [0.6 ms](get,set)  MIN=ERR USBError errno=32 code=-9: [Errno 32] Pipe error [0.5 ms]  MAX=ERR USBError errno=32 code=-9: [Errno 32] Pipe error [0.4 ms]  RES=ERR USBError errno=32 code=-9: [Errno 32] Pipe error [0.4 ms]  DEF=ERR USBError errno=32 code=-9: [Errno 32] Pipe error [0.4 ms]  CUR=0 [0.6 ms]
+    exposure     INFO=15 [0.7 ms](get,set,disabled-by-auto,autoupdate)  MIN=1 [0.6 ms](0.1 ms)  MAX=5000 [0.7 ms](500.0 ms)  RES=1 [0.6 ms](0.1 ms)  DEF=156 [0.6 ms](15.6 ms)  CUR=156 [0.6 ms](15.6 ms) OVER 5 ms
+    gain         INFO=3 [0.4 ms](get,set)  MIN=0 [0.6 ms]  MAX=100 [0.7 ms]  RES=1 [0.6 ms]  DEF=0 [0.6 ms]  CUR=0 [0.7 ms]
+
+  port 7  product 0x6366 (not target)
+  loc 0x00143000 (bus 0 addr 6 ports (1, 4, 3))  manufacturer/product strings not read (would open the device)
+  VC interface 0; camera terminal id 1 bmControls 0x1e; processing unit id 2 bmControls 0x177f
+    ae_mode      CT bit 1: advertised  (bitmap 1=manual 2=auto 4=shutter-prio 8=aperture-prio)
+    ae_priority  CT bit 2: advertised  (0=constant frame rate, 1=frame rate may vary)
+    exposure     CT bit 3: advertised  (units of 100 us)
+    gain         PU bit 9: advertised  (unitless)
+    extension unit id 3 guid 7033f02811632e4aba2c6890eb334016
+    ae_mode      INFO=3 [0.5 ms](get,set)  MIN=ERR USBError errno=32 code=-9: [Errno 32] Pipe error [0.5 ms]  MAX=ERR USBError errno=32 code=-9: [Errno 32] Pipe error [0.4 ms]  RES=9 [0.5 ms]  DEF=8 [0.7 ms]  CUR=8 [0.6 ms]
+    ae_priority  INFO=3 [0.6 ms](get,set)  MIN=ERR USBError errno=32 code=-9: [Errno 32] Pipe error [0.4 ms]  MAX=ERR USBError errno=32 code=-9: [Errno 32] Pipe error [0.4 ms]  RES=ERR USBError errno=32 code=-9: [Errno 32] Pipe error [0.3 ms]  DEF=ERR USBError errno=32 code=-9: [Errno 32] Pipe error [0.4 ms]  CUR=0 [0.6 ms]
+    exposure     INFO=3 [0.7 ms](get,set)  MIN=1 [0.6 ms](0.1 ms)  MAX=5000 [0.7 ms](500.0 ms)  RES=1 [0.6 ms](0.1 ms)  DEF=157 [0.6 ms](15.7 ms)  CUR=157 [0.7 ms](15.7 ms) OVER 5 ms
+    gain         INFO=3 [0.6 ms](get,set)  MIN=0 [0.7 ms]  MAX=100 [0.6 ms]  RES=1 [0.6 ms]  DEF=0 [0.5 ms]  CUR=0 [0.6 ms]
+
+  port 8  product 0x6366 (not target)
+  loc 0x00144000 (bus 0 addr 8 ports (1, 4, 4))  manufacturer/product strings not read (would open the device)
+  VC interface 0; camera terminal id 1 bmControls 0x200e; processing unit id 2 bmControls 0x177f
+    ae_mode      CT bit 1: advertised  (bitmap 1=manual 2=auto 4=shutter-prio 8=aperture-prio)
+    ae_priority  CT bit 2: advertised  (0=constant frame rate, 1=frame rate may vary)
+    exposure     CT bit 3: advertised  (units of 100 us)
+    gain         PU bit 9: advertised  (unitless)
+    extension unit id 3 guid 7033f02811632e4aba2c6890eb334016
+    extension unit id 4 guid 9473dfdd3e972747bed904ed6426dc67
+    ae_mode      INFO=3 [0.6 ms](get,set)  MIN=ERR USBError errno=32 code=-9: [Errno 32] Pipe error [0.4 ms]  MAX=ERR USBError errno=32 code=-9: [Errno 32] Pipe error [0.3 ms]  RES=9 [0.6 ms]  DEF=8 [0.7 ms]  CUR=8 [0.6 ms]
+    ae_priority  INFO=3 [0.6 ms](get,set)  MIN=ERR USBError errno=32 code=-9: [Errno 32] Pipe error [0.4 ms]  MAX=ERR USBError errno=32 code=-9: [Errno 32] Pipe error [0.3 ms]  RES=ERR USBError errno=32 code=-9: [Errno 32] Pipe error [0.4 ms]  DEF=ERR USBError errno=32 code=-9: [Errno 32] Pipe error [0.3 ms]  CUR=0 [0.6 ms]
+    exposure     INFO=15 [0.6 ms](get,set,disabled-by-auto,autoupdate)  MIN=1 [0.6 ms](0.1 ms)  MAX=5000 [0.6 ms](500.0 ms)  RES=1 [0.7 ms](0.1 ms)  DEF=156 [0.6 ms](15.6 ms)  CUR=156 [0.6 ms](15.6 ms) OVER 5 ms
+    gain         INFO=3 [0.7 ms](get,set)  MIN=0 [0.6 ms]  MAX=100 [0.5 ms]  RES=1 [0.6 ms]  DEF=0 [0.6 ms]  CUR=0 [0.6 ms]
+
+  port 1  product 0x6369 (TARGET)
+  loc 0x01141000 (bus 1 addr 5 ports (1, 4, 1))  manufacturer/product strings not read (would open the device)
+  VC interface 0; camera terminal id 1 bmControls 0xe; processing unit id 2 bmControls 0x177f
+    ae_mode      CT bit 1: advertised  (bitmap 1=manual 2=auto 4=shutter-prio 8=aperture-prio)
+    ae_priority  CT bit 2: advertised  (0=constant frame rate, 1=frame rate may vary)
+    exposure     CT bit 3: advertised  (units of 100 us)
+    gain         PU bit 9: advertised  (unitless)
+    extension unit id 3 guid 7033f02811632e4aba2c6890eb334016
+    ae_mode      INFO=3 [0.8 ms](get,set)  MIN=ERR USBError errno=32 code=-9: [Errno 32] Pipe error [0.5 ms]  MAX=ERR USBError errno=32 code=-9: [Errno 32] Pipe error [0.7 ms]  RES=9 [0.9 ms]  DEF=8 [0.9 ms]  CUR=8 [0.7 ms]
+    ae_priority  INFO=3 [0.8 ms](get,set)  MIN=ERR USBError errno=32 code=-9: [Errno 32] Pipe error [0.5 ms]  MAX=ERR USBError errno=32 code=-9: [Errno 32] Pipe error [0.6 ms]  RES=ERR USBError errno=32 code=-9: [Errno 32] Pipe error [0.6 ms]  DEF=ERR USBError errno=32 code=-9: [Errno 32] Pipe error [0.5 ms]  CUR=0 [0.7 ms]
+    exposure     INFO=15 [0.7 ms](get,set,disabled-by-auto,autoupdate)  MIN=1 [0.7 ms](0.1 ms)  MAX=5000 [0.8 ms](500.0 ms)  RES=1 [0.8 ms](0.1 ms)  DEF=157 [0.9 ms](15.7 ms)  CUR=157 [0.9 ms](15.7 ms) OVER 5 ms
+    gain         INFO=3 [0.8 ms](get,set)  MIN=0 [0.9 ms]  MAX=100 [0.9 ms]  RES=1 [0.8 ms]  DEF=0 [0.9 ms]  CUR=0 [0.9 ms]
+
+  port 2  product 0x6366 (not target)
+  loc 0x01142000 (bus 1 addr 8 ports (1, 4, 2))  manufacturer/product strings not read (would open the device)
+  VC interface 0; camera terminal id 1 bmControls 0x200e; processing unit id 2 bmControls 0x177f
+    ae_mode      CT bit 1: advertised  (bitmap 1=manual 2=auto 4=shutter-prio 8=aperture-prio)
+    ae_priority  CT bit 2: advertised  (0=constant frame rate, 1=frame rate may vary)
+    exposure     CT bit 3: advertised  (units of 100 us)
+    gain         PU bit 9: advertised  (unitless)
+    extension unit id 3 guid 7033f02811632e4aba2c6890eb334016
+    extension unit id 4 guid 9473dfdd3e972747bed904ed6426dc67
+    ae_mode      INFO=3 [0.6 ms](get,set)  MIN=ERR USBError errno=32 code=-9: [Errno 32] Pipe error [0.4 ms]  MAX=ERR USBError errno=32 code=-9: [Errno 32] Pipe error [0.5 ms]  RES=9 [0.7 ms]  DEF=8 [0.6 ms]  CUR=8 [0.5 ms]
+    ae_priority  INFO=3 [0.7 ms](get,set)  MIN=ERR USBError errno=32 code=-9: [Errno 32] Pipe error [0.4 ms]  MAX=ERR USBError errno=32 code=-9: [Errno 32] Pipe error [0.5 ms]  RES=ERR USBError errno=32 code=-9: [Errno 32] Pipe error [0.5 ms]  DEF=ERR USBError errno=32 code=-9: [Errno 32] Pipe error [0.4 ms]  CUR=0 [0.8 ms]
+    exposure     INFO=15 [0.6 ms](get,set,disabled-by-auto,autoupdate)  MIN=1 [0.7 ms](0.1 ms)  MAX=5000 [0.6 ms](500.0 ms)  RES=1 [0.6 ms](0.1 ms)  DEF=156 [0.7 ms](15.6 ms)  CUR=156 [0.6 ms](15.6 ms) OVER 5 ms
+    gain         INFO=3 [0.6 ms](get,set)  MIN=0 [0.5 ms]  MAX=100 [0.6 ms]  RES=1 [0.6 ms]  DEF=0 [0.6 ms]  CUR=0 [0.7 ms]
+
+  port 3  product 0x6369 (TARGET)
+  loc 0x01143000 (bus 1 addr 6 ports (1, 4, 3))  manufacturer/product strings not read (would open the device)
+  VC interface 0; camera terminal id 1 bmControls 0xe; processing unit id 2 bmControls 0x177f
+    ae_mode      CT bit 1: advertised  (bitmap 1=manual 2=auto 4=shutter-prio 8=aperture-prio)
+    ae_priority  CT bit 2: advertised  (0=constant frame rate, 1=frame rate may vary)
+    exposure     CT bit 3: advertised  (units of 100 us)
+    gain         PU bit 9: advertised  (unitless)
+    extension unit id 3 guid 7033f02811632e4aba2c6890eb334016
+    ae_mode      INFO=3 [0.8 ms](get,set)  MIN=ERR USBError errno=32 code=-9: [Errno 32] Pipe error [0.7 ms]  MAX=ERR USBError errno=32 code=-9: [Errno 32] Pipe error [0.6 ms]  RES=9 [0.9 ms]  DEF=8 [0.8 ms]  CUR=8 [0.9 ms]
+    ae_priority  INFO=3 [0.7 ms](get,set)  MIN=ERR USBError errno=32 code=-9: [Errno 32] Pipe error [0.5 ms]  MAX=ERR USBError errno=32 code=-9: [Errno 32] Pipe error [0.6 ms]  RES=ERR USBError errno=32 code=-9: [Errno 32] Pipe error [0.6 ms]  DEF=ERR USBError errno=32 code=-9: [Errno 32] Pipe error [0.6 ms]  CUR=0 [0.8 ms]
+    exposure     INFO=15 [0.7 ms](get,set,disabled-by-auto,autoupdate)  MIN=1 [0.7 ms](0.1 ms)  MAX=5000 [0.9 ms](500.0 ms)  RES=1 [0.9 ms](0.1 ms)  DEF=157 [0.7 ms](15.7 ms)  CUR=157 [0.9 ms](15.7 ms) OVER 5 ms
+    gain         INFO=3 [0.7 ms](get,set)  MIN=0 [0.8 ms]  MAX=100 [0.9 ms]  RES=1 [0.9 ms]  DEF=0 [0.7 ms]  CUR=0 [0.9 ms]
+
+  port 4  product 0x6366 (not target)
+  loc 0x01144000 (bus 1 addr 7 ports (1, 4, 4))  manufacturer/product strings not read (would open the device)
+  VC interface 0; camera terminal id 1 bmControls 0x1e; processing unit id 2 bmControls 0x177f
+    ae_mode      CT bit 1: advertised  (bitmap 1=manual 2=auto 4=shutter-prio 8=aperture-prio)
+    ae_priority  CT bit 2: advertised  (0=constant frame rate, 1=frame rate may vary)
+    exposure     CT bit 3: advertised  (units of 100 us)
+    gain         PU bit 9: advertised  (unitless)
+    extension unit id 3 guid 7033f02811632e4aba2c6890eb334016
+    ae_mode      INFO=3 [0.7 ms](get,set)  MIN=ERR USBError errno=32 code=-9: [Errno 32] Pipe error [0.4 ms]  MAX=ERR USBError errno=32 code=-9: [Errno 32] Pipe error [0.5 ms]  RES=9 [0.7 ms]  DEF=8 [0.5 ms]  CUR=8 [0.7 ms]
+    ae_priority  INFO=3 [0.6 ms](get,set)  MIN=ERR USBError errno=32 code=-9: [Errno 32] Pipe error [0.5 ms]  MAX=ERR USBError errno=32 code=-9: [Errno 32] Pipe error [0.5 ms]  RES=ERR USBError errno=32 code=-9: [Errno 32] Pipe error [0.5 ms]  DEF=ERR USBError errno=32 code=-9: [Errno 32] Pipe error [0.4 ms]  CUR=0 [0.5 ms]
+    exposure     INFO=3 [0.5 ms](get,set)  MIN=1 [0.6 ms](0.1 ms)  MAX=5000 [0.6 ms](500.0 ms)  RES=1 [0.6 ms](0.1 ms)  DEF=157 [0.6 ms](15.7 ms)  CUR=157 [0.6 ms](15.7 ms) OVER 5 ms
+    gain         INFO=3 [0.6 ms](get,set)  MIN=0 [0.6 ms]  MAX=100 [0.6 ms]  RES=1 [0.6 ms]  DEF=0 [0.6 ms]  CUR=0 [0.6 ms]

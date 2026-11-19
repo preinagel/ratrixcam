@@ -188,31 +188,63 @@ exactly as on kind A.
   never wrote to it; kind C reads 3. So the starting INFO may differ by kind, or something
   else (power history, a previous host) set the B cameras' state. These runs cannot tell.
 
-### Descriptors: list run 1 (2026-11-19 10:16:24, `uvc/logs/list-all-run1.log`), incomplete
+A rerun of `controls --all-vendor` at 10:18 (`uvc/logs/controls-all-run2.log`) gave the same
+values on all eight cameras; only the timings differ.
 
-Read-only; no device was opened. It decoded the first camera in location order (port 5,
-kind A), then **crashed on port 6 (kind B)**: a frame descriptor gave a frame interval of 0,
-and the probe divided by it. That is a probe bug, now fixed: zero or truncated intervals
-print as `INVALID(0)` / `MALFORMED` with the raw bytes, and one camera's decode failure no
-longer stops the rest. The crash itself suggests kind B's descriptors contain a frame
-descriptor that a strict parser rejects, which would fit "performing strangely". The
-rerun will show it.
+### Descriptors: list runs 1 and 2 (2026-11-19 10:16:24 and 10:18:38)
 
-Kind A (port 5), for reference:
-- USB 2.00, bcdDevice 1.00, composite class (0xef/0x02/0x01), declares 500 mA; UVC 1.00.
-- Camera terminal controls: AE mode, AE priority, exposure absolute. Processing unit:
-  brightness, contrast, hue, saturation, sharpness, gamma, WB temperature, backlight comp,
-  gain, power-line frequency, WB temperature auto. Extension unit id 3 (Sonix guid
-  7033f028...), 8 controls.
-- MJPEG: 14 sizes, all at 30 fps, **including 800x600 @ 30**. Uncompressed YUY2: 14 sizes,
-  but **800x600 only at 20 fps**, 1920x1080 at 5, 1280x720 at 10 (listed twice, as frames 3
-  and 11).
-- Streaming alternate settings: max packet 0x0080 up to 0x1400 (3 x 1024 bytes per
-  microframe).
+Read-only; no device was opened.
+- **Run 1** (`uvc/logs/list-all-run1.log`) crashed on port 6 (kind B) by dividing by a
+  frame interval it read as 0.
+- **Run 2** (`uvc/logs/list-all-run2.log`) completed, but printed kind B's H.264 frames as
+  `INVALID(0) ... MALFORMED`.
+- **Both were the probe's parser bug, not a fault in the camera.** In a frame-based frame
+  descriptor (subtype 0x11), `dwBytesPerLine` (bytes 22-25, here 0) comes before the frame
+  intervals (from byte 26). The parser read that 0 as the interval. Decoded correctly from
+  the raw bytes printed in run 2, each of B's four H.264 frames is valid: one interval of
+  333333 x 100 ns = **30 fps**, default 30 fps.
+- An earlier version of this section said the crash "suggests kind B's descriptors contain
+  a frame descriptor that a strict parser rejects". That is withdrawn. The parser is fixed
+  (offline check against B's real bytes: 30 fps).
 
-**Consequence for the user's 800x600 @ 30 config:** the camera gives 800x600 at 30 fps only
-as MJPEG. If AVFoundation picks the uncompressed format for 800x600, the stream will run at
-20 fps. The recorder's measured rate would show this; the 800x600 reruns will measure it.
+**Run 2 groups the cameras into exactly three distinct descriptor sets, matching the kinds:**
+- `1d1708dffaca`: kind A, ports 1, 3, 5
+- `67c39429d729`: kind B, ports 2, 6, 8
+- `aab67cb06e1d`: kind C, ports 4, 7
+
+| | A (0x6369) | B (0x6366 "USB 2.0 Camera") | C (0x6366 "USB Camera") |
+|---|---|---|---|
+| Common | USB 2.00, bcdDevice 1.00, composite, 500 mA, UVC 1.00, VC clock 15 MHz | same | same |
+| Interfaces | 2: VC, 1 VS | **5: VC, 2 VS, audio control, audio stream** | 4: VC, 1 VS, audio control, audio stream |
+| Serial string | none | index 3 (SN0001) | index 3 (SN0001) |
+| Camera terminal | AE mode, AE priority, exposure abs (0xe) | + roll abs (0x200e) | + exposure rel (0x1e) |
+| Processing unit (incl. gain) | 0x177f | 0x177f | 0x177f |
+| Extension units | id 3 Sonix 7033f028..., 8 controls | id 3 Sonix, 24 controls; **id 4 guid 9473dfdd3e972747bed904ed6426dc67**, 8 controls | id 3 Sonix, 32 controls |
+| MJPEG (all at 30 fps) | 14 sizes incl. **800x600** | **4 sizes: 1920x1080, 1280x720, 640x480, 320x240; no 800x600** | 9 sizes incl. **800x600** |
+| Uncompressed YUY2 | 14 sizes; 640x480 @ 30, 800x600 @ 20, 1920x1080 @ 5 | 640x480 @ 30, 320x240 @ 30 | 9 sizes; **640x480 @ 15**, 800x600 @ 20, 1920x1080 @ 5 |
+| Second VS interface | none | **H.264** (guid "H264"): 1920x1080, 1280x720, 640x480, 640x360, all 30 fps | none |
+| Iso alternate settings | 0x0080 to 0x1400 | same, on each VS interface | same |
+
+What this means (B and C are not developed for; recorded for the user's decision):
+- **B and C are different products behind the same USB ids.** B is an H.264-capable
+  camera with a second streaming interface; C is closer to A, with more MJPEG sizes than B.
+  Both add a microphone.
+- **B offers no 800x600 in any format.** With the user's 800x600 config, AVFoundation must
+  give it a different size, or scale.
+- **B exposes two video streaming interfaces.** Hypothesis, not checked: AVFoundation may
+  list a B camera as more than one video device. That would shift the cv2 index-to-port
+  order the recorder relies on, and would fit the user's "performing strangely". It is
+  testable by counting AVFoundation devices with B plugged in and unplugged.
+- **C matches A where the recorder needs it** (MJPEG 800x600 @ 30; the same exposure and
+  gain controls and ranges), except that its YUY2 640x480 runs at only 15 fps.
+- The exposure and gain method should carry over to B and C, since the controls, ranges and
+  entity ids (CT 1, PU 2) are the same. Writes on B and C are untested.
+
+**Consequence for the user's 800x600 @ 30 config, on A and C:** 800x600 runs at 30 fps only
+as MJPEG; uncompressed it runs at 20 fps. The user says the recorder requests MJPG through
+cv2. This clone's capture code sets only width, height and fps (`ratrixcam_server.py:487-492`).
+Its only FOURCC is the writer's `mp4v` (`ratrixcam_server.py:25`). The probe does not request
+MJPG until the recorder's exact call is known.
 
 ## Answers
 
