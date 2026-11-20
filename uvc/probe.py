@@ -27,7 +27,7 @@ Sub-commands:
               exposures (--exposures, default 2, 3, 4 and 10 ms; 10 ms warns as not
               under 5 ms) and, at each, gain stepped through its range, with
               auto before and after; per step the luminance statistics (Y mean and
-              percentiles, temporal noise, snr, saturated and black fractions, fps).
+              percentiles and maximum, temporal noise, snr, at-maximum and black fractions, fps).
               Measurements only: no judgement of usability is made
     dimsweep  gainsweep on every cv2 index 0..N-1 of a rig whose layout is unknown (every
               target camera of any kind is a candidate), at 640x480 @ 30; per-index summary
@@ -432,7 +432,9 @@ class Reader(threading.Thread):
       sqrt(2), i.e. the noise of one frame. A static scene is assumed; motion adds to it,
       which is why windows report the median over frame pairs;
     - Y percentiles 1, 50 and 99, and Y mean;
-    - saturated: fraction of pixels with Y >= 250; black: fraction with Y <= 5.
+    - y_max: the frame's highest Y; at_max: fraction of pixels with Y >= y_max - 2 (a pile-up
+      at the maximum is how clipping shows; the decoded ceiling is about 239-244, not 255,
+      lab run 2026-11-19); black: fraction with Y <= 5.
     Measurements only; nothing here judges whether an image is usable."""
 
     def __init__(self, cap):
@@ -455,8 +457,9 @@ class Reader(threading.Thread):
                 if self.prev is not None and self.prev.shape == y.shape:
                     noise = float((y - self.prev).std()) / 1.41421356
                 p1, p50, p99 = (float(v) for v in np.percentile(y, (1, 50, 99)))
-                quality = (noise, float((y >= 250).mean()), float((y <= 5).mean()),
-                           float(y.mean()), p1, p50, p99)
+                ymax = float(y.max())
+                quality = (noise, float((y >= ymax - 2).mean()), float((y <= 5).mean()),
+                           float(y.mean()), p1, p50, p99, ymax)
                 self.prev = y
             else:
                 self.prev = None
@@ -471,12 +474,12 @@ class Reader(threading.Thread):
 
     def quality(self, t0, t1):
         """Window statistics: median temporal noise over frame pairs; means over frames of
-        the saturated and black fractions, Y mean and Y percentiles 1, 50, 99."""
+        the at-maximum and black fractions, Y mean, Y percentiles 1, 50, 99 and Y maximum."""
         q = [x[3] for x in self.samples if t0 <= x[0] < t1 and x[1] and x[3]]
         nan = float("nan")
         noises = sorted(r[0] for r in q if r[0] is not None)
         out = {"noise": noises[len(noises) // 2] if noises else nan}
-        for i, key in enumerate(("saturated", "black", "y_mean", "y_p1", "y_p50", "y_p99"), start=1):
+        for i, key in enumerate(("at_max", "black", "y_mean", "y_p1", "y_p50", "y_p99", "y_max"), start=1):
             out[key] = sum(r[i] for r in q) / len(q) if q else nan
         return out
 
@@ -502,8 +505,8 @@ def watch_quality(reader, label_, seconds, settle=0.0):
     q = reader.quality(t0, t1)
     q["snr"] = q["y_mean"] / q["noise"] if q["noise"] and q["noise"] == q["noise"] else float("nan")
     print(f"    stream [{label_}] {seconds:.1f}s: frames={n} failed_reads={bad} fps={fps:.1f} "
-          f"mean_brightness={mean:.1f} Y mean={q['y_mean']:.1f} p1/p50/p99={q['y_p1']:.0f}/{q['y_p50']:.0f}/{q['y_p99']:.0f} "
-          f"noise={q['noise']:.2f} snr={q['snr']:.1f} saturated={q['saturated'] * 100:.2f}% black={q['black'] * 100:.2f}%")
+          f"mean_brightness={mean:.1f} Y mean={q['y_mean']:.1f} p1/p50/p99/max={q['y_p1']:.0f}/{q['y_p50']:.0f}/{q['y_p99']:.0f}/{q['y_max']:.0f} "
+          f"noise={q['noise']:.2f} snr={q['snr']:.1f} at_max={q['at_max'] * 100:.2f}% black={q['black'] * 100:.2f}%")
     q.update({"brightness": mean, "fps": fps, "frames": n, "failed": bad})
     return q
 
@@ -1027,7 +1030,7 @@ def identified_or_exit(cv2, args, devs):
     return found
 
 
-QUALITY_COLUMNS = ("brightness", "y_mean", "y_p1", "y_p50", "y_p99", "noise", "snr", "saturated", "black", "fps")
+QUALITY_COLUMNS = ("brightness", "y_mean", "y_p1", "y_p50", "y_p99", "y_max", "noise", "snr", "at_max", "black", "fps")
 
 
 def quality_table(rows):
@@ -1037,7 +1040,7 @@ def quality_table(rows):
         cells = []
         for c in QUALITY_COLUMNS:
             v = q.get(c, float("nan"))
-            cells.append(f"{v * 100:10.2f}%" if c in ("saturated", "black") else f"{v:11.2f}")
+            cells.append(f"{v * 100:10.2f}%" if c in ("at_max", "black") else f"{v:11.2f}")
         print(f"      {name:<16}" + "".join(cells))
 
 

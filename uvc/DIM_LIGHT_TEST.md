@@ -163,14 +163,20 @@ For each camera index:
 
 The columns:
 - **brightness**: mean of all pixel values (blue, green, red), 0-255, as in the lab logs;
-- **y_mean, y_p1, y_p50, y_p99**: luminance (Y = 0.299 R + 0.587 G + 0.114 B), its mean and
-  its 1st, 50th and 99th percentiles over the picture;
+- **y_mean, y_p1, y_p50, y_p99, y_max**: luminance (Y = 0.299 R + 0.587 G + 0.114 B), its
+  mean, its 1st, 50th and 99th percentiles over the picture, and its maximum (averaged over
+  the frames of the step);
 - **noise**: temporal noise of one frame, the frame-to-frame standard deviation of
   luminance divided by the square root of 2. Motion in view raises it. The table gives the
   median over frame pairs, which limits the effect of brief motion;
 - **snr**: y_mean divided by noise;
-- **saturated, black**: percentage of pixels with luminance of 250 or more, and of 5 or
-  less;
+- **at_max**: percentage of pixels within 2 levels of that frame's maximum luminance.
+  - These cameras' decoded luminance tops out at about 239-244, not 255 (lab run,
+    2026-11-19), so a fixed "255" or "250" threshold would miss clipping.
+  - Clipped highlights show as y_max at that ceiling and a pile-up in at_max.
+  - In a flat, low-noise picture, unclipped pixels near the maximum count too, so read
+    at_max together with y_p99 and y_max;
+- **black**: percentage of pixels with luminance of 5 or less;
 - **fps**: frames delivered per second in that step.
 
 The statistics are computed on every second pixel in each direction (a quarter of the

@@ -1,0 +1,138 @@
+[2026-11-19 17:02:24] probe.py gainsweep  python 3.13.5  pid 17283
+[2026-11-19 17:02:24] recording check: /Users/rat_hub_01/Desktop/temp absent, ok
+[2026-11-19 17:02:24] selected 8 camera(s) of any target kind (A, B, C): kind A at 0x00141000 (lab-rig port 5), kind B at 0x00142000 (lab-rig port 6), kind C at 0x00143000 (lab-rig port 7), kind B at 0x00144000 (lab-rig port 8), kind A at 0x01141000 (lab-rig port 1), kind B at 0x01142000 (lab-rig port 2), kind A at 0x01143000 (lab-rig port 3), kind C at 0x01144000 (lab-rig port 4)
+
+[2026-11-19 17:02:24] IDENTIFY: which of the 8 selected camera(s) is behind index 0
+  cv2 4.11.0 VideoCapture(0) isOpened=True backend=AVFOUNDATION open+set took 782 ms
+  FORMAT requested 640x480 @ 30 fps (from command line); capture reports 640x480 @ 30.0 fps
+    stream [identify: warm-up] 2.0s: frames=49 failed_reads=0 fps=30.1 mean_brightness=126.4
+    stream [identify: baseline] 1.5s: frames=45 failed_reads=0 fps=29.6 mean_brightness=127.3
+  marker: bright (baseline 127.3)
+  candidate kind A at 0x00141000 (lab-rig port 5) loc 0x00141000 (bus 0 addr 5 ports (1, 4, 1))
+    write ae_mode:=manual(1): 1 [4.6 ms]
+    write exposure:=1000 (100.0 ms): 1000 [4.6 ms]
+    write gain:=100: 100 [5.6 ms]
+    [after write] kind A at 0x00141000 (lab-rig port 5) 00141000 ae_mode=1 exposure=1000 (100.0 ms) gain=100: MATCHES (expected ae_mode=1 exposure=1000 gain=100)
+    stream [identify: bright marker (100 ms, gain 100) on kind A at 0x00141000 (lab-rig port 5)] 1.5s: frames=44 failed_reads=0 fps=29.6 mean_brightness=127.2
+    restore [kind A at 0x00141000 (lab-rig port 5)]: ae_mode:=manual(1) first, so exposure accepts the write: 1 [1.0 ms]
+    restore exposure:=157 (default): 157 [4.8 ms]
+    restore gain:=0 (default): 0 [5.6 ms]
+    restore ae_mode:=8 (default): 8 [4.6 ms]
+    read-back [kind A at 0x00141000 (lab-rig port 5)] exposure=157 [0.8 ms] OK
+    read-back [kind A at 0x00141000 (lab-rig port 5)] gain=0 [0.7 ms] OK
+    read-back [kind A at 0x00141000 (lab-rig port 5)] ae_mode=8 [0.7 ms] OK
+    kind A at 0x00141000 (lab-rig port 5): stream brightness 127.3 -> 127.2, not this camera
+  candidate kind B at 0x00142000 (lab-rig port 6) loc 0x00142000 (bus 0 addr 7 ports (1, 4, 2))
+    write ae_mode:=manual(1): 1 [0.6 ms]
+    write exposure:=1000 (100.0 ms): 1000 [0.6 ms]
+    write gain:=100: 100 [0.6 ms]
+    [after write] kind B at 0x00142000 (lab-rig port 6) 00142000 ae_mode=1 exposure=1000 (100.0 ms) gain=100: MATCHES (expected ae_mode=1 exposure=1000 gain=100)
+    stream [identify: bright marker (100 ms, gain 100) on kind B at 0x00142000 (lab-rig port 6)] 1.5s: frames=44 failed_reads=0 fps=29.6 mean_brightness=127.3
+    restore [kind B at 0x00142000 (lab-rig port 6)]: ae_mode:=manual(1) first, so exposure accepts the write: 1 [0.6 ms]
+    restore exposure:=156 (default): 156 [0.6 ms]
+    restore gain:=0 (default): 0 [0.6 ms]
+    restore ae_mode:=8 (default): 8 [0.5 ms]
+    read-back [kind B at 0x00142000 (lab-rig port 6)] exposure=156 [0.6 ms] OK
+    read-back [kind B at 0x00142000 (lab-rig port 6)] gain=0 [0.6 ms] OK
+    read-back [kind B at 0x00142000 (lab-rig port 6)] ae_mode=8 [0.7 ms] OK
+    kind B at 0x00142000 (lab-rig port 6): stream brightness 127.3 -> 127.3, not this camera
+  candidate kind C at 0x00143000 (lab-rig port 7) loc 0x00143000 (bus 0 addr 6 ports (1, 4, 3))
+    write ae_mode:=manual(1): 1 [0.5 ms]
+    write exposure:=1000 (100.0 ms): 1000 [0.6 ms]
+    write gain:=100: 100 [0.6 ms]
+    [after write] kind C at 0x00143000 (lab-rig port 7) 00143000 ae_mode=1 exposure=1000 (100.0 ms) gain=100: MATCHES (expected ae_mode=1 exposure=1000 gain=100)
+    stream [identify: bright marker (100 ms, gain 100) on kind C at 0x00143000 (lab-rig port 7)] 1.5s: frames=45 failed_reads=0 fps=29.6 mean_brightness=127.4
+    restore [kind C at 0x00143000 (lab-rig port 7)]: ae_mode:=manual(1) first, so exposure accepts the write: 1 [0.6 ms]
+    restore exposure:=157 (default): 157 [0.6 ms]
+    restore gain:=0 (default): 0 [0.6 ms]
+    restore ae_mode:=8 (default): 8 [0.6 ms]
+    read-back [kind C at 0x00143000 (lab-rig port 7)] exposure=157 [0.8 ms] OK
+    read-back [kind C at 0x00143000 (lab-rig port 7)] gain=0 [0.5 ms] OK
+    read-back [kind C at 0x00143000 (lab-rig port 7)] ae_mode=8 [0.6 ms] OK
+    kind C at 0x00143000 (lab-rig port 7): stream brightness 127.3 -> 127.4, not this camera
+  candidate kind B at 0x00144000 (lab-rig port 8) loc 0x00144000 (bus 0 addr 8 ports (1, 4, 4))
+    write ae_mode:=manual(1): 1 [0.6 ms]
+    write exposure:=1000 (100.0 ms): 1000 [0.6 ms]
+    write gain:=100: 100 [0.6 ms]
+    [after write] kind B at 0x00144000 (lab-rig port 8) 00144000 ae_mode=1 exposure=1000 (100.0 ms) gain=100: MATCHES (expected ae_mode=1 exposure=1000 gain=100)
+    stream [identify: bright marker (100 ms, gain 100) on kind B at 0x00144000 (lab-rig port 8)] 1.5s: frames=45 failed_reads=0 fps=29.6 mean_brightness=127.3
+    restore [kind B at 0x00144000 (lab-rig port 8)]: ae_mode:=manual(1) first, so exposure accepts the write: 1 [0.5 ms]
+    restore exposure:=156 (default): 156 [0.6 ms]
+    restore gain:=0 (default): 0 [0.6 ms]
+    restore ae_mode:=8 (default): 8 [0.6 ms]
+    read-back [kind B at 0x00144000 (lab-rig port 8)] exposure=156 [0.6 ms] OK
+    read-back [kind B at 0x00144000 (lab-rig port 8)] gain=0 [0.6 ms] OK
+    read-back [kind B at 0x00144000 (lab-rig port 8)] ae_mode=8 [0.6 ms] OK
+    kind B at 0x00144000 (lab-rig port 8): stream brightness 127.3 -> 127.3, not this camera
+  candidate kind A at 0x01141000 (lab-rig port 1) loc 0x01141000 (bus 1 addr 5 ports (1, 4, 1))
+    write ae_mode:=manual(1): 1 [4.5 ms]
+    write exposure:=1000 (100.0 ms): 1000 [5.8 ms]
+    write gain:=100: 100 [26.1 ms]
+    [after write] kind A at 0x01141000 (lab-rig port 1) 01141000 ae_mode=1 exposure=1000 (100.0 ms) gain=100: MATCHES (expected ae_mode=1 exposure=1000 gain=100)
+    stream [identify: bright marker (100 ms, gain 100) on kind A at 0x01141000 (lab-rig port 1)] 1.5s: frames=15 failed_reads=0 fps=10.1 mean_brightness=243.4
+    restore [kind A at 0x01141000 (lab-rig port 1)]: ae_mode:=manual(1) first, so exposure accepts the write: 1 [0.7 ms]
+    restore exposure:=157 (default): 157 [4.6 ms]
+    restore gain:=0 (default): 0 [6.9 ms]
+    restore ae_mode:=8 (default): 8 [4.5 ms]
+    read-back [kind A at 0x01141000 (lab-rig port 1)] exposure=157 [0.7 ms] OK
+    read-back [kind A at 0x01141000 (lab-rig port 1)] gain=0 [0.8 ms] OK
+    read-back [kind A at 0x01141000 (lab-rig port 1)] ae_mode=8 [0.8 ms] OK
+index 0 is kind A at 0x01141000 (lab-rig port 1): brightness 127.3 -> 243.4 with the bright marker
+
+[2026-11-19 17:02:41] GAIN SWEEP: index 0, kind A at 0x01141000; manual exposures 4 ms; gain step 10
+  cv2 4.11.0 VideoCapture(0) isOpened=True backend=AVFOUNDATION open+set took 1439 ms
+  FORMAT requested 640x480 @ 30 fps (from command line); capture reports 640x480 @ 30.0 fps
+    stream [warm-up] 3.0s: frames=89 failed_reads=0 fps=29.6 mean_brightness=126.2
+  FORMAT measured frame size: 640x480
+  FORMAT cv2 CAP_PROP_FOURCC: 0 '' (what the backend reports; may be its output, not the wire format)
+  FORMAT camera-side commit, port 1 (0x01141000): format 1 = MJPEG, frame 2 = 640x480, 30.0 fps; max frame 614989 B, max payload 800 B
+    stream [auto (before)] 2.0s: frames=58 failed_reads=0 fps=29.3 mean_brightness=127.3 Y mean=127.2 p1/p50/p99=22/135/244 noise=1.07 snr=118.7 saturated=0.01% black=0.00%
+    write ae_mode:=manual(1): 1 [25.0 ms]
+    write exposure:=40 (4.0 ms): 40 [5.8 ms]
+    write gain:=0: 0 [26.3 ms]
+    [after write] kind A at 0x01141000 (lab-rig port 1) 01141000 ae_mode=1 exposure=40 (4.0 ms) gain=0: MATCHES (expected ae_mode=1 exposure=40 gain=0)
+    stream [4 ms, gain 0 (write 0 [6.8 ms], read back 0)] 1.0s: frames=29 failed_reads=0 fps=29.3 mean_brightness=35.1 Y mean=34.9 p1/p50/p99=1/32/163 noise=1.07 snr=32.6 saturated=0.00% black=10.43%
+    stream [4 ms, gain 10 (write 10 [6.9 ms], read back 10)] 1.0s: frames=29 failed_reads=0 fps=29.2 mean_brightness=41.2 Y mean=40.6 p1/p50/p99=1/37/193 noise=1.19 snr=34.3 saturated=0.00% black=9.29%
+    stream [4 ms, gain 20 (write 20 [12.7 ms], read back 20)] 1.0s: frames=29 failed_reads=0 fps=29.3 mean_brightness=47.4 Y mean=47.2 p1/p50/p99=1/43/221 noise=1.35 snr=35.0 saturated=0.00% black=7.19%
+    stream [4 ms, gain 30 (write 30 [12.4 ms], read back 30)] 1.0s: frames=29 failed_reads=0 fps=29.2 mean_brightness=53.3 Y mean=53.1 p1/p50/p99=1/48/232 noise=1.53 snr=34.8 saturated=0.00% black=6.19%
+    stream [4 ms, gain 40 (write 40 [13.2 ms], read back 40)] 1.0s: frames=29 failed_reads=0 fps=29.3 mean_brightness=58.9 Y mean=59.2 p1/p50/p99=1/54/239 noise=1.70 snr=34.8 saturated=0.00% black=5.09%
+    stream [4 ms, gain 50 (write 50 [14.3 ms], read back 50)] 1.0s: frames=29 failed_reads=0 fps=29.2 mean_brightness=64.7 Y mean=64.9 p1/p50/p99=1/60/239 noise=1.89 snr=34.4 saturated=0.00% black=4.11%
+    stream [4 ms, gain 60 (write 60 [9.1 ms], read back 60)] 1.0s: frames=30 failed_reads=0 fps=30.3 mean_brightness=70.9 Y mean=71.1 p1/p50/p99=1/66/239 noise=2.08 snr=34.1 saturated=0.00% black=3.93%
+    stream [4 ms, gain 70 (write 70 [11.9 ms], read back 70)] 1.0s: frames=30 failed_reads=0 fps=30.3 mean_brightness=76.5 Y mean=76.8 p1/p50/p99=2/72/239 noise=2.31 snr=33.3 saturated=0.00% black=2.76%
+    stream [4 ms, gain 80 (write 80 [13.4 ms], read back 80)] 1.0s: frames=30 failed_reads=0 fps=30.3 mean_brightness=82.4 Y mean=82.8 p1/p50/p99=2/79/239 noise=2.75 snr=30.1 saturated=0.00% black=2.73%
+    stream [4 ms, gain 90 (write 90 [9.7 ms], read back 90)] 1.0s: frames=30 failed_reads=0 fps=30.3 mean_brightness=88.0 Y mean=88.4 p1/p50/p99=2/85/239 noise=2.71 snr=32.7 saturated=0.00% black=2.07%
+    stream [4 ms, gain 100 (write 100 [14.5 ms], read back 100)] 1.0s: frames=30 failed_reads=0 fps=29.3 mean_brightness=93.5 Y mean=94.0 p1/p50/p99=3/92/239 noise=2.92 snr=32.2 saturated=0.00% black=2.04%
+    restore [kind A at 0x01141000 (lab-rig port 1)]: ae_mode:=manual(1) first, so exposure accepts the write: 1 [0.8 ms]
+    restore exposure:=157 (default): 157 [4.5 ms]
+    restore gain:=0 (default): 0 [6.7 ms]
+    restore ae_mode:=8 (default): 8 [25.2 ms]
+    read-back [kind A at 0x01141000 (lab-rig port 1)] exposure=157 [0.7 ms] OK
+    read-back [kind A at 0x01141000 (lab-rig port 1)] gain=0 [0.7 ms] OK
+    read-back [kind A at 0x01141000 (lab-rig port 1)] ae_mode=8 [0.7 ms] OK
+    stream [auto (after)] 2.0s: frames=58 failed_reads=0 fps=29.3 mean_brightness=131.8 Y mean=131.6 p1/p50/p99=24/141/244 noise=1.10 snr=119.8 saturated=0.01% black=0.00%
+    table, index 0, kind A at 0x01141000 (measurements only; brightness = mean of B, G, R; Y = luminance; noise = temporal, one frame; snr = Y mean / noise):
+      setting          brightness     y_mean       y_p1      y_p50      y_p99      noise        snr  saturated      black        fps
+      auto (before)        127.34     127.23      22.19     135.38     244.28       1.07     118.71      0.01%      0.00%      29.28
+      4 ms gain 0           35.09      34.90       0.88      31.77     163.09       1.07      32.60      0.00%     10.43%      29.32
+      4 ms gain 10          41.17      40.62       0.84      36.57     192.99       1.19      34.25      0.00%      9.29%      29.25
+      4 ms gain 20          47.38      47.25       1.06      42.52     221.01       1.35      35.00      0.00%      7.19%      29.26
+      4 ms gain 30          53.33      53.14       0.95      48.12     231.86       1.53      34.80      0.00%      6.19%      29.25
+      4 ms gain 40          58.94      59.23       1.15      53.92     238.86       1.70      34.79      0.00%      5.09%      29.28
+      4 ms gain 50          64.67      64.88       1.32      60.11     238.89       1.89      34.41      0.00%      4.11%      29.24
+      4 ms gain 60          70.87      71.11       1.25      66.29     238.96       2.08      34.11      0.00%      3.93%      30.32
+      4 ms gain 70          76.53      76.77       2.03      71.65     239.29       2.31      33.26      0.00%      2.76%      30.29
+      4 ms gain 80          82.43      82.81       2.03      79.29     239.34       2.75      30.07      0.00%      2.73%      30.32
+      4 ms gain 90          88.03      88.43       2.25      85.14     239.34       2.71      32.69      0.00%      2.07%      30.26
+      4 ms gain 100         93.47      93.95       3.05      91.72     239.39       2.92      32.16      0.00%      2.04%      29.33
+      auto (after)         131.75     131.63      24.19     140.50     244.28       1.10     119.80      0.01%      0.00%      29.28
+    [after the sweep, stream released, expected = this camera's defaults] kind A at 0x01141000 (lab-rig port 1) 01141000 ae_mode=8 exposure=157 (15.7 ms) gain=0: MATCHES (expected ae_mode=8 exposure=157 gain=0)
+
+[2026-11-19 17:03:08] final read-back, every selected camera
+    [final, expected = this camera's defaults] kind A at 0x00141000 (lab-rig port 5) 00141000 ae_mode=8 exposure=157 (15.7 ms) gain=0: MATCHES (expected ae_mode=8 exposure=157 gain=0)
+    [final, expected = this camera's defaults] kind B at 0x00142000 (lab-rig port 6) 00142000 ae_mode=8 exposure=156 (15.6 ms) gain=0: MATCHES (expected ae_mode=8 exposure=156 gain=0)
+    [final, expected = this camera's defaults] kind C at 0x00143000 (lab-rig port 7) 00143000 ae_mode=8 exposure=157 (15.7 ms) gain=0: MATCHES (expected ae_mode=8 exposure=157 gain=0)
+    [final, expected = this camera's defaults] kind B at 0x00144000 (lab-rig port 8) 00144000 ae_mode=8 exposure=156 (15.6 ms) gain=0: MATCHES (expected ae_mode=8 exposure=156 gain=0)
+    [final, expected = this camera's defaults] kind A at 0x01141000 (lab-rig port 1) 01141000 ae_mode=8 exposure=157 (15.7 ms) gain=0: MATCHES (expected ae_mode=8 exposure=157 gain=0)
+    [final, expected = this camera's defaults] kind B at 0x01142000 (lab-rig port 2) 01142000 ae_mode=8 exposure=156 (15.6 ms) gain=0: MATCHES (expected ae_mode=8 exposure=156 gain=0)
+    [final, expected = this camera's defaults] kind A at 0x01143000 (lab-rig port 3) 01143000 ae_mode=8 exposure=157 (15.7 ms) gain=0: MATCHES (expected ae_mode=8 exposure=157 gain=0)
+    [final, expected = this camera's defaults] kind C at 0x01144000 (lab-rig port 4) 01144000 ae_mode=8 exposure=157 (15.7 ms) gain=0: MATCHES (expected ae_mode=8 exposure=157 gain=0)
