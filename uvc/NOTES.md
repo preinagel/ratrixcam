@@ -88,8 +88,11 @@ B and C differ only by name string. B has an extra H.264 stream and no 800x600. 
   (last: persist-C run 2, 12:33:47). The rig was on loan to the camera developer after that.
 - Pending runs, when the user returns the rig (commands are in the conversation and in the
   probe header). If the developer moved cameras, ask for the new port layout first.
-  - kind C at 640x480: `q1 --kind C --port 4 --index 3` (q1-C-run2),
-    `gainsweep ...` (gainsweep-C-run2), `persist ...` (persist-C-run3);
+  - DONE 16:14-16:18: kind C at 640x480 (q1-C-run2, gainsweep-C-run2, persist-C-run3).
+    The answers are the same as at 352x288: MJPEG, 29.3 fps, no compensation needed at
+    4 ms, reverts on replug, no stall. Restored and read back OK. REPORT.md is updated.
+  - Give run commands one at a time, each with `cd ~/Desktop/ratrixcam-uvc && ...` (the
+    user's request);
   - Leave about 1 min between runs on the same camera. A quick reopen after another
     session closes can give almost no frames (developer's open question 3). That is the
     probable cause of the persist-C run 1 stall, 8 s after gainsweep-C.
@@ -100,6 +103,8 @@ B and C differ only by name string. B has an extra H.264 stream and no 800x600. 
     likely no B. The user will do the dim-light test after the known issues are settled;
     it should identify each kind there first;
   - replug run 1's lost marker (kind A, covered by the read-back-and-reapply hook);
-  - the C 640x480 reruns (the only remaining gap in the per-kind evidence).
+  - (the C 640x480 reruns are done; no per-kind gap remains for Q1-Q3).
+  - Still untested: settings rewritten after a replug surviving the relaunch's first stream
+    start, on kinds B and C (tested on kind A only).
 - `uvc/camera_config_5.json` is the probe's own config copy: all 8 entries at 640x480 @ 30
   (C entries moved from 352x288 to 640x480 at the critic's recommendation).

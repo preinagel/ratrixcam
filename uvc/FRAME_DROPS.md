@@ -103,6 +103,7 @@ sizes are from the descriptors (`uvc/logs/list-all-run2.log`).
 | A (port 1) | 640x480 @ 30 | MJPEG | 2 (640x480) | 333333 (30.0 fps) | 614989 | 800 | persist-run2 |
 | B (port 2) | 640x480 @ 30 | MJPEG | 3 (640x480) | 333333 (30.0 fps) | 614989 | 800 | q1-B-run1, gainsweep-B-run1, persist-B-run1 |
 | C (port 4) | 352x288 @ 30 | MJPEG | 8 (352x288) | 333333 (30.0 fps) | 203341 | 800 | q1-C-run1, gainsweep-C-run1, persist-C-run2 |
+| C (port 4) | 640x480 @ 30 | MJPEG | 7 (640x480) | 333333 (30.0 fps) | 614989 | 800 | q1-C-run2, gainsweep-C-run2, persist-C-run3 (added later the same day) |
 
 - All three kinds offer the same isochronous alternate settings on their (first) streaming
   interface (wMaxPacketSize; bits 12-11 = extra transactions per microframe):
@@ -114,7 +115,8 @@ sizes are from the descriptors (`uvc/logs/list-all-run2.log`).
   - 0x1400: 1024 B x 3
 - A max payload of 800 B corresponds to **0x0320, 800 B x 1 transaction per microframe**: 6.4 MB/s,
   about 51 Mb/s reserved per camera at 640x480 MJPEG.
-- Kind C at 640x480 and any kind at 1080p have not been read. The two-cameras-at-1080p
+- Kind C at 640x480 was read later the same day: MJPEG, delivered at 29.3 fps. No kind has
+  been read at 1080p. The two-cameras-at-1080p
   question needs a commit read while streaming 1080p.
 - Every commit read so far (9 reads, all kinds) is MJPEG, including cases where YUY2 would
   also give 30 fps. Nothing in ratrixcam requests a format.

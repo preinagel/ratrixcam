@@ -11,7 +11,7 @@ Status (2026-11-19, after the kind B and C runs): **all three kinds (A 0x6369, B
 - **Goal 1 by the UVC exposure read: no** (kind A, aetrack run 1): in auto mode the camera
   returns the stored manual value, not the exposure its AE loop uses.
 - **Goal 3 compensation at 4.0 ms**, in each camera's own scene: kind A gain 50, kind B gain
-  40, kind C none needed (4 ms is already brighter than auto).
+  40, kind C none needed (4 ms is already brighter than auto, at 352x288 and at 640x480).
 - The wire format is MJPEG on all three kinds.
 - Hook: a supervisor pass by USB id before each (re)launch, plus a read-back after the
   capture opens.
@@ -19,7 +19,8 @@ Status (2026-11-19, after the kind B and C runs): **all three kinds (A 0x6369, B
   - compensation in dim light (no kind tested);
   - one stream stall on kind C (persist-C run 1), now probably explained: it came 8 s after
     another process released the same camera, a pattern the developer's AVFoundation probe
-    also saw (see the Kind C summary). Soak test deferred;
+    also saw (see the Kind C summary). The soak test is deferred. No stall occurred in the
+    640x480 reruns, which were run about a minute apart;
   - replug run 1's lost marker (kind A, unexplained).
 
 **Rig state: restored.** Every camera written to today was restored to its own defaults
@@ -429,20 +430,24 @@ same size as kinds A and B, at the code critic's recommendation.
   (A and B at 640x480, C at 352x288), so AVFoundation picked MJPEG even when it had an
   equal choice. This supports the critic's view that MJPEG is what is used in this
   context; nothing in the code requests it.
-- Not yet shown: kind C at 640x480, the one case where the uncompressed format would drop to
-  15 fps. The kind C reruns at 640x480 (q1-C, gainsweep-C, persist-C, run 2 or 3) read the
-  commit and measure fps directly. They are pending while the rig is on loan.
-- The kind C results below (q1-C run 1, gainsweep-C run 1, persist-C runs 1 and 2) are at
-  352x288 and stay as recorded. Kind C's entry in "The three kinds compared" will be
-  updated from the 640x480 reruns, which also make C's brightness figures comparable in
-  format, though not in scene, with A and B.
+- **Kind C at 640x480 is MJPEG too** (q1-C run 2, gainsweep-C run 2, persist-C run 3, 16:14 to
+  16:18). This was the one case where the uncompressed format would drop to 15 fps.
+  - The commit read MJPEG (format 1), frame 7 = 640x480, 30.0 fps, max payload 800 B in all
+    three runs.
+  - The delivered rate was 29.3 fps (the developer's AVFoundation wire rate for C: 29.35).
+  - That makes 12 commit reads, all MJPEG.
+- The earlier kind C results (q1-C run 1, gainsweep-C run 1, persist-C runs 1 and 2) are at
+  352x288 and stay as recorded. The 640x480 reruns gave the same answers. The comparison
+  table now uses them.
 
 ## Kind C (0x6366 "USB Camera"): port 4, cv2 index 3
 
 Selected by vendor id, product id and name string; writes went only to port 4. Format is
 config entry 3, **352x288 @ 30**: C's uncompressed 640x480 runs at 15 fps, so 352x288 is the
 largest size at 30 fps in both formats. Results are not comparable in brightness with
-kinds A and B: different format, different camera, different scene.
+kinds A and B: different format, different camera, different scene. The reruns at **640x480
+@ 30**, the recorder's format (q1-C run 2, gainsweep-C run 2, persist-C run 3), follow
+persist-C run 2 below.
 
 ### Q1, kind C: q1-C run 1 (2026-11-19 12:29:00; `uvc/logs/q1-C-run1.log`)
 
@@ -519,17 +524,42 @@ kinds A and B: different format, different camera, different scene.
   reopen got 0 frames, the known old-process effect.
 - Restored to C's defaults and read back OK.
 
+### Kind C at 640x480: q1-C run 2, gainsweep-C run 2, persist-C run 3 (2026-11-19 16:14:47 to 16:18:50)
+
+The same three commands, with `uvc/camera_config_5.json` entry 3 at 640x480 @ 30. The logs
+are `uvc/logs/q1-C-run2.log`, `gainsweep-C-run2.log` and `persist-C-run3.log`. The runs were
+about a minute apart.
+- **Identification (each run):** `index 3 is kind C at port 4 (0x01144000)`. Brightness went
+  111.2 -> 8.2, 111.3 -> 8.2 and 111.3 -> 8.2 with the marker. Each marker was restored and
+  read back OK.
+- **Format (each run):** requested, reported and measured 640x480 @ 30. The camera-side
+  commit was **MJPEG (format 1), frame 7 = 640x480, 30.0 fps**, max frame 614989 B, max
+  payload 800 B.
+- **Rate:** 29.3 fps in every 2-3 s window, in auto and in manual alike. There were 0 failed
+  reads in every window except the one noted under Q2.
+
+| Kind C, port 4, 640x480 | Result |
+|---|---|
+| Q1: requests while streaming (q1-C run 2) | all answered in 0.4-19 ms. ae_priority 0 (constant frame rate) is already the current value; the write and its restore are no-ops. |
+| Q1: manual 4.0 ms while streaming | brightness 110.3 -> **204.2 (+85%)** -> 101.6 after the restore. The image responds, and 4 ms is brighter than auto in this scene, as at 352x288. |
+| Goal 3: gain sweep at 4.0 ms (gainsweep-C run 2) | auto 110.1. Gain 0: 208.6, 10: 224.2, 20: 233.8, 30: 239.1, 40: 242.3, 50: 244.2, 60: 245.8, 70: 246.7, 80: 247.5, 90: 248.3, 100: 249.0. **No compensation is needed.** Every write read back. |
+| Q2: set with no stream, then stream start (persist-C run 3) | ae_mode 1, exposure 40, gain 10 **MATCHES** right after the open, after 4 s and after the stop. Brightness 224.1 vs the 110.0 auto baseline (+104%), equal to the sweep's gain-10 value. |
+| Q2: unplug/replug (gone 16:18:31, back 16:18:44) | ae_mode 8, exposure 157, gain 0, which **DIFFERS: reverted to defaults**, before and after a new stream start. The same-process reopen got 0 frames with 2 failed reads, the known old-process effect. |
+
+- No stream stall in the three runs. Every fresh-process open streamed from its first window.
+
 ### Kind C summary
 
 1. **Q1: YES.** Requests are answered while AVFoundation streams it, and the image responds
-   (q1-C run 1).
+   (q1-C runs 1 and 2).
 2. **Q2: stream start and stop YES; unplug/replug NO**, it reverts to its defaults
-   (persist-C run 2).
+   (persist-C runs 2 and 3).
 3. **Q3: YES.** AE mode, exposure time (0.1-500 ms, default 15.7 ms) and gain (0-100, default
    0) were all written and read back; exposure only in manual mode.
+- The answers are the same at 352x288 and at 640x480, the recorder's format.
 - Goal 3 compensation: **none needed at 4.0 ms in this scene.** Gain 0 already gives about 2x
-  the auto brightness (gainsweep-C run 1). A brightness match would need a shorter exposure,
-  not tested.
+  the auto brightness (gainsweep-C runs 1 and 2). A brightness match would need a shorter
+  exposure, not tested.
 - **One unprompted stream stall** (persist-C run 1): the stream stopped after about 1 s,
   unexplained, with no handling. No kind A or B camera stalled in any run. Kind C streamed
   longer than 1 s about 8 times today, too few to estimate a stall rate.
@@ -557,20 +587,22 @@ kinds A and B: different format, different camera, different scene.
 ## The three kinds compared
 
 Per kind, never pooled. Brightness values are not comparable across kinds: each camera sees
-its own scene, and C streamed at 352x288 while A and B streamed at 640x480.
+its own scene. All three kinds' columns are at 640x480 (kind C: the 640x480 reruns; its
+352x288 runs gave the same answers).
 
 | | Kind A (0x6369 "USB 2.0 Camera"; ports 1, 3, 5) | Kind B (0x6366 "USB 2.0 Camera"; port 2 tested) | Kind C (0x6366 "USB Camera"; port 4 tested) |
 |---|---|---|---|
-| Q1: writes while AVFoundation streams | **YES** (q1 runs 2, 3) | **YES** (q1-B run 1) | **YES** (q1-C run 1) |
-| Q2: survive stream start and stop | **YES** (persist runs 1, 2) | **YES** (persist-B run 1) | **YES** (persist-C run 2) |
-| Q2: survive unplug/replug | **NO**, reverts to defaults (persist run 2; replug runs 1-3) | **NO**, reverts to defaults (persist-B run 1) | **NO**, reverts to defaults (persist-C run 2) |
+| Q1: writes while AVFoundation streams | **YES** (q1 runs 2, 3) | **YES** (q1-B run 1) | **YES** (q1-C runs 1, 2) |
+| Q2: survive stream start and stop | **YES** (persist runs 1, 2) | **YES** (persist-B run 1) | **YES** (persist-C runs 2, 3) |
+| Q2: survive unplug/replug | **NO**, reverts to defaults (persist run 2; replug runs 1-3) | **NO**, reverts to defaults (persist-B run 1) | **NO**, reverts to defaults (persist-C runs 2, 3) |
 | Q3: AE mode / exposure / gain writable | **YES** / **YES** (manual only) / **YES** | **YES** / **YES** (manual only) / **YES** | **YES** / **YES** (manual only) / **YES** |
 | Exposure range, step, default | 0.1-500 ms, 0.1 ms, 15.7 ms | 0.1-500 ms, 0.1 ms, **15.6 ms** | 0.1-500 ms, 0.1 ms, 15.7 ms |
 | Gain range, default | 0-100, 0 | 0-100, 0 | 0-100, 0 |
-| Stream format tested (wire format) | 640x480 @ 30 (MJPEG) | 640x480 @ 30 (MJPEG) | 352x288 @ 30 (MJPEG) |
-| Manual 4.0 ms vs auto, while streaming | darker, -44% (q1 run 3) | darker, -42% (q1-B run 1) | **brighter, +91%** (q1-C run 1) |
-| Goal 3: gain at 4.0 ms nearest auto | **50** (139.2 vs 139.2; 09:27) | **40** (150.0 vs 152.9; 12:26) | **none needed**: gain 0 = 197.4 vs 101.0 (12:29) |
-| Stream stalls seen | none | none | one, unexplained (persist-C run 1) |
+| Stream format tested (wire format) | 640x480 @ 30 (MJPEG) | 640x480 @ 30 (MJPEG) | 640x480 @ 30 (MJPEG); earlier 352x288 (MJPEG) |
+| Delivered rate, single camera (probe) | 29.6 fps | 30.2 fps | 29.3 fps |
+| Manual 4.0 ms vs auto, while streaming | darker, -44% (q1 run 3) | darker, -42% (q1-B run 1) | **brighter, +85%** (q1-C run 2; +91% at 352x288) |
+| Goal 3: gain at 4.0 ms nearest auto | **50** (139.2 vs 139.2; 09:27) | **40** (150.0 vs 152.9; 12:26) | **none needed**: gain 0 = 208.6 vs 110.1 (16:16; 197.4 vs 101.0 at 352x288) |
+| Stream stalls seen | none | none | one, at 352x288 (persist-C run 1), probably a quick reopen (see Kind C summary); none at 640x480 |
 
 The gain values hold only for each camera's scene and light at the time of its run. The dim
 light that motivates goal 3 has not been tested on any kind.
@@ -612,7 +644,7 @@ Evidence, per kind:
   because the server knows only its cv2 index, and control requests address USB devices.
 - **Per-kind settings are likely needed:** the gain that compensates 4.0 ms differed by kind
   in each camera's own scene. Kind A needed 50, kind B 40, and kind C none (4 ms was already
-  brighter than auto at 352x288).
+  brighter than auto, at 352x288 and at 640x480).
 - **Per-camera settings would need a per-camera key, and only the USB location is
   available.** No camera can be told apart by serial: kind A reports none, and every B and
   C unit reports the same "SN0001". The location is stable while cables stay put; it
@@ -1058,3 +1090,14 @@ It read every second for 40 s while streaming index 0, with cues to cover all le
   restored and read back OK; then ae_mode 1, exposure 40, gain 10 with no stream. The camera
   reverted to its defaults by itself on its replug. Restored at 12:33:47 (manual, exposure
   157, gain 0, ae_mode 8) and read back OK. No other camera was written to.
+- **q1-C run 2 (2026-11-19 16:14:47), kind C port 4 only, 640x480**: identification marker,
+  restored to C's defaults and read back OK. ae_priority 0 (no-op) was restored and read back
+  OK. ae_mode 1 + exposure 40 was restored (manual, exposure 157, gain 0, ae_mode 8) and read
+  back OK. Final read-back after release: ae_mode 8, ae_priority 0, exposure 157, gain 0.
+- **gainsweep-C run 2 (2026-11-19 16:16:06), kind C port 4 only, 640x480**: identification
+  marker, restored OK. Then manual, exposure 40, gain 0-100, restored (manual, exposure 157,
+  gain 0, ae_mode 8) and read back OK. The final read-back after release MATCHES.
+- **persist-C run 3 (2026-11-19 16:17:51), kind C port 4 only, 640x480**: identification
+  marker, restored and read back OK. Then ae_mode 1, exposure 40, gain 10 with no stream. The
+  camera reverted to its defaults by itself on its replug. Restored at 16:18:50 (manual,
+  exposure 157, gain 0, ae_mode 8) and read back OK. No other camera was written to.
