@@ -1,5 +1,6 @@
-"""ratrixcam_multi, the supervisor: the camera count that decides launches must never stall
-it, an unknown count launches nothing, and a camera that is not a USB camera is named once."""
+"""ratrixcam_multi, the supervisor, and the camera count it shares with the calibration
+program: the count must never stall the caller, an unknown count launches nothing, and a
+camera that is not a USB camera is named once."""
 
 import multiprocessing
 import subprocess
@@ -10,6 +11,8 @@ from typing import TYPE_CHECKING
 import pytest
 
 from test_run_metadata import make_config
+
+from ratrixcam_utils import DEVICE_COUNT_TIMEOUT, count_video_devices
 
 if TYPE_CHECKING:  # the real module for the checker; at run time the suite skips without OpenCV
     import ratrixcam_multi as multi
@@ -59,8 +62,8 @@ def answering(monkeypatch: pytest.MonkeyPatch, outputs: list[str]) -> dict[str, 
 
 def test_the_camera_count_takes_every_camera_entry_whatever_its_name(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]):
     seen = answering(monkeypatch, [PROFILER_OUTPUT])
-    assert multi.count_video_devices(set()) == 3  # two "USB Camera" entries and the webcam
-    assert seen["timeout"] == multi.DEVICE_COUNT_TIMEOUT
+    assert count_video_devices(set()) == 3  # two "USB Camera" entries and the webcam
+    assert seen["timeout"] == DEVICE_COUNT_TIMEOUT
     assert "WARNING" not in capsys.readouterr().out  # all three are USB cameras
 
 
@@ -68,13 +71,13 @@ def test_a_camera_that_is_not_a_usb_camera_is_counted_and_named_once_per_change(
     with_built_in = PROFILER_OUTPUT + BUILT_IN_ENTRY
     _ = answering(monkeypatch, [with_built_in, with_built_in, PROFILER_OUTPUT, with_built_in])
     non_usb: set[str] = set()
-    assert multi.count_video_devices(non_usb) == 4  # the built-in camera counts like the others
+    assert count_video_devices(non_usb) == 4  # the built-in camera counts like the others
     warning = "WARNING: FaceTime HD Camera (Model ID: FaceTime HD Camera) is not a USB camera"
     assert warning in capsys.readouterr().out
-    assert multi.count_video_devices(non_usb) == 4
+    assert count_video_devices(non_usb) == 4
     assert "WARNING" not in capsys.readouterr().out  # the same camera again: silent
-    assert multi.count_video_devices(non_usb) == 3  # gone
-    assert multi.count_video_devices(non_usb) == 4  # back: named again
+    assert count_video_devices(non_usb) == 3  # gone
+    assert count_video_devices(non_usb) == 4  # back: named again
     assert capsys.readouterr().out.count(warning) == 1
 
 
@@ -83,7 +86,7 @@ def test_a_count_that_times_out_is_unknown_and_said(monkeypatch: pytest.MonkeyPa
         raise subprocess.TimeoutExpired(cmd, float(str(kwargs.get("timeout"))))
 
     monkeypatch.setattr(subprocess, "run", hang)
-    assert multi.count_video_devices(set()) is None
+    assert count_video_devices(set()) is None
     assert "WARNING: the camera count timed out after" in capsys.readouterr().out
 
 
@@ -92,7 +95,7 @@ def test_a_count_that_fails_is_unknown(monkeypatch: pytest.MonkeyPatch, capsys: 
         raise OSError(23, "Too many open files in system")
 
     monkeypatch.setattr(subprocess, "run", fail)
-    assert multi.count_video_devices(set()) is None
+    assert count_video_devices(set()) is None
     assert "Error detecting video devices" in capsys.readouterr().out
 
 

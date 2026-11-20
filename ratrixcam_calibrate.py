@@ -9,8 +9,11 @@ measured for `measure` seconds: the rate is the frames that arrived, less one, o
 from the first to the last, with one frame over that span as its uncertainty, and a gap is
 an interval of more than two and a half typical ones (a hole of two or more frames). No
 other camera streams meanwhile, so the rate is the camera's own and not what a shared USB
-link leaves it. The camera program must not be
-running. The file goes beside the config unless -o says otherwise, and holds an entry for
+link leaves it. The camera program must not be running, and a minute should have passed
+since it was stopped: a camera opened within seconds of its release can deliver almost
+nothing for a while. The system must list exactly the config's cameras, as for a launch:
+camera k is OpenCV's index k only then, so another count stops the calibration before any
+camera is opened. The file goes beside the config unless -o says otherwise, and holds an entry for
 every camera that delivered frames; a camera that did not is reported and left out, and the
 camera program measures it at launch. A camera's entry holds only for the mode it was made
 in; recalibrate after changing a camera, its mode, or its port."""
@@ -25,7 +28,7 @@ import cv2
 
 from ratrixcam_naming import camera_name, code_version
 from ratrixcam_server import FIRST_FRAME_WAIT, measure_camera
-from ratrixcam_utils import Calibration, CameraCalibration, Config, calibration_path, load_settings
+from ratrixcam_utils import Calibration, CameraCalibration, Config, calibration_path, count_video_devices, load_settings
 
 DISCARD_SECONDS = 30.0  # the camera streams this long before the measurement starts
 MEASURE_SECONDS = 300.0  # the measurement: 9000 frames at 30 fps, a rate good to about a hundredth
@@ -112,7 +115,18 @@ def main() -> int:
     if config is None:
         return 1
     n = len(config.cameras)
+    counted = count_video_devices(set())
+    if counted is None:
+        print("ERROR: the cameras could not be counted; nothing is calibrated")
+        return 1
+    if counted != n:
+        print(
+            f"ERROR: {counted} camera(s) counted, {n} configured: camera k is index k only when the counts match; "
+            + "connect, disconnect or configure cameras until they do, then run again"
+        )
+        return 1
     print(f"Calibrating {n} camera(s), about {n * (discard + measure + FIRST_FRAME_WAIT) / 60:.0f} min in all; the camera program must not be running")
+    print("A minute should have passed since the camera program was stopped: a camera reopened sooner can deliver almost nothing for a while")
     calibration = calibrate(config, config_file, discard, measure)
     try:
         with open(output, "w") as f:

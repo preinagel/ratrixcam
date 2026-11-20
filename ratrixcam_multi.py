@@ -3,7 +3,6 @@ import multiprocessing
 import os
 import shutil
 import signal
-import subprocess
 import time
 from datetime import datetime
 from multiprocessing import Process
@@ -18,6 +17,7 @@ from ratrixcam_utils import (
     CAMERA_LAUNCH_PAUSE,
     Calibration,
     Config,
+    count_video_devices,
     ensure_dir_exists,
     load_settings,
     place_offline_stills,
@@ -29,54 +29,6 @@ from ratrixcam_utils import (
 # that would switch them on.
 # RECORDING_AUDIO = False
 # RECORDING_TTL = False
-
-
-DEVICE_COUNT_TIMEOUT = 30  # seconds for system_profiler to answer; it has been seen to hang for days
-USB_MODEL_PREFIX = "UVC Camera"  # how the Model ID of every USB video class camera begins; a built-in
-                                 # or iPhone camera reports something else
-
-
-def count_video_devices(non_usb: set[str]) -> int | None:
-    """The number of cameras the system reports, of any make (every entry carries one
-    "Unique ID" line), or None when it could not be counted because the query failed or
-    timed out; either is said on the terminal. A query that times out is killed, so a hung
-    one cannot stall the supervisor. A camera that is not a USB camera (a built-in or an
-    iPhone camera, by its Model ID) counts like any other and is opened as one of the
-    streams, which is rarely intended, so a WARNING names it when it appears; `non_usb`
-    holds the ones named on the previous pass and is kept current here, so that the warning
-    is printed once per change rather than on every pass, like the count messages."""
-    try:
-        result = subprocess.run(
-            ["system_profiler", "SPCameraDataType"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            timeout=DEVICE_COUNT_TIMEOUT,
-        )
-    except subprocess.TimeoutExpired:
-        print(f"WARNING: the camera count timed out after {DEVICE_COUNT_TIMEOUT} s; no camera is launched until it answers")
-        return None
-    except Exception as e:
-        print(f"Error detecting video devices: {e}")
-        return None
-    count = 0
-    name = "camera"  # the entry's heading, the line that precedes its Model ID
-    present: set[str] = set()
-    for line in result.stdout.splitlines():
-        text = line.strip()
-        if "Unique ID:" in text:
-            count += 1
-        elif text.startswith("Model ID:"):
-            model = text.removeprefix("Model ID:").strip()
-            if not model.startswith(USB_MODEL_PREFIX):
-                present.add(f"{name} (Model ID: {model})")
-        elif text.endswith(":") and line.startswith(" "):
-            name = text[:-1]
-    for camera in sorted(present - non_usb):
-        print(f"WARNING: {camera} is not a USB camera; it counts as one of the camera streams and is opened as one unless disabled")
-    non_usb.clear()
-    non_usb.update(present)
-    return count
 
 
 def run_without_handlers(
@@ -161,7 +113,7 @@ def run(config: Config, stop_event: Event, abort_event: Event | None = None, cal
             if not have_all_cameras:
                 continue
             # only when all devices are detected, try to re-launch the ones that went offline
-            try: 
+            try:
                 if launched_this_pass:  # another camera was launched within this pass of the loop:
                     time.sleep(CAMERA_LAUNCH_PAUSE)  # wait a bit before launching another one
                 cam_proc = Process(

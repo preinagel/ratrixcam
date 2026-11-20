@@ -103,6 +103,25 @@ def test_a_camera_that_does_not_open_is_left_out_and_the_file_still_written(monk
     assert Calibration.model_validate_json(calibration.model_dump_json()) == calibration  # what main() writes loads back
 
 
+def test_the_program_stops_before_opening_any_camera_unless_the_count_matches_the_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]):
+    _, config_path = make_config(tmp_path)  # one camera configured
+    opened: list[int] = []
+    monkeypatch.setattr("ratrixcam_calibrate.cv2.VideoCapture", lambda index: opened.append(index) or OpenableFakeCapture(opened=False, fps=50, width=64, height=48))
+    monkeypatch.setattr("sys.argv", ["ratrixcam_calibrate.py", "-c", str(config_path), "--discard", "0.1", "--measure", "0.1"])
+    monkeypatch.setattr("ratrixcam_calibrate.count_video_devices", lambda _non_usb: 2)
+    assert calibrate.main() == 1
+    assert "ERROR: 2 camera(s) counted, 1 configured" in capsys.readouterr().out
+    monkeypatch.setattr("ratrixcam_calibrate.count_video_devices", lambda _non_usb: None)
+    assert calibrate.main() == 1
+    assert "ERROR: the cameras could not be counted" in capsys.readouterr().out
+    assert opened == [] and not calibration_path(str(config_path)) in os.listdir(tmp_path)
+    monkeypatch.setattr("ratrixcam_calibrate.count_video_devices", lambda _non_usb: 1)
+    assert calibrate.main() == 0
+    out = capsys.readouterr().out
+    assert opened == [0] and "A minute should have passed since the camera program was stopped" in out
+    assert Path(calibration_path(str(config_path))).exists()
+
+
 def test_the_launcher_keeps_the_calibration_with_the_config_copy(tmp_path: Path):
     from ratrixcam_run_metadata import RunMetadata
 
