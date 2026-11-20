@@ -689,8 +689,35 @@ Observations, stated as measurements:
   - A few stray pixels reach 247-255 on every kind.
   - The run's clipping column (`at_max`, pixels within 2 levels of the frame's maximum)
     therefore missed the A/B pile-up: it reads 0.32% for that row. After this run it was
-    replaced by fixed-level fractions, `ge240` and `ge250`, which have not yet run on
-    hardware. The percentile columns in this log are unaffected.
+    replaced by fixed-level fractions, `ge240` and `ge250`, confirmed on hardware the next
+    morning (below). The percentile columns in this log are unaffected.
+
+### Clipping columns on hardware (gainsweep-clipcheck-lab-run1, 2026-11-20 10:30:40; `uvc/logs/gainsweep-clipcheck-lab-run1.log`)
+
+`uvc/.venv/bin/python uvc/probe.py gainsweep --kind any --index 1 --exposures 100`
+- Identification: index 1 is kind B at 0x01142000 (lab port 2), 143.0 -> 0.7 with the dark
+  marker. Format: MJPEG 640x480 at 30.0 fps, max payload 800 B. Rate: 30.2-30.3 fps
+  throughout, 0 failed reads.
+- 10 ms, gain 0 to 100 (morning room light):
+
+| setting | brightness | y_p50 | y_p99 | y_max | noise | ge240 | ge250 |
+|---|---|---|---|---|---|---|---|
+| auto (before) | 145.7 | 145.6 | 233.7 | 241.8 | 1.52 | 0.14% | 0.00% |
+| 10 ms gain 0 | 145.7 | 145.6 | 233.7 | 241.7 | 1.52 | 0.14% | 0.00% |
+| 10 ms gain 20 | 191.4 | 200.6 | 244.8 | 248.7 | 1.88 | 26.76% | 0.00% |
+| 10 ms gain 40 | 218.5 | 244.2 | 245.4 | 251.0 | 1.84 | 58.24% | 0.00% |
+| 10 ms gain 70 | 235.2 | 244.3 | 244.9 | 251.5 | 1.65 | 78.46% | 0.01% |
+| 10 ms gain 100 | 241.5 | 244.4 | 244.8 | 247.5 | 0.95 | 84.96% | 0.00% |
+| auto (after) | 140.4 | 139.9 | 226.2 | 241.8 | 1.52 | 0.07% | 0.00% |
+
+- **`ge240` follows the pile-up** at 244-245: 0.14% in auto, 85% at gain 100. **`ge250` stays
+  at 0.00-0.01%** because kind B's pile-up is below 250. The fixed levels report what the
+  percentiles show.
+- From gain 40 on, the noise falls (1.84 -> 0.95) as more of the picture sits at the
+  ceiling. This confirms that noise is only comparable in unclipped areas.
+- **10 ms, gain 0 again equals auto** (145.68 vs 145.69), as on all three kind B cameras the
+  evening before, now in morning light. This is consistent with kind B's auto settling at
+  about 10 ms and gain 0 in the lab's light; it is still an inference (goal 1).
 
 ## Hook recommendation
 
@@ -1203,3 +1230,9 @@ It read every second for 40 s while streaming index 0, with cues to cover all le
   the identified camera: manual, exposures 2, 3, 4 and 10 ms, each with gain 0-100. After the
   sweep, each camera was restored to its own defaults (A and C: exposure 157; B: 156; gain 0,
   ae_mode 8) and read back OK. Final read-back at 17:18: all eight MATCH.
+- **gainsweep-clipcheck-lab-run1 (2026-11-20 10:30:40), any kind, index 1**: dark
+  identification markers (manual, 0.1 ms, gain 0) on six candidates in turn (ports 5, 6, 7,
+  8, 1, then 2). Each was restored to its own defaults and read back OK right after its
+  marker. Then the sweep on port 2 (kind B): manual, 10 ms, gain 0-100, restored (manual,
+  exposure 156, gain 0, ae_mode 8) and read back OK. The final read-back of all eight
+  cameras MATCHES.

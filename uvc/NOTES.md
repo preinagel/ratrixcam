@@ -109,8 +109,8 @@ B and C differ only by name string. B has an extra H.264 stream and no 800x600. 
       (10 fps while set).
     - dimsweep-lab-run1: index k = port k+1 for all 8; all restored; MJPEG; 0 failed reads.
     - Found: the `at_max` clipping column missed the A/B pile-up at 244-245. It was
-      replaced by ge240/ge250 after the run, untested on hardware (a short confirmation
-      run is optional).
+      replaced by ge240/ge250, confirmed on hardware 2026-11-20 (gainsweep-clipcheck-lab-run1,
+      kind B port 2: ge240 0.14% -> 85%). All 8 cameras were restored, read back OK.
     - Found: kind C port 7 needs gain where port 4 needs none. The "kind C: no compensation"
       finding was port 4's scene; corrected in REPORT.md.
     - Found: for B and C port 7, 10 ms at gain 0 equals auto within 1%, so auto likely runs
