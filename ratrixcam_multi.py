@@ -31,6 +31,15 @@ from ratrixcam_utils import (
 # RECORDING_TTL = False
 
 
+SUPERVISOR_PASS = 1  # seconds between passes of the loop that counts the cameras and watches their processes
+# Seconds after a camera's process ended before it is launched again, counted by the clock and not
+# in passes, so that SUPERVISOR_PASS can change without changing it. A camera opened within a few
+# seconds of its release can deliver almost nothing for a while, and every launch costs the running
+# cameras frames (GitHub #52, #63), so a camera that went offline is given this long before its
+# relaunch.
+CAMERA_RELAUNCH_DELAY = 60
+
+
 def run_without_handlers(
     config: Config, camera_idx: int, stop_event: Event, abort_event: Event | None = None, calibration: Calibration | None = None
 ):
@@ -39,7 +48,8 @@ def run_without_handlers(
     ratrixcam_server.run(config, camera_idx, stop_event, abort_event, calibration)
 
 
-# Main loop: check every second and restart any cameras or processes that are not running
+# Main loop: every SUPERVISOR_PASS seconds, count the cameras and restart any camera process that
+# is not running, once its CAMERA_RELAUNCH_DELAY has passed
 def run(config: Config, stop_event: Event, abort_event: Event | None = None, calibration: Calibration | None = None):
     """abort_event, when given and set by the launcher, tells each camera server at its own
     shutdown to leave its last clip and its pending transfers in temp instead of waiting
@@ -69,6 +79,7 @@ def run(config: Config, stop_event: Event, abort_event: Event | None = None, cal
 
     camera_processes: list[Process | None] = [None for _ in range(num_cameras)]
     camera_state: list[bool] = [False for _ in range(num_cameras)]
+    offline_since: list[float | None] = [None for _ in range(num_cameras)]  # when each dead process was found so
     # p_TTL: Process | None = None  # TTL input, not implemented (see the top of the file)
 
     devices = 0  # the last count that succeeded
@@ -102,16 +113,22 @@ def run(config: Config, stop_event: Event, abort_event: Event | None = None, cal
             camera_state[idx] = process is not None and process.is_alive()
             if camera_state[idx]: #still running
                 continue
-            elif was_alive:  # not running, but was on the previous pass: indicate offline in GUI and terminal
+            if process is not None and offline_since[idx] is None:  # its process ended since the last pass
+                offline_since[idx] = time.monotonic()
+            if was_alive:  # not running, but was on the previous pass: indicate offline in GUI and terminal
                 try:
                     _ = shutil.copyfile(BLANK_IMAGE, still_path(stills_folder, name))
                 except OSError as e:  # the still is cosmetic; the supervisor must outlive it
                     print(f"WARNING: could not place the offline image for camera {name}: {e.strerror or e}")
                 print(
-                    f"Camera {name} went offline at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}."
+                    f"Camera {name} went offline at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}; "
+                    + f"relaunched after {CAMERA_RELAUNCH_DELAY} s once all cameras are counted."
                 )
             if not have_all_cameras:
                 continue
+            since = offline_since[idx]
+            if since is not None and time.monotonic() - since < CAMERA_RELAUNCH_DELAY:
+                continue  # a camera that went offline waits its delay; a camera never launched does not
             # only when all devices are detected, try to re-launch the ones that went offline
             try:
                 if launched_this_pass:  # another camera was launched within this pass of the loop:
@@ -122,6 +139,7 @@ def run(config: Config, stop_event: Event, abort_event: Event | None = None, cal
                 )
                 cam_proc.start()
                 camera_processes[idx] = cam_proc
+                offline_since[idx] = None
                 launched_this_pass = True
                 print(f"Multicam: Started camera {name}")
 
@@ -138,7 +156,7 @@ def run(config: Config, stop_event: Event, abort_event: Event | None = None, cal
         #     except Exception as e:
         #         print(type(e), e)
         #         print("Cannot restart TTL logging")
-        _ = stop_event.wait(1)
+        _ = stop_event.wait(SUPERVISOR_PASS)
 
     print("Multicam attempting to shut down nicely")
 

@@ -1,6 +1,6 @@
 """ratrixcam_multi, the supervisor, and the camera count it shares with the calibration
-program: the count must never stall the caller, an unknown count launches nothing, and a
-camera that is not a USB camera is named once."""
+program: the count must never stall the caller, an unknown count launches nothing, a camera
+that is not a USB camera is named once, and a camera that went offline waits its delay."""
 
 import multiprocessing
 import subprocess
@@ -136,8 +136,11 @@ def test_an_unknown_count_launches_nothing(monkeypatch: pytest.MonkeyPatch, tmp_
     assert "Only detected" not in capsys.readouterr().out
 
 
-def test_the_exact_count_launches_the_cameras(monkeypatch: pytest.MonkeyPatch, tmp_path: object):
-    assert supervise(monkeypatch, tmp_path, 1, 1.5)[:1] == [0]  # relaunched each pass, since the stand-in dies at once
+def test_the_exact_count_launches_the_cameras_and_a_dead_one_waits_its_delay(monkeypatch: pytest.MonkeyPatch, tmp_path: object, capsys: pytest.CaptureFixture[str]):
+    assert supervise(monkeypatch, tmp_path, 1, 2.5) == [0]  # the stand-in dies at once; its relaunch waits the delay
+    assert "relaunched after 60 s" not in capsys.readouterr().out  # it was never seen alive: no offline line
+    monkeypatch.setattr(multi, "CAMERA_RELAUNCH_DELAY", 0)
+    assert supervise(monkeypatch, tmp_path, 1, 2.5) == [0, 0, 0]  # without a delay: a launch on every pass
 
 
 def test_one_camera_too_many_launches_nothing_and_is_said_once(monkeypatch: pytest.MonkeyPatch, tmp_path: object, capsys: pytest.CaptureFixture[str]):
