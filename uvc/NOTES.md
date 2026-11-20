@@ -6,6 +6,14 @@ camera developer in `uvc/FRAME_DROPS.md`, and the tooling in `uvc/probe.py` and
 `uvc/frames_analysis.py`. The memory folder (`~/.claude/projects/.../memory`) is not writable
 in this session's permissions, so these notes are the persistent record.
 
+## Frozen reports (user, 2026-11-20)
+- Branch `uvc-prototype` was pushed by the user (2026-11-20). The test results were exported
+  to a documentation folder outside my scope.
+- **From now on these are read-only: `uvc/REPORT.md`, `uvc/FRAME_DROPS.md`,
+  `uvc/DIM_LIGHT_TEST.md`, and the existing logs in `uvc/logs/`.** Any further output that
+  needs documenting goes into a NEW report file under `uvc/`, never an edit to these.
+- This notes file is not a report; it stays mine to update.
+
 ## How the user wants to work
 - **"Write to memory" / "update your memory" means: update this file, `uvc/NOTES.md`**, and
   commit it. It does not mean the Claude memory folder (that one is not writable here anyway).
