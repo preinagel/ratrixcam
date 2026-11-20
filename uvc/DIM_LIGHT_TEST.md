@@ -170,12 +170,11 @@ The columns:
   luminance divided by the square root of 2. Motion in view raises it. The table gives the
   median over frame pairs, which limits the effect of brief motion;
 - **snr**: y_mean divided by noise;
-- **at_max**: percentage of pixels within 2 levels of that frame's maximum luminance.
-  - These cameras' decoded luminance tops out at about 239-244, not 255 (lab run,
-    2026-11-19), so a fixed "255" or "250" threshold would miss clipping.
-  - Clipped highlights show as y_max at that ceiling and a pile-up in at_max.
-  - In a flat, low-noise picture, unclipped pixels near the maximum count too, so read
-    at_max together with y_p99 and y_max;
+- **ge240, ge250**: percentage of pixels with luminance of 240 or more, and of 250 or more.
+  - In the lab run (2026-11-19), bright areas piled up at about 244-245 on kinds A and B,
+    and at 255 on kind C. A few stray pixels reached 247-255 on every kind.
+  - So clipping on A and B shows in ge240 and in y_p50/y_p99 near 244, not in ge250;
+    on C it shows in both columns;
 - **black**: percentage of pixels with luminance of 5 or less;
 - **fps**: frames delivered per second in that step.
 

@@ -10,13 +10,21 @@ Status (2026-11-19, after the kind B and C runs): **all three kinds (A 0x6369, B
   only in manual mode.
 - **Goal 1 by the UVC exposure read: no** (kind A, aetrack run 1): in auto mode the camera
   returns the stored manual value, not the exposure its AE loop uses.
-- **Goal 3 compensation at 4.0 ms**, in each camera's own scene: kind A gain 50, kind B gain
-  40, kind C none needed (4 ms is already brighter than auto, at 352x288 and at 640x480).
+- **Goal 3 compensation at 4.0 ms depends on the camera's scene and the light, not only on
+  the kind.**
+  - Earlier single-camera runs: kind A port 1 needed gain 50 (09:27) and kind B port 2 gain
+    40 (12:26). For kind C port 4, 4 ms was already brighter than auto.
+  - The all-camera lab sweep (dimsweep-lab-run1, 17:05) shows that the port 4 result is that
+    camera's scene, not kind C. Kind C on port 7 at 4 ms reached 54 at gain 0 and 137 at
+    gain 100, against 127 in auto. See "Lab run of the dim-light sweep".
 - The wire format is MJPEG on all three kinds.
 - Hook: a supervisor pass by USB id before each (re)launch, plus a read-back after the
   capture opens.
 - Open:
-  - compensation in dim light (no kind tested);
+  - compensation in dim light (no kind tested). This needs a deployment rig, because its
+    lighting cannot be reproduced in the lab. The operator instructions are
+    `uvc/DIM_LIGHT_TEST.md`, and the tooling was tested on all eight lab cameras
+    (dimsweep-lab-run1);
   - one stream stall on kind C (persist-C run 1), now probably explained: it came 8 s after
     another process released the same camera, a pattern the developer's AVFoundation probe
     also saw (see the Kind C summary). The soak test is deferred. No stall occurred in the
@@ -29,8 +37,10 @@ Status (2026-11-19, after the kind B and C runs): **all three kinds (A 0x6369, B
 - kind B port 2: ae_mode 8, exposure 156, gain 0;
 - kind C port 4: ae_mode 8, exposure 157, gain 0.
 
-AE priority was 0 throughout and was only ever rewritten as 0. Kind B ports 6 and 8 and
-kind C port 7 were never written to. Per-run details are in Restored.
+AE priority was 0 throughout and was only ever rewritten as 0. Up to 16:18, kind B ports 6
+and 8 and kind C port 7 were never written to. The evening's bright-marker run and lab sweep
+(17:02 to 17:18) wrote to all eight cameras, and all eight were restored to their own
+defaults and read back OK. Per-run details are in Restored.
 
 **Stream format, and a correction.**
 - Runs up to and including track run 1 streamed at the camera default, 1920x1080.
@@ -557,9 +567,12 @@ about a minute apart.
 3. **Q3: YES.** AE mode, exposure time (0.1-500 ms, default 15.7 ms) and gain (0-100, default
    0) were all written and read back; exposure only in manual mode.
 - The answers are the same at 352x288 and at 640x480, the recorder's format.
-- Goal 3 compensation: **none needed at 4.0 ms in this scene.** Gain 0 already gives about 2x
-  the auto brightness (gainsweep-C runs 1 and 2). A brightness match would need a shorter
-  exposure, not tested.
+- Goal 3 compensation: **none needed at 4.0 ms in port 4's scene.** Gain 0 already gives about
+  2x the auto brightness (gainsweep-C runs 1 and 2). **This is port 4's scene, not kind C.**
+  - The other kind C camera, port 7, at 4 ms gave 54 at gain 0 and 137 at gain 100, against
+    127 in auto (dimsweep-lab-run1).
+  - Port 4's own auto picture is high-contrast: 5% of pixels at 255 and a 1st percentile
+    of 2.
 - **One unprompted stream stall** (persist-C run 1): the stream stopped after about 1 s,
   unexplained, with no handling. No kind A or B camera stalled in any run. Kind C streamed
   longer than 1 s about 8 times today, too few to estimate a stall rate.
@@ -601,11 +614,83 @@ its own scene. All three kinds' columns are at 640x480 (kind C: the 640x480 reru
 | Stream format tested (wire format) | 640x480 @ 30 (MJPEG) | 640x480 @ 30 (MJPEG) | 640x480 @ 30 (MJPEG); earlier 352x288 (MJPEG) |
 | Delivered rate, single camera (probe) | 29.6 fps | 30.2 fps | 29.3 fps |
 | Manual 4.0 ms vs auto, while streaming | darker, -44% (q1 run 3) | darker, -42% (q1-B run 1) | **brighter, +85%** (q1-C run 2; +91% at 352x288) |
-| Goal 3: gain at 4.0 ms nearest auto | **50** (139.2 vs 139.2; 09:27) | **40** (150.0 vs 152.9; 12:26) | **none needed**: gain 0 = 208.6 vs 110.1 (16:16; 197.4 vs 101.0 at 352x288) |
+| Goal 3: gain at 4.0 ms nearest auto (one camera, one moment) | **50** (139.2 vs 139.2; port 1, 09:27) | **40** (150.0 vs 152.9; port 2, 12:26) | port 4: **none needed**, gain 0 = 208.6 vs 110.1 (16:16). Port 7 differs: gain 100 = 137 vs 127 (17:15) |
+| 4.0 ms, gain 0 / gain 100 vs auto, all cameras (dimsweep-lab-run1, 17:05-17:18) | ports 1, 3, 5: 33-37 / 86-94 vs 119-127 | ports 2, 6, 8: 80-87 / 201-219 vs 146-154 | port 4: 211 / 249 vs 111; port 7: 54 / 137 vs 127 |
 | Stream stalls seen | none | none | one, at 352x288 (persist-C run 1), probably a quick reopen (see Kind C summary); none at 640x480 |
 
 The gain values hold only for each camera's scene and light at the time of its run. The dim
 light that motivates goal 3 has not been tested on any kind.
+
+## Lab run of the dim-light sweep (dimsweep-lab-run1, 2026-11-19 17:05:57 to 17:18; `uvc/logs/dimsweep-lab-run1.log`)
+
+This tests the deployment tooling (`probe.py dimsweep`, `uvc/DIM_LIGHT_TEST.md`) on all eight
+lab cameras, in the lab's evening room light, not in dim light. The tool:
+- treats every target camera of any kind as a candidate and identifies the camera behind
+  each index;
+- at 2, 3, 4 and 10 ms, steps gain from 0 to 100 in steps of 10;
+- measures luminance statistics in auto before, at each step, and in auto after;
+- restores each camera.
+
+The day's earlier bright-marker check (`gainsweep-brightmarker-lab-run1.log`, 17:02) forced
+the 100 ms, full-gain identification marker on index 0:
+- It identified kind A at port 1 (127 -> 243); the seven other candidates left the stream
+  at 127.2-127.4.
+- The 100 ms exposure was accepted; the stream ran at 10.1 fps while it was set, and at
+  29.6 fps after the restore.
+
+`uvc/.venv/bin/python uvc/probe.py dimsweep`:
+- **Identification: index k = lab port k+1 for all eight**, with kinds A, B, A, C, A, B, C,
+  B, as in the rig table. The dark marker was used each time (baselines 114-151; marker
+  0.0-1.9).
+- **Format:** every camera-side commit read MJPEG 640x480 at 30.0 fps, max payload 800 B.
+- **Rate:** 0 failed reads. Kinds A and C ran at 29.2-29.3 fps and kind B at 30.2-30.3
+  (1 s windows, so some steps show +1 frame). Exposures from 2 to 10 ms did not change the
+  rate.
+- **Restore:** each camera was restored after its sweep, and the final read-back of all
+  eight MATCHES their own defaults.
+- Duration: 12 min, about 90 s per camera.
+
+Selected rows (measurements only; brightness = mean of B, G, R; noise = temporal noise of
+one frame in luminance):
+
+| Index / lab port / kind | auto | 4 ms g0 | 4 ms g100 | noise 4 ms g0 -> g100 | 10 ms g0 | fps |
+|---|---|---|---|---|---|---|
+| 0 / 1 / A | 127.2 | 34.4 | 92.4 | 1.04 -> 2.87 | 79.3 | 29.3 |
+| 2 / 3 / A | 118.7 | 32.9 | 85.6 | 0.97 -> 2.56 | 76.1 | 29.3 |
+| 4 / 5 / A | 126.7 | 36.6 | 94.2 | 1.32 -> 3.03 | 80.6 | 29.3 |
+| 1 / 2 / B | 146.9 | 83.9 | 201.2 | 1.52 -> 4.07 | 148.7 | 30.3 |
+| 5 / 6 / B | 154.0 | 86.7 | 219.0 | 1.01 -> 2.01 | 153.8 | 30.3 |
+| 7 / 8 / B | 145.7 | 80.4 | 205.9 | 1.45 -> 3.65 | 145.5 | 30.3 |
+| 3 / 4 / C | 111.3 | 210.7 | 249.4 | 2.41 -> 1.68 | 247.1 | 29.3 |
+| 6 / 7 / C | 126.6 | 54.1 | 137.1 | 1.93 -> 3.51 | 127.0 | 29.3 |
+
+Observations, stated as measurements:
+- **The three kind A cameras agree closely with each other, and so do the three kind B
+  cameras. The two kind C cameras do not.** Port 4 at 4 ms, gain 0 is brighter than its
+  auto (211 vs 111), and port 7 is darker (54 vs 127). So the earlier kind C goal 3 result
+  (port 4 only) does not describe kind C.
+- **Noise rises with gain:** at 4 ms, gain 0 to 100 multiplies it by about 2-3 on A, B and
+  port 7.
+  - Port 4's noise falls instead (2.41 -> 1.68) while its p50 reaches 252.65 and 45% of its
+    pixels are at 240 or more.
+  - Noise measured in clipped areas is low, so noise figures are only comparable where
+    the picture is not clipped.
+- **For kind B (all three) and kind C port 7, the 10 ms, gain 0 row equals auto within 1%**
+  (148.7/146.9, 153.8/154.0, 145.5/145.7, 127.0/126.6).
+  - This is consistent with their auto exposure running at about 10 ms, gain 0 in this
+    light. That is an inference: the camera's exposure read cannot confirm it (goal 1).
+  - On kind A, 10 ms, gain 0 is about 63% of auto, consistent with a longer auto exposure.
+- **Kind A in this light:** at 4 ms, gain 100 reaches 86-94 against 119-127 in auto. Port 1
+  matched auto at gain 50 at 09:27, so the room light was different then.
+- **Clipping:**
+  - On kinds A and B, bright areas pile up at about 244-245. Index 1 at 10 ms, gain 100 has
+    a p50 of 244.4 and a p99 of 244.8.
+  - On kind C, the pile-up is at 255.
+  - A few stray pixels reach 247-255 on every kind.
+  - The run's clipping column (`at_max`, pixels within 2 levels of the frame's maximum)
+    therefore missed the A/B pile-up: it reads 0.32% for that row. After this run it was
+    replaced by fixed-level fractions, `ge240` and `ge250`, which have not yet run on
+    hardware. The percentile columns in this log are unaffected.
 
 ## Hook recommendation
 
@@ -642,9 +727,14 @@ Evidence, per kind:
   same for every camera of a kind. **The kind is known from the USB ids and name string**,
   so per-kind settings need no mapping either. A per-server call would need the mapping,
   because the server knows only its cv2 index, and control requests address USB devices.
-- **Per-kind settings are likely needed:** the gain that compensates 4.0 ms differed by kind
-  in each camera's own scene. Kind A needed 50, kind B 40, and kind C none (4 ms was already
-  brighter than auto, at 352x288 and at 640x480).
+- **Per-kind settings may not be enough:** the gain that compensates 4.0 ms differed by kind
+  in each camera's own scene (kind A 50, kind B 40, kind C port 4 none). It also differed
+  within kind C.
+  - In the all-camera lab sweep, port 7 needed gain 100 to pass its auto brightness at
+    4 ms, while port 4 needed none.
+  - Kinds A and B were consistent within each kind.
+  - Whether per-camera values are needed depends on each camera's lamps and scene. The
+    deployment dim-light test (`uvc/DIM_LIGHT_TEST.md`) measures that per camera.
 - **Per-camera settings would need a per-camera key, and only the USB location is
   available.** No camera can be told apart by serial: kind A reports none, and every B and
   C unit reports the same "SN0001". The location is stable while cables stay put; it
@@ -1101,3 +1191,15 @@ It read every second for 40 s while streaming index 0, with cues to cover all le
   marker, restored and read back OK. Then ae_mode 1, exposure 40, gain 10 with no stream. The
   camera reverted to its defaults by itself on its replug. Restored at 16:18:50 (manual,
   exposure 157, gain 0, ae_mode 8) and read back OK. No other camera was written to.
+- **gainsweep-brightmarker-lab-run1 (2026-11-19 17:02:24), any kind, index 0**: bright
+  identification marker (manual, exposure 1000 = 100 ms, gain 100) on five candidates in turn
+  (ports 5, 6, 7, 8, then 1). Each was restored to its own defaults and read back OK right
+  after its marker. Then the sweep on port 1 (kind A): manual, 4 ms, gain 0-100, restored
+  (manual, exposure 157, gain 0, ae_mode 8) and read back OK. The final read-back of all
+  eight cameras MATCHES.
+- **dimsweep-lab-run1 (2026-11-19 17:05:57), all eight cameras**: for each index 0-7, dark
+  identification markers (manual, exposure 1 = 0.1 ms, gain 0) on candidates until the match.
+  Every candidate was restored and read back OK right after its marker. Then the sweep on
+  the identified camera: manual, exposures 2, 3, 4 and 10 ms, each with gain 0-100. After the
+  sweep, each camera was restored to its own defaults (A and C: exposure 157; B: 156; gain 0,
+  ae_mode 8) and read back OK. Final read-back at 17:18: all eight MATCH.
