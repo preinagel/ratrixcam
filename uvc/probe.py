@@ -1,19 +1,18 @@
 #!/usr/bin/env python3
-"""UVC control probe for the Arducam OV2710 camera (Sonix controller, USB 0x0c45:0x6369).
+"""UVC control probe for the Arducam OV2710 cameras (Sonix controller, USB vendor 0x0c45;
+kinds A, B and C, below).
 
-RUN THIS (in your own Terminal, from anywhere; not inside the Claude sandbox):
+RUN THIS: the deployment dim-light test is in uvc/DIM_LIGHT_TEST.md (operator instructions,
+including installation). The lab rig's last pending command was the soak test:
 
     cd ~/Desktop/ratrixcam-uvc && uvc/.venv/bin/python uvc/probe.py soak --minutes 20 2>&1 | tee uvc/logs/soak-run1.log
-
-    (kind C ports 4 and 7 and kind A port 1, about 21 minutes; leave the rig alone; Ctrl-C
-    stops early and still prints the summary)
 
 Sub-commands:
     list      read-only, no device opened: full descriptors of every 0x0c45 camera (all
               products), with formats, frame sizes and rates, grouped by fingerprint
-    controls  read every GET_* of the exposure/gain controls, no stream open; target only,
+    controls  read every GET_* of the exposure/gain controls, no stream open; kind A only,
               or every 0x0c45 camera with --all-vendor (GET requests only)
-    All other sub-commands act on the target product 0x6369 only.
+    The streaming sub-commands act on --kind (A, B, C, or any for all three).
     q1        question 1: control requests before and while a cv2.VideoCapture streams.
               On each target in turn, while streaming: reads every control (goal 1);
               clears AE priority, then restores it (goal 2); sets manual exposure at
@@ -24,8 +23,13 @@ Sub-commands:
     aetrack   on each target while index 0 streams: manual 4 ms, then back to auto with the
               exposure value left at 4 ms; reads exposure 4x/s while AE re-converges.
               Restores exposure and AE mode and reads them back.
-    gainsweep goal 3: on each target while index 0 streams, manual 4 ms and gain stepped
-              through its range; brightness per step vs the auto brightness just before
+    gainsweep goal 3: on the camera identified behind --index, while it streams: manual
+              exposure (--exposure, default 4 ms) and gain stepped through its range, with
+              auto before and after; per step the luminance statistics (Y mean and
+              percentiles, temporal noise, snr, saturated and black fractions, fps).
+              Measurements only: no judgement of usability is made
+    dimsweep  gainsweep on every cv2 index 0..N-1 of a rig whose layout is unknown (every
+              target camera of any kind is a candidate), at 640x480 @ 30; per-index summary
     persist   question 2: manual 4 ms + gain 10 set with no stream; read back after stream
               start, stream stop, and a cued unplug/replug of one camera (polls for it)
     scan      cv2 only, no control requests: open indices --first..--last in turn and
@@ -48,7 +52,9 @@ height and fps from the defaults in uvc/camera_config_5.json (the probe's copy o
 user's config, set to 640x480 @ 30; --width/--height/--fps override). Each prints the
 requested, reported and measured format.
 
-Safety: refuses to run if ~/Desktop/temp exists (a recording is in progress). Never claims an
+Safety: the recorder must not be running; the operator makes sure of that. As an extra
+guard the probe refuses to run if ~/Desktop/temp exists (the lab recorder's default temp
+folder; recorders configured with another temp folder are not detected). Never claims an
 interface, detaches a driver or sets a configuration: only class requests on endpoint 0,
 sent on the device handle without pyusb's implicit interface claim (run 1 did claim; see
 REPORT.md).
@@ -56,7 +62,7 @@ Kinds (brief, 2026-11-19): A = 0x6369 "USB 2.0 Camera", B = 0x6366 "USB 2.0 Came
 C = 0x6366 "USB Camera". Cameras are selected by vendor id, product id and name string
 (--kind, default A), optionally narrowed to one rig port (--port); never by list position.
 Every streaming sub-command first identifies which selected camera is behind the index it
-opens (marker brightness response; "index N is kind K at port P"), and stops before any
+opens (marker brightness response; "index N is kind K at 0x<location>"), and stops before any
 experiment write if that fails. Writes go only to the selected cameras.
 """
 
@@ -73,7 +79,12 @@ VID, PID = 0x0C45, 0x6369  # PID: kind A, the product the prototype was develope
 # name string. B and C share every USB id field; only the name string tells them apart.
 KINDS = {"A": (0x6369, "USB 2.0 Camera"), "B": (0x6366, "USB 2.0 Camera"), "C": (0x6366, "USB Camera")}
 KIND_OF = {}  # location id -> kind, filled by find_kind, used to label read-backs
-LIBUSB = "/opt/homebrew/lib/libusb-1.0.dylib"
+# libusb: the lab Mac's hand install, then Homebrew's two default prefixes (Apple silicon,
+# Intel); UVC_LIBUSB overrides, for another Mac with libusb elsewhere.
+LIBUSB_CANDIDATES = [p for p in (os.environ.get("UVC_LIBUSB"),
+                                 "/opt/homebrew/lib/libusb-1.0.dylib",
+                                 "/usr/local/lib/libusb-1.0.dylib") if p]
+LIBUSB = next((p for p in LIBUSB_CANDIDATES if os.path.exists(p)), LIBUSB_CANDIDATES[0])
 RECORDING_FLAG = os.path.expanduser("~/Desktop/temp")
 # The probe's own copy of the user's camera_config_5.json, next to this script, with the
 # defaults changed to 640x480 at the user's request (2026-11-19). Used for the stream format
@@ -117,7 +128,8 @@ def usb_backend():
     import usb.backend.libusb1 as libusb1
     be = libusb1.get_backend(find_library=lambda _name: LIBUSB)
     if be is None:
-        sys.exit(f"libusb backend not loaded from {LIBUSB}")
+        sys.exit(f"libusb backend not loaded from {LIBUSB} (looked for: {', '.join(LIBUSB_CANDIDATES)}; "
+                 f"set UVC_LIBUSB to the path of libusb-1.0.dylib)")
     return be
 
 
@@ -149,13 +161,21 @@ def find_kind(be, kind, port=None):
 
 
 def find_selected(be, args):
-    """The cameras a run may write to: --kind, narrowed to --port when given."""
-    devs = find_kind(be, args.kind, getattr(args, "port", None))
-    pid, name = KINDS[args.kind]
-    what = f"kind {args.kind} (0x{VID:04x}:0x{pid:04x} \"{name}\")" + (f" on port {args.port}" if getattr(args, "port", None) else "")
+    """The cameras a run may write to: --kind (or every target kind for "any"), narrowed to
+    --port when given."""
+    port = getattr(args, "port", None)
+    if args.kind == "any":
+        devs = sorted((d for k in sorted(KINDS) for d in find_kind(be, k, port)), key=location_id)
+        what = "any target kind (A, B, C)"
+    else:
+        devs = find_kind(be, args.kind, port)
+        pid, name = KINDS[args.kind]
+        what = f"kind {args.kind} (0x{VID:04x}:0x{pid:04x} \"{name}\")"
+    what += f" on port {port}" if port else ""
     if not devs:
         sys.exit(f"no camera of {what}")
-    print(f"[{now()}] selected {len(devs)} camera(s) of {what}: ports {', '.join(rig_port(d) for d in devs)}")
+    print(f"[{now()}] selected {len(devs)} camera(s) of {what}: "
+          + ", ".join(f"kind {KIND_OF[location_id(d)]} at 0x{location_id(d):08x} (lab port {rig_port(d)})" for d in devs))
     return devs
 
 
@@ -402,16 +422,42 @@ def print_measured_size(reader, devs=()):
 
 
 class Reader(threading.Thread):
+    """Reads frames continuously. Per frame: time, ok, mean brightness (mean of all B, G, R
+    values, as in every earlier log), and image statistics of the luminance
+    Y = 0.299 R + 0.587 G + 0.114 B (0-255) on every second pixel in each direction:
+    - temporal noise: the standard deviation of Y minus the previous frame's Y, divided by
+      sqrt(2), i.e. the noise of one frame. A static scene is assumed; motion adds to it,
+      which is why windows report the median over frame pairs;
+    - Y percentiles 1, 50 and 99, and Y mean;
+    - saturated: fraction of pixels with Y >= 250; black: fraction with Y <= 5.
+    Measurements only; nothing here judges whether an image is usable."""
+
     def __init__(self, cap):
         super().__init__(daemon=True)
         self.cap, self.samples, self.stop_evt, self.shape = cap, [], threading.Event(), None
+        self.prev = None
 
     def run(self):
         while not self.stop_evt.is_set():
             ok, frame = self.cap.read()
+            t = time.monotonic()
             if ok and self.shape is None:
                 self.shape = frame.shape[:2]
-            self.samples.append((time.monotonic(), ok, float(frame.mean()) if ok else None))
+            quality = None
+            if ok:
+                import numpy as np  # cv2's own dependency, importable once cv2 is
+                sub = frame[::2, ::2].astype(np.float32)
+                y = 0.114 * sub[..., 0] + 0.587 * sub[..., 1] + 0.299 * sub[..., 2]  # BGR order
+                noise = None
+                if self.prev is not None and self.prev.shape == y.shape:
+                    noise = float((y - self.prev).std()) / 1.41421356
+                p1, p50, p99 = (float(v) for v in np.percentile(y, (1, 50, 99)))
+                quality = (noise, float((y >= 250).mean()), float((y <= 5).mean()),
+                           float(y.mean()), p1, p50, p99)
+                self.prev = y
+            else:
+                self.prev = None
+            self.samples.append((t, ok, float(frame.mean()) if ok else None, quality))
 
     def window(self, t0, t1):
         s = [x for x in self.samples if t0 <= x[0] < t1]
@@ -419,6 +465,17 @@ class Reader(threading.Thread):
         fps = (len(good) - 1) / (good[-1][0] - good[0][0]) if len(good) > 1 and good[-1][0] > good[0][0] else 0.0
         mean = sum(x[2] for x in good) / len(good) if good else float("nan")
         return len(good), len(s) - len(good), fps, mean
+
+    def quality(self, t0, t1):
+        """Window statistics: median temporal noise over frame pairs; means over frames of
+        the saturated and black fractions, Y mean and Y percentiles 1, 50, 99."""
+        q = [x[3] for x in self.samples if t0 <= x[0] < t1 and x[1] and x[3]]
+        nan = float("nan")
+        noises = sorted(r[0] for r in q if r[0] is not None)
+        out = {"noise": noises[len(noises) // 2] if noises else nan}
+        for i, key in enumerate(("saturated", "black", "y_mean", "y_p1", "y_p50", "y_p99"), start=1):
+            out[key] = sum(r[i] for r in q) / len(q) if q else nan
+        return out
 
 
 def watch(reader, label_, seconds, settle=0.0):
@@ -429,6 +486,23 @@ def watch(reader, label_, seconds, settle=0.0):
     n, bad, fps, mean = reader.window(t0, time.monotonic())
     print(f"    stream [{label_}] {seconds:.1f}s: frames={n} failed_reads={bad} fps={fps:.1f} mean_brightness={mean:.1f}")
     return mean
+
+
+def watch_quality(reader, label_, seconds, settle=0.0):
+    """As watch, plus the luminance statistics of Reader. Returns a dict of the figures.
+    snr = Y mean / temporal noise. Measurements only, no verdict."""
+    time.sleep(settle)
+    t0 = time.monotonic()
+    time.sleep(seconds)
+    t1 = time.monotonic()
+    n, bad, fps, mean = reader.window(t0, t1)
+    q = reader.quality(t0, t1)
+    q["snr"] = q["y_mean"] / q["noise"] if q["noise"] and q["noise"] == q["noise"] else float("nan")
+    print(f"    stream [{label_}] {seconds:.1f}s: frames={n} failed_reads={bad} fps={fps:.1f} "
+          f"mean_brightness={mean:.1f} Y mean={q['y_mean']:.1f} p1/p50/p99={q['y_p1']:.0f}/{q['y_p50']:.0f}/{q['y_p99']:.0f} "
+          f"noise={q['noise']:.2f} snr={q['snr']:.1f} saturated={q['saturated'] * 100:.2f}% black={q['black'] * 100:.2f}%")
+    q.update({"brightness": mean, "fps": fps, "frames": n, "failed": bad})
+    return q
 
 
 # ---------------------------------------------------------------- sub-commands
@@ -869,7 +943,7 @@ def identify_index(cv2, args, devs):
     """Which selected camera is behind cv2 index args.index? Opens the index as the recorder
     would, measures brightness, then for each candidate in turn sets the marker (manual,
     exposure 0.1 ms, gain 0) for 2 s, restores that camera to its defaults with read-back,
-    and checks whether the stream went dark. Prints "index N is kind K at port P" and
+    and checks whether the stream went dark. Prints "index N is kind K at 0x<location>" and
     returns (dev, lay) for the first camera that darkens it; None if none does or a restore
     fails. Writes only to the candidates, which are the cameras named in the run."""
     print(f"\n[{now()}] IDENTIFY: which of the {len(devs)} selected camera(s) is behind index {args.index}")
@@ -882,7 +956,9 @@ def identify_index(cv2, args, devs):
     try:
         watch(reader, "identify: warm-up", 2.0)
         base = watch(reader, "identify: baseline", 1.5)
-        if not base == base or base < 25:
+        # The marker floor is about 8 (kinds A, B, C in daylight), so a baseline under 18
+        # cannot halve reliably; stop rather than risk naming the wrong camera.
+        if not base == base or base < 18:
             print(f"IDENTIFICATION FAILED: baseline brightness {base:.1f} is too dark (or no frames) to see a marker")
             return None
         for dev in devs:
@@ -893,10 +969,12 @@ def identify_index(cv2, args, devs):
             if not restore_defaults(dev, lay):
                 print("IDENTIFICATION FAILED: the candidate's restore did not read back")
                 return None
-            if dark == dark and (dark < 0.4 * base or dark < 25):
+            # Relative test only: an absolute "dark < 25" would also pass a camera that is not
+            # behind the index when the scene itself is dim.
+            if dark == dark and dark < 0.45 * base:
                 kind = KIND_OF.get(location_id(dev), "?")
-                print(f"index {args.index} is kind {kind} at port {rig_port(dev)} "
-                      f"(0x{location_id(dev):08x}): brightness {base:.1f} -> {dark:.1f} with the marker")
+                print(f"index {args.index} is kind {kind} at 0x{location_id(dev):08x} (lab port {rig_port(dev)}): "
+                      f"brightness {base:.1f} -> {dark:.1f} with the marker")
                 return dev, lay
             print(f"    port {rig_port(dev)}: stream brightness {base:.1f} -> {dark:.1f}, not this camera")
         print(f"IDENTIFICATION FAILED: no selected camera darkened index {args.index}; stopping before any experiment write")
@@ -914,65 +992,116 @@ def identified_or_exit(cv2, args, devs):
     return found
 
 
-def cmd_gainsweep(args):
-    """Goal 3 compensation: at manual 4 ms, step gain through its range and measure brightness,
-    to find the gain that matches the brightness auto-exposure gives at the same moment."""
-    guard()
-    be = usb_backend()
-    devs = find_selected(be, args)
-    lays = [vc_layout(d) for d in devs]
-    print(f"[{now()}] {len(devs)} camera(s) selected; exposure fixed at {TEST_EXPOSURE / 10:.1f} ms, gain step {args.step}")
-    cv2 = import_cv2()
-    identified_or_exit(cv2, args, devs)
+QUALITY_COLUMNS = ("brightness", "y_mean", "y_p1", "y_p50", "y_p99", "noise", "snr", "saturated", "black", "fps")
+
+
+def quality_table(rows):
+    """rows: [(label, figures dict)]. A fixed-width table of the measured figures, no verdict."""
+    print(f"      {'setting':<16}" + "".join(f"{c:>11}" for c in QUALITY_COLUMNS))
+    for name, q in rows:
+        cells = []
+        for c in QUALITY_COLUMNS:
+            v = q.get(c, float("nan"))
+            cells.append(f"{v * 100:10.2f}%" if c in ("saturated", "black") else f"{v:11.2f}")
+        print(f"      {name:<16}" + "".join(cells))
+
+
+def sweep_index(cv2, args, devs):
+    """Identify the camera behind args.index among devs, then, on that camera only, at a fixed
+    manual exposure, step gain through its range while the index streams, measuring the
+    luminance statistics at each step and in auto before and after. Restores the camera to
+    its own defaults and reads it back. Returns a summary dict, or None if not identified."""
+    found = identify_index(cv2, args, devs)
+    if found is None:
+        return None
+    dev, lay = found
+    kind = KIND_OF.get(location_id(dev), "?")
+    emin, _, _ = xfer(dev, lay, "exposure", GET_MIN)
+    emax, _, _ = xfer(dev, lay, "exposure", GET_MAX)
+    exposure = max(emin or 1, min(args.exposure, emax or args.exposure))
+    print(f"\n[{now()}] GAIN SWEEP: index {args.index}, kind {kind} at 0x{location_id(dev):08x}; manual exposure "
+          f"{exposure / 10:.1f} ms ({'under' if exposure < EXPOSURE_LIMIT else 'NOT under'} 5 ms), gain step {args.step}")
     cap = open_capture(cv2, args)
     if not cap.isOpened():
-        sys.exit("capture did not open")
+        print("capture did not open; nothing written")
+        return None
     reader = Reader(cap)
     reader.start()
-    changed = []
+    rows, written = [], False
     try:
         watch(reader, "warm-up", 3.0)
-        print_measured_size(reader, devs)
-        for dev, lay in zip(devs, lays):
-            print(f"  {label(dev)}")
-            gmin, e1, _ = xfer(dev, lay, "gain", GET_MIN)
-            gmax, e2, _ = xfer(dev, lay, "gain", GET_MAX)
-            if e1 or e2:
-                print("    gain range unreadable; skipped")
-                continue
-            b_auto = watch(reader, "auto (reference)", 2.0)
-            changed.append(lambda d=dev, l=lay: restore_defaults(d, l))
-            set_manual(dev, lay, TEST_EXPOSURE, gmin)
-            gains = list(range(gmin, gmax + 1, args.step))
-            if gains[-1] != gmax:
-                gains.append(gmax)
-            rows = []
-            for g in gains:
-                w = xfer(dev, lay, "gain", SET_CUR, g)
-                rb, rb_err, _ = xfer(dev, lay, "gain", GET_CUR)
-                tag = f"gain {g} (write {fmt(*w)}, read back {'ERR' if rb_err else rb})"
-                b = watch(reader, tag, args.dwell, settle=args.settle)
-                rows.append((g, b))
-            changed.pop()()
-            watch(reader, "after restore", 2.0)
-            bs = [b for _, b in rows]
-            if max(bs) - min(bs) < 3:
-                print(f"    gain sweep: brightness flat ({min(bs):.1f}-{max(bs):.1f}): not the capture")
-                continue
-            best = min(rows, key=lambda r: abs(r[1] - b_auto))
-            sat = [g for g, b in rows if b >= 250]
-            print(f"    gain sweep on the capture: auto reference {b_auto:.1f}; at {TEST_EXPOSURE / 10:.1f} ms "
-                  f"the nearest is gain {best[0]} -> {best[1]:.1f}"
-                  + (f"; saturated (>=250) from gain {sat[0]}" if sat else ""))
-            print("    table gain:brightness " + " ".join(f"{g}:{b:.1f}" for g, b in rows))
+        print_measured_size(reader, [dev])
+        gmin, e1, _ = xfer(dev, lay, "gain", GET_MIN)
+        gmax, e2, _ = xfer(dev, lay, "gain", GET_MAX)
+        if e1 or e2:
+            print("    gain range unreadable; nothing written")
+            return None
+        rows.append(("auto (before)", watch_quality(reader, "auto (before)", args.dwell * 2)))
+        written = True
+        set_manual(dev, lay, exposure, gmin)
+        gains = list(range(gmin, gmax + 1, args.step))
+        if gains[-1] != gmax:
+            gains.append(gmax)
+        for g in gains:
+            w = xfer(dev, lay, "gain", SET_CUR, g)
+            rb, rb_err, _ = xfer(dev, lay, "gain", GET_CUR)
+            tag = f"gain {g} (write {fmt(*w)}, read back {'ERR' if rb_err else rb})"
+            rows.append((f"{exposure / 10:.1f} ms gain {g}", watch_quality(reader, tag, args.dwell, settle=args.settle)))
+        restore_defaults(dev, lay)
+        written = False
+        rows.append(("auto (after)", watch_quality(reader, "auto (after)", args.dwell * 2, settle=1.0)))
     finally:
-        for undo in changed:
-            undo()
+        if written:
+            restore_defaults(dev, lay)
         reader.stop_evt.set()
         reader.join(timeout=3)
         cap.release()
-    print(f"\n[{now()}] final read-back, stream released")
-    for dev, lay in zip(devs, lays):
+    print(f"    table, index {args.index}, kind {kind} at 0x{location_id(dev):08x} (measurements only; "
+          f"brightness = mean of B, G, R; Y = luminance; noise = temporal, one frame; snr = Y mean / noise):")
+    quality_table(rows)
+    readback_line(dev, lay, defaults_of(dev, lay), "after the sweep, stream released, expected = this camera's defaults")
+    return {"index": args.index, "kind": kind, "loc": location_id(dev), "exposure": exposure, "rows": rows}
+
+
+def cmd_gainsweep(args):
+    """Gain sweep at a fixed manual exposure on the camera behind --index (see sweep_index)."""
+    guard()
+    be = usb_backend()
+    devs = find_selected(be, args)
+    cv2 = import_cv2()
+    if sweep_index(cv2, args, devs) is None:
+        sys.exit(f"[{now()}] stopped: index {args.index} not swept")
+    print(f"\n[{now()}] final read-back, every selected camera")
+    for dev in devs:
+        lay = vc_layout(dev)
+        readback_line(dev, lay, defaults_of(dev, lay), "final, expected = this camera's defaults")
+
+
+def cmd_dimsweep(args):
+    """For a rig whose port layout is unknown: every target camera (kinds A, B, C) is a
+    candidate; cv2 indices 0 .. N-1 (N = target cameras found, or --count) are each
+    identified and swept in turn. Results per index and kind, never pooled."""
+    guard()
+    be = usb_backend()
+    args.kind, args.port = "any", None
+    devs = find_selected(be, args)
+    count = args.count or len(devs)
+    cv2 = import_cv2()
+    results = []
+    for i in range(count):
+        args.index = i
+        r = sweep_index(cv2, args, devs)
+        results.append(r or {"index": i})
+    print(f"\n[{now()}] SUMMARY (measurements only, per index; no pooling across cameras or kinds)")
+    for r in results:
+        if "kind" not in r:
+            print(f"  index {r['index']}: not identified or not swept (see above)")
+            continue
+        print(f"  index {r['index']}: kind {r['kind']} at 0x{r['loc']:08x}, exposure {r['exposure'] / 10:.1f} ms")
+        quality_table(r["rows"])
+    print(f"\n[{now()}] final read-back, every target camera")
+    for dev in devs:
+        lay = vc_layout(dev)
         readback_line(dev, lay, defaults_of(dev, lay), "final, expected = this camera's defaults")
 
 
@@ -1462,8 +1591,9 @@ def main():
     stream.add_argument("--width", type=int, help="override the config's default_width")
     stream.add_argument("--height", type=int, help="override the config's default_height")
     stream.add_argument("--fps", type=int, help="override the config's default_fps")
-    stream.add_argument("--kind", choices=sorted(KINDS), default="A",
-                        help="camera kind to select and write to (A 0x6369, B/C 0x6366 by name string); default A")
+    stream.add_argument("--kind", choices=sorted(KINDS) + ["any"], default="A",
+                        help="camera kind to select and write to (A 0x6369, B/C 0x6366 by name string; "
+                             "any = all three kinds); default A")
     stream.add_argument("--port", type=int, help="limit the run to the camera of --kind on this rig port")
     q1 = sub.add_parser("q1", parents=[stream])
     q1.set_defaults(fn=cmd_q1)
@@ -1477,11 +1607,18 @@ def main():
     at.add_argument("--seconds", type=float, default=5.0, help="how long to follow AE after handing back")
     at.add_argument("--interval", type=float, default=0.25)
     at.set_defaults(fn=cmd_aetrack)
-    gs = sub.add_parser("gainsweep", parents=[stream])
-    gs.add_argument("--step", type=int, default=10, help="gain step through the camera's range")
-    gs.add_argument("--dwell", type=float, default=1.0, help="seconds measured per gain step")
-    gs.add_argument("--settle", type=float, default=0.5, help="seconds discarded after each gain write")
+    sweep = argparse.ArgumentParser(add_help=False)
+    sweep.add_argument("--exposure", type=int, default=TEST_EXPOSURE,
+                       help="manual exposure in 100 us units (default 40 = 4.0 ms; the limit is under 50)")
+    sweep.add_argument("--step", type=int, default=10, help="gain step through the camera's range")
+    sweep.add_argument("--dwell", type=float, default=1.0, help="seconds measured per gain step")
+    sweep.add_argument("--settle", type=float, default=0.5, help="seconds discarded after each gain write")
+    gs = sub.add_parser("gainsweep", parents=[stream, sweep])
     gs.set_defaults(fn=cmd_gainsweep)
+    ds = sub.add_parser("dimsweep", parents=[stream, sweep],
+                        help="gain sweep on every camera of an unknown rig, indices 0..N-1")
+    ds.add_argument("--count", type=int, help="number of cv2 indices to sweep (default: target cameras found)")
+    ds.set_defaults(fn=cmd_dimsweep, width=640, height=480, fps=30)
     ps = sub.add_parser("persist", parents=[stream])
     ps.add_argument("--gain", type=int, default=10, help="manual gain under test (non-default, so a revert shows)")
     ps.add_argument("--no-replug", action="store_true", help="stop after the stream start/stop phases")

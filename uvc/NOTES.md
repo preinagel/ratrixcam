@@ -83,6 +83,28 @@ B and C differ only by name string. B has an extra H.264 stream and no 800x600. 
   - My "empty slot on the camera" hypothesis was withdrawn (FRAME_DROPS.md section 7).
   - The FID/PTS root/Linux test is dropped.
 
+## Dim-light test on a deployment rig (prepared 2026-11-19)
+- It must run on a deployment rig: the lighting cannot be reproduced in the lab. Each camera
+  has its own lamps, IR-pass filter and light-scatter hood. The kinds there are unknown,
+  probably A and C.
+- **Report measurements only (luminance, noise, clipping, fps). Never judge whether an
+  image is "usable"**: the downstream analysis team makes that assessment.
+- Tooling:
+  - `probe.py dimsweep` runs over indices 0..N-1 with every target kind as a candidate, at
+    640x480 @ 30.
+  - `gainsweep` now sweeps only the identified camera, with `--exposure` and `--kind any`.
+  - Reader adds luminance Y statistics: mean, p1/p50/p99, temporal noise, snr, saturated %,
+    black %.
+  - Identification is now relative only (dark < 0.45 x baseline; baseline >= 18).
+  - libusb is found at /opt/homebrew, then /usr/local, or via UVC_LIBUSB.
+- Operator instructions: `uvc/DIM_LIGHT_TEST.md`. REPOSITORY-ADDRESS is a placeholder for
+  the user.
+- The user: ~/Desktop/temp is NOT a real recorder check, because users choose any temp path.
+  Operators are simply told the recorder must not be running. The probe's guard stays as an
+  extra (brief rule).
+- The user plans to push the branch to GitHub so that the deployment Mac can clone it. I
+  never push.
+
 ## Rig state and pending work
 - Rig state: every camera written to was restored to its own defaults and read back OK
   (last: persist-C run 2, 12:33:47). The rig was on loan to the camera developer after that.
