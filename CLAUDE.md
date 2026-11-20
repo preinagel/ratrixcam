@@ -95,6 +95,14 @@ Building, installing into the venv, and editing under uvc/ you do yourself.
   build under uvc/ for that route; a short uvc/README.md on how to run it is allowed.
 - Commit on this branch as you go, one subject line each. Never push.
 
+## Reserved words from the user
+- "stand by" or "standby" (any capitalisation, alone or inside a sentence) means: stop.
+  From that moment do nothing at all: no reply beyond a one-word acknowledgement, no tool
+  call, no edit, no command, no commit, no reading, no planning out loud. Hold until the
+  user says they are done and releases you (for example "released", "go ahead", or a new
+  request). Anything the user says while you are on stand-by that is not a release is to
+  be held, not acted on.
+
 ## Rules for this folder
 - Everything under uvc/; nothing outside it is touched. The camera modules, gui/, videoproc/,
   tests/ and docs/ are read-only reference. So are the inputs the user places at the clone's
