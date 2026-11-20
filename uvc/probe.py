@@ -24,7 +24,8 @@ Sub-commands:
               exposure value left at 4 ms; reads exposure 4x/s while AE re-converges.
               Restores exposure and AE mode and reads them back.
     gainsweep goal 3: on the camera identified behind --index, while it streams: manual
-              exposure (--exposure, default 4 ms) and gain stepped through its range, with
+              exposures (--exposures, default 2, 3, 4 and 10 ms; 10 ms warns as not
+              under 5 ms) and, at each, gain stepped through its range, with
               auto before and after; per step the luminance statistics (Y mean and
               percentiles, temporal noise, snr, saturated and black fractions, fps).
               Measurements only: no judgement of usability is made
@@ -175,12 +176,14 @@ def find_selected(be, args):
     if not devs:
         sys.exit(f"no camera of {what}")
     print(f"[{now()}] selected {len(devs)} camera(s) of {what}: "
-          + ", ".join(f"kind {KIND_OF[location_id(d)]} at 0x{location_id(d):08x} (lab port {rig_port(d)})" for d in devs))
+          + ", ".join(f"kind {KIND_OF[location_id(d)]} at 0x{location_id(d):08x} (lab-rig port {rig_port(d)})" for d in devs))
     return devs
 
 
 def kind_label(dev):
-    return f"kind {KIND_OF.get(location_id(dev), '?')} port {rig_port(dev)}"
+    """Kind and USB location (reliable on any Mac), plus the lab rig's port number (derived
+    from this lab Mac's hub layout; meaningless on another Mac)."""
+    return f"kind {KIND_OF.get(location_id(dev), '?')} at 0x{location_id(dev):08x} (lab-rig port {rig_port(dev)})"
 
 
 def find_targets(be):
@@ -939,13 +942,23 @@ def defaults_of(dev, lay):
     return (mode, xfer(dev, lay, "exposure", GET_DEF)[0], xfer(dev, lay, "gain", GET_DEF)[0])
 
 
+DARK_MIN_BASE = 18      # the dark marker's floor is about 8, so it needs a baseline of 18+
+BRIGHT_EXPOSURE = 1000  # 100 ms (100 us units): three frame intervals, beyond any auto
+                        # exposure capped at the frame interval (AE priority 0)
+
+
 def identify_index(cv2, args, devs):
     """Which selected camera is behind cv2 index args.index? Opens the index as the recorder
-    would, measures brightness, then for each candidate in turn sets the marker (manual,
-    exposure 0.1 ms, gain 0) for 2 s, restores that camera to its defaults with read-back,
-    and checks whether the stream went dark. Prints "index N is kind K at 0x<location>" and
-    returns (dev, lay) for the first camera that darkens it; None if none does or a restore
-    fails. Writes only to the candidates, which are the cameras named in the run."""
+    would and measures brightness. Then, for each candidate in turn, it sets a marker:
+    - dark (manual, exposure 0.1 ms, minimum gain), when the baseline is 18 or more;
+    - bright (manual, exposure 100 ms, maximum gain), when the scene is dimmer than that.
+    It watches the stream and restores that camera to its defaults with read-back. The
+    restore is in a finally block, so it also happens on Ctrl-C or an error. A candidate is
+    the camera behind the index when the stream drops below 45% of the baseline (dark) or
+    rises to 1.5x the baseline and by 6 or more (bright). Prints "index N is kind K at
+    0x<location>" and returns (dev, lay); None if no candidate matches or a restore fails.
+    --marker dark|bright forces one marker. Writes only to the candidates, which are the
+    cameras named in the run."""
     print(f"\n[{now()}] IDENTIFY: which of the {len(devs)} selected camera(s) is behind index {args.index}")
     cap = open_capture(cv2, args)
     if not cap.isOpened():
@@ -956,28 +969,50 @@ def identify_index(cv2, args, devs):
     try:
         watch(reader, "identify: warm-up", 2.0)
         base = watch(reader, "identify: baseline", 1.5)
-        # The marker floor is about 8 (kinds A, B, C in daylight), so a baseline under 18
-        # cannot halve reliably; stop rather than risk naming the wrong camera.
-        if not base == base or base < 18:
-            print(f"IDENTIFICATION FAILED: baseline brightness {base:.1f} is too dark (or no frames) to see a marker")
+        if not base == base:
+            print("IDENTIFICATION FAILED: no frames in the baseline window")
             return None
+        mode = getattr(args, "marker", "auto")
+        if mode == "auto":
+            mode = "dark" if base >= DARK_MIN_BASE else "bright"
+        if mode == "dark" and base < DARK_MIN_BASE:
+            print(f"IDENTIFICATION FAILED: baseline brightness {base:.1f} is too dark for the dark marker")
+            return None
+        print(f"  marker: {mode} (baseline {base:.1f})")
         for dev in devs:
             lay = vc_layout(dev)
             print(f"  candidate {kind_label(dev)} {label(dev)}")
-            set_manual(dev, lay, 1, 0)
-            dark = watch(reader, f"identify: marker on port {rig_port(dev)}", 1.5, settle=0.5)
-            if not restore_defaults(dev, lay):
+            gmin = xfer(dev, lay, "gain", GET_MIN)[0] or 0
+            if mode == "dark":
+                exposure, gain = 1, gmin
+            else:
+                emax = xfer(dev, lay, "exposure", GET_MAX)[0] or BRIGHT_EXPOSURE
+                gain = xfer(dev, lay, "gain", GET_MAX)[0] or gmin
+                exposure = min(BRIGHT_EXPOSURE, emax)
+            restored = False
+            try:
+                set_manual(dev, lay, exposure, gain)
+                seen = watch(reader, f"identify: {mode} marker ({exposure / 10:g} ms, gain {gain}) on {kind_label(dev)}",
+                             1.5, settle=0.5 if mode == "dark" else 1.0)
+            finally:
+                restored = restore_defaults(dev, lay)
+            if not restored:
                 print("IDENTIFICATION FAILED: the candidate's restore did not read back")
                 return None
-            # Relative test only: an absolute "dark < 25" would also pass a camera that is not
-            # behind the index when the scene itself is dim.
-            if dark == dark and dark < 0.45 * base:
+            # Relative tests only: an absolute threshold would also pass a camera that is
+            # not behind the index when the scene itself is dim.
+            if mode == "dark":
+                hit = seen == seen and seen < 0.45 * base
+            else:
+                hit = seen == seen and seen >= 1.5 * base and seen - base >= 6
+            if hit:
                 kind = KIND_OF.get(location_id(dev), "?")
-                print(f"index {args.index} is kind {kind} at 0x{location_id(dev):08x} (lab port {rig_port(dev)}): "
-                      f"brightness {base:.1f} -> {dark:.1f} with the marker")
+                print(f"index {args.index} is kind {kind} at 0x{location_id(dev):08x} (lab-rig port {rig_port(dev)}): "
+                      f"brightness {base:.1f} -> {seen:.1f} with the {mode} marker")
                 return dev, lay
-            print(f"    port {rig_port(dev)}: stream brightness {base:.1f} -> {dark:.1f}, not this camera")
-        print(f"IDENTIFICATION FAILED: no selected camera darkened index {args.index}; stopping before any experiment write")
+            print(f"    {kind_label(dev)}: stream brightness {base:.1f} -> {seen:.1f}, not this camera")
+        print(f"IDENTIFICATION FAILED: no selected camera responded to the {mode} marker on index {args.index}; "
+              f"stopping before any experiment write")
         return None
     finally:
         reader.stop_evt.set()
@@ -1007,10 +1042,11 @@ def quality_table(rows):
 
 
 def sweep_index(cv2, args, devs):
-    """Identify the camera behind args.index among devs, then, on that camera only, at a fixed
-    manual exposure, step gain through its range while the index streams, measuring the
-    luminance statistics at each step and in auto before and after. Restores the camera to
-    its own defaults and reads it back. Returns a summary dict, or None if not identified."""
+    """Identify the camera behind args.index among devs, then, on that camera only, while
+    the index streams: for each manual exposure in args.exposures, step gain through its
+    range, measuring the luminance statistics at each step, and in auto before and after.
+    Restores the camera to its own defaults (also on Ctrl-C or an error) and reads it back.
+    Returns a summary dict, or None if not identified."""
     found = identify_index(cv2, args, devs)
     if found is None:
         return None
@@ -1018,9 +1054,13 @@ def sweep_index(cv2, args, devs):
     kind = KIND_OF.get(location_id(dev), "?")
     emin, _, _ = xfer(dev, lay, "exposure", GET_MIN)
     emax, _, _ = xfer(dev, lay, "exposure", GET_MAX)
-    exposure = max(emin or 1, min(args.exposure, emax or args.exposure))
-    print(f"\n[{now()}] GAIN SWEEP: index {args.index}, kind {kind} at 0x{location_id(dev):08x}; manual exposure "
-          f"{exposure / 10:.1f} ms ({'under' if exposure < EXPOSURE_LIMIT else 'NOT under'} 5 ms), gain step {args.step}")
+    exposures = [max(emin or 1, min(e, emax or e)) for e in args.exposures]
+    print(f"\n[{now()}] GAIN SWEEP: index {args.index}, kind {kind} at 0x{location_id(dev):08x}; manual exposures "
+          f"{', '.join(f'{e / 10:g} ms' for e in exposures)}; gain step {args.step}")
+    for e in exposures:
+        if e >= EXPOSURE_LIMIT:
+            print(f"  WARNING: exposure {e / 10:g} ms is NOT under 5 ms (the specification's limit); "
+                  f"included for comparison")
     cap = open_capture(cv2, args)
     if not cap.isOpened():
         print("capture did not open; nothing written")
@@ -1037,16 +1077,17 @@ def sweep_index(cv2, args, devs):
             print("    gain range unreadable; nothing written")
             return None
         rows.append(("auto (before)", watch_quality(reader, "auto (before)", args.dwell * 2)))
-        written = True
-        set_manual(dev, lay, exposure, gmin)
         gains = list(range(gmin, gmax + 1, args.step))
         if gains[-1] != gmax:
             gains.append(gmax)
-        for g in gains:
-            w = xfer(dev, lay, "gain", SET_CUR, g)
-            rb, rb_err, _ = xfer(dev, lay, "gain", GET_CUR)
-            tag = f"gain {g} (write {fmt(*w)}, read back {'ERR' if rb_err else rb})"
-            rows.append((f"{exposure / 10:.1f} ms gain {g}", watch_quality(reader, tag, args.dwell, settle=args.settle)))
+        written = True
+        for exposure in exposures:
+            set_manual(dev, lay, exposure, gmin)
+            for g in gains:
+                w = xfer(dev, lay, "gain", SET_CUR, g)
+                rb, rb_err, _ = xfer(dev, lay, "gain", GET_CUR)
+                tag = f"{exposure / 10:g} ms, gain {g} (write {fmt(*w)}, read back {'ERR' if rb_err else rb})"
+                rows.append((f"{exposure / 10:g} ms gain {g}", watch_quality(reader, tag, args.dwell, settle=args.settle)))
         restore_defaults(dev, lay)
         written = False
         rows.append(("auto (after)", watch_quality(reader, "auto (after)", args.dwell * 2, settle=1.0)))
@@ -1060,7 +1101,7 @@ def sweep_index(cv2, args, devs):
           f"brightness = mean of B, G, R; Y = luminance; noise = temporal, one frame; snr = Y mean / noise):")
     quality_table(rows)
     readback_line(dev, lay, defaults_of(dev, lay), "after the sweep, stream released, expected = this camera's defaults")
-    return {"index": args.index, "kind": kind, "loc": location_id(dev), "exposure": exposure, "rows": rows}
+    return {"index": args.index, "kind": kind, "loc": location_id(dev), "exposures": exposures, "rows": rows}
 
 
 def cmd_gainsweep(args):
@@ -1097,7 +1138,8 @@ def cmd_dimsweep(args):
         if "kind" not in r:
             print(f"  index {r['index']}: not identified or not swept (see above)")
             continue
-        print(f"  index {r['index']}: kind {r['kind']} at 0x{r['loc']:08x}, exposure {r['exposure'] / 10:.1f} ms")
+        print(f"  index {r['index']}: kind {r['kind']} at 0x{r['loc']:08x}, exposures "
+              f"{', '.join(f'{e / 10:g} ms' for e in r['exposures'])}")
         quality_table(r["rows"])
     print(f"\n[{now()}] final read-back, every target camera")
     for dev in devs:
@@ -1594,7 +1636,10 @@ def main():
     stream.add_argument("--kind", choices=sorted(KINDS) + ["any"], default="A",
                         help="camera kind to select and write to (A 0x6369, B/C 0x6366 by name string; "
                              "any = all three kinds); default A")
-    stream.add_argument("--port", type=int, help="limit the run to the camera of --kind on this rig port")
+    stream.add_argument("--port", type=int, help="limit the run to the camera of --kind on this rig port (lab rig only)")
+    stream.add_argument("--marker", choices=["auto", "dark", "bright"], default="auto",
+                        help="identification marker: dark (0.1 ms, min gain), bright (100 ms, max gain), "
+                             "or auto = dark unless the baseline brightness is under 18")
     q1 = sub.add_parser("q1", parents=[stream])
     q1.set_defaults(fn=cmd_q1)
     tr = sub.add_parser("track", parents=[stream])
@@ -1608,8 +1653,9 @@ def main():
     at.add_argument("--interval", type=float, default=0.25)
     at.set_defaults(fn=cmd_aetrack)
     sweep = argparse.ArgumentParser(add_help=False)
-    sweep.add_argument("--exposure", type=int, default=TEST_EXPOSURE,
-                       help="manual exposure in 100 us units (default 40 = 4.0 ms; the limit is under 50)")
+    sweep.add_argument("--exposures", type=int, nargs="+", default=[20, 30, 40, 100],
+                       help="manual exposures in 100 us units, each with a full gain sweep (default 20 30 40 100 "
+                            "= 2, 3, 4 and 10 ms; the specification's limit is under 50 = 5 ms, so 10 ms warns)")
     sweep.add_argument("--step", type=int, default=10, help="gain step through the camera's range")
     sweep.add_argument("--dwell", type=float, default=1.0, help="seconds measured per gain step")
     sweep.add_argument("--settle", type=float, default=0.5, help="seconds discarded after each gain write")

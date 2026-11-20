@@ -1,7 +1,9 @@
 # Dim-light camera test: instructions for the test operator
 
-This test measures how each camera's image changes when its exposure is fixed at a short
-value (4 ms) and its gain is stepped up. It is run under the real recording lights. The
+This test measures how each camera's image changes when its exposure is fixed at 2, 3, 4
+and 10 ms in turn and, at each of those, its gain is stepped up through its whole range. It
+is run under the real recording lights. The analysis needs exposures under 5 ms; 10 ms is
+included for comparison, so the log shows a warning for it. That warning is expected. The
 script prints **measurements only**: luminance values, noise and frame rate. It makes no
 judgement of whether an image is usable. That assessment belongs to the analysis team,
 from these numbers.
@@ -9,7 +11,8 @@ from these numbers.
 Every camera is put back to its own automatic settings at the end of its sweep. The script
 reads the settings back to confirm.
 
-Total time: about 20 minutes to install, then about 1 minute per camera.
+Total time: about 20 minutes to install, then about 2 minutes per camera (about 16 minutes
+for eight cameras).
 
 ## Before you start
 
@@ -110,12 +113,16 @@ cd ~/Desktop/ratrixcam-uvc && uvc/.venv/bin/python uvc/probe.py dimsweep 2>&1 | 
 
 - The first time, macOS may ask whether Terminal may use the camera. Click Allow. If you
   clicked Don't Allow, stop and tell the rig owner.
-- During the run, each camera's picture goes very dark for about two seconds. The script
-  does this to check which camera it is talking to. Then the picture gets brighter step by
-  step. This is expected.
+- During the run, each camera's picture changes for about two seconds, so that the script
+  can check which camera it is talking to. In normal light it goes very dark; in very dim
+  light it goes very bright instead. Then the picture changes step by step through the
+  exposures and gains. This is expected.
+- The log shows `WARNING: exposure 10 ms is NOT under 5 ms` for every camera. This is
+  intended.
 - Do not touch the cameras or cables until the last line says `final read-back`.
-- If you have to stop the run early, press Ctrl-C once and wait for the prompt. Then run the
-  safety restore in step 5.
+- If you have to stop the run early, press Ctrl-C once and wait for the prompt. The script
+  puts the camera it was working on back to automatic by itself. Then run the safety
+  restore in step 5 anyway, to check every camera.
 
 If you run it again, change `run1` to `run2` in the log name, so the first log is kept.
 
@@ -149,8 +156,10 @@ Send these files to the rig owner, all from `~/Desktop/ratrixcam-uvc/uvc/logs/`:
 For each camera index:
 - the line `index N is kind K at 0x...`: which camera, and which kind, the numbers belong to;
 - the format the camera streamed (640x480 MJPEG at 30 fps requested);
-- one table row each for auto exposure before the sweep, each gain step at 4.0 ms, and auto
-  exposure after.
+- which marker identified it (`dark`, or `bright` when the scene was too dim for the dark
+  one);
+- one table row each for auto exposure before the sweep; each gain step (0 to 100 in steps
+  of 10) at 2, 3, 4 and 10 ms; and auto exposure after.
 
 The columns:
 - **brightness**: mean of all pixel values (blue, green, red), 0-255, as in the lab logs;

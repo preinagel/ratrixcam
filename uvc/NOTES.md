@@ -95,7 +95,18 @@ B and C differ only by name string. B has an extra H.264 stream and no 800x600. 
   - `gainsweep` now sweeps only the identified camera, with `--exposure` and `--kind any`.
   - Reader adds luminance Y statistics: mean, p1/p50/p99, temporal noise, snr, saturated %,
     black %.
-  - Identification is now relative only (dark < 0.45 x baseline; baseline >= 18).
+  - Identification is relative only. The dark marker passes when brightness falls below
+    0.45 x the baseline, and needs a baseline of 18 or more. Below 18 it uses a bright
+    marker instead: 100 ms at maximum gain, passing at 1.5 x the baseline and +6 or more.
+    `--marker dark|bright` forces one. The marker's restore is in a finally block (critic,
+    2026-11-19), so a Ctrl-C mid-marker cannot leave a camera black.
+  - Sweep exposures 2, 3, 4 and 10 ms (user, 2026-11-19); 10 ms warns as not under 5 ms,
+    which is intended. About 2 min per camera.
+  - Output labels the lab port numbers "lab-rig port"; the USB location is the reliable
+    identifier on any Mac.
+  - Lab hardware test before the push: dimsweep on all 8 (index k should be port k+1), plus
+    a forced bright-marker gainsweep. A 100 ms exposure (beyond the frame interval) has
+    never been tried on these cameras.
   - libusb is found at /opt/homebrew, then /usr/local, or via UVC_LIBUSB.
 - Operator instructions: `uvc/DIM_LIGHT_TEST.md`. REPOSITORY-ADDRESS is a placeholder for
   the user.
