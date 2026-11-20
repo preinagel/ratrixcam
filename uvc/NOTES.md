@@ -95,7 +95,10 @@ B and C differ only by name string. B has an extra H.264 stream and no 800x600. 
     probable cause of the persist-C run 1 stall, 8 s after gainsweep-C.
   - `soak --minutes 20` is deferred, not needed unless a stall recurs after a pause.
 - Open questions in REPORT.md:
-  - dim-light compensation (no kind; needs the rig in recording light; the user's call);
+  - dim-light compensation (no kind; needs the rig in recording light; the user's call).
+    The deployment rigs are in another building, with kinds unknown: probably A and C,
+    likely no B. The user will do the dim-light test after the known issues are settled;
+    it should identify each kind there first;
   - replug run 1's lost marker (kind A, covered by the read-back-and-reapply hook);
   - the C 640x480 reruns (the only remaining gap in the per-kind evidence).
 - `uvc/camera_config_5.json` is the probe's own config copy: all 8 entries at 640x480 @ 30
