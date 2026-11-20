@@ -115,30 +115,31 @@ def test_a_frame_is_handed_out_for_the_still_at_the_given_interval():
     assert stills[0] == (48, 64, 3)
 
 
-def test_frames_the_reader_missed_do_not_lower_the_rate():
-    cap = capture(FakeCapture(fps=50, width=64, height=48, drop_every=4))  # a quarter of the frames lost: a count would say 37
+def test_frames_the_reader_missed_lower_the_rate_as_the_clips_would_hold_them():
+    cap = capture(FakeCapture(fps=50, width=64, height=48, drop_every=4))  # a quarter of the frames lost
     m = server.measure_camera(cap, seconds=0.5)
     assert m is not None
-    assert 45 <= m.fps <= 55
+    assert 34 <= m.fps <= 41  # three quarters of 50: the frames that arrive, not the camera's clock
 
 
-def test_a_frame_that_never_arrived_is_a_gap_and_widens_nothing():
-    rate, uncertainty, gaps = server.rate_from_intervals([0.02] * 50 + [0.04, 0.02, 0.02])
-    assert 49.9 < rate < 50.1 and gaps == 1
-    assert uncertainty < 0.01  # identical intervals: the mean is exact; the doubled one is left out
+def test_the_rate_counts_the_frames_over_the_span_and_its_uncertainty_is_one_frame():
+    rate, uncertainty, gaps = server.rate_from_intervals([0.02] * 50)  # 51 frames over 1 s
+    assert abs(rate - 50) < 1e-9 and abs(uncertainty - 1.0) < 1e-9 and gaps == 0
+    rate, uncertainty, _ = server.rate_from_intervals([1 / 30] * 90)  # a 3-s warm-up at 30 fps
+    assert abs(rate - 30) < 1e-9 and abs(uncertainty - 1 / 3) < 1e-9
 
 
-def test_a_single_interval_has_a_rate_but_no_measure_of_its_error():
+def test_a_missed_frame_lowers_the_rate_and_only_a_longer_hole_is_a_gap():
+    rate, _, gaps = server.rate_from_intervals([0.02] * 50 + [0.04])  # one frame missing, or the host's pacing pause
+    assert abs(rate - 51 / 1.04) < 1e-9 and gaps == 0
+    rate, _, gaps = server.rate_from_intervals([0.02] * 50 + [0.06])  # two frames missing: a hole
+    assert abs(rate - 51 / 1.06) < 1e-9 and gaps == 1
+
+
+def test_a_single_interval_has_a_rate_whose_uncertainty_is_itself():
     rate, uncertainty, gaps = server.rate_from_intervals([0.025])
     assert rate == 40 and uncertainty == rate and gaps == 0
-    assert server.rate_from_intervals([]) == (0.0, 0.0, 0)
-
-
-def test_a_burst_then_a_stall_keeps_no_interval_and_still_gives_a_rate():
-    # two intervals, 10 and 60 ms: the median, 35 ms, lies between them and neither is within
-    # half to one and a half times it, so the band is empty and the median itself is the rate
-    rate, uncertainty, gaps = server.rate_from_intervals([0.01, 0.06])
-    assert abs(rate - 1 / 0.035) < 1e-9 and uncertainty == rate and gaps == 1
+    assert server.rate_from_intervals([]) == (0.0, 0.0, 0)  # fewer than two frames: nothing to count
 
 
 # ------------------------------------------------- the frame count of each clip against the camera's rate
@@ -186,9 +187,9 @@ def test_rate_watch_says_a_departure_once_and_the_return_once():
 
 
 def test_an_uncalibrated_rate_widens_the_budget_by_its_uncertainty():
-    # a rate measured in a 3-s warm-up is good to about 0.15 fps: nine frames over a minute
-    quick = server.RateWatch("cam1", server.Rate(30.1, 0.15, "the launch measurement"), settled_at=0.0)
-    assert quick.budget(60.0) == 1 + 9.0
+    # a rate measured in a 3-s warm-up is good to a third of a frame per second: twenty frames over a minute
+    quick = server.RateWatch("cam1", server.Rate(30.1, 1 / 3, "the launch measurement"), settled_at=0.0)
+    assert quick.budget(60.0) == 1 + 20.0
     assert quick.clip_closed(1800, 60.0, clip_started=10.0) is None  # six frames short: within the budget
     assert quick.clip_closed(1704, 60.0, clip_started=70.0) is not None  # a hundred short: a departure
     exact = server.RateWatch("cam1", calibrated(30.1, 0.0), settled_at=0.0)

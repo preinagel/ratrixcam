@@ -86,7 +86,8 @@ def test_a_camera_is_measured_on_its_own_and_its_entry_names_the_mode_requested(
     assert opened == [0] and entry is not None
     assert (entry.index, entry.name, entry.position) == (0, "subj001_cam1", "A")
     assert (entry.requested_width, entry.requested_height, entry.requested_fps) == (640, 480, 30)
-    assert (entry.width, entry.height) == (64, 48) and 48 < entry.rate < 52 and entry.uncertainty < 1
+    assert (entry.width, entry.height) == (64, 48) and 48 < entry.rate < 52
+    assert 1.2 < entry.uncertainty < 2.2  # one frame over a span of about 0.6 s
     assert entry.frames >= 20 and 0.5 < entry.seconds < 2 and entry.gaps == 0
     out = capsys.readouterr().out
     assert "settling for 0 s" in out and "measuring for 1 s" in out

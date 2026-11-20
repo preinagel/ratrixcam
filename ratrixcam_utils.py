@@ -56,11 +56,11 @@ class CameraCalibration(BaseModel):
     requested_fps: int
     width: int  # the frame size the camera delivered
     height: int
-    rate: float  # frames per second the camera delivers on its own
-    uncertainty: float  # of rate: one standard error of the measurement
+    rate: float  # frames per second the camera delivers on its own: frames that arrived, less one, over the span
+    uncertainty: float  # of rate: one frame over the span of the measurement
     frames: int  # frames the measurement counted
     seconds: float  # over this long
-    gaps: int  # intervals of more than 1.5 typical ones during the measurement: frames that did not arrive
+    gaps: int  # intervals of more than 2.5 typical ones during the measurement: holes of two or more frames
 
 
 class Calibration(BaseModel):

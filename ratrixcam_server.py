@@ -263,7 +263,7 @@ def rig_settled_at(started: float, device_id: int, n_cameras: int, time_slice: i
 
 class Rate(NamedTuple):
     fps: float  # frames per second the camera delivers
-    uncertainty: float  # of fps: one standard error of the measurement it came from
+    uncertainty: float  # of fps: one frame over the span of the measurement it came from
     source: str  # where it came from, for the terminal
 
 
@@ -309,9 +309,9 @@ class RateWatch:
 
 class Measured(NamedTuple):
     fps: int  # frames per second the camera really delivers, rounded: compared with the request
-    rate: float  # the same, unrounded
-    uncertainty: float  # of rate: one standard error
-    gaps: int  # intervals of more than 1.5 typical ones: frames that did not arrive during the measurement
+    rate: float  # the same, unrounded: frames that arrived, less one, over the span
+    uncertainty: float  # of rate: one frame over the span
+    gaps: int  # intervals of more than 2.5 typical ones during the measurement: holes of two or more frames
     width: int  # of the frames themselves
     height: int
     reported_fps: float  # what the capture reports for the same properties after the settings
@@ -328,12 +328,12 @@ def measure_camera(
     first_frame_wait: float = FIRST_FRAME_WAIT,
 ) -> Measured | None:
     """Read and discard frames for about `seconds` and return what the camera really delivers:
-    the rate from the intervals between consecutive distinct frames, and the frames' own
-    size. The typical interval is the median; the rate is the inverse of the mean of the
-    intervals within half to one and a half times it, with one standard error of that mean
-    as its uncertainty, and the longer intervals counted as gaps. So a frame the loop missed
-    while busy (writing a still, a loaded machine at launch) or one the camera never sent
-    neither pulls the rate down, as a count over the time would, nor hides. A set() the hardware rounded or refused is reported as accepted
+    the rate as the distinct frames that arrived, less one, over the span from the first to
+    the last, which is what a clip of the run will hold per second; its uncertainty is one
+    frame over that span. A frame that did not arrive, whatever the reason, lowers the rate
+    a little, which errs toward the clips. The host hands frames out with a pacing of its
+    own (a pause of one interval now and then), so a doubled interval says nothing; only an
+    interval of more than two and a half typical ones is counted as a gap. A set() the hardware rounded or refused is reported as accepted
     by some drivers and a writer fed the requested values labels every clip wrongly, or
     writes nothing when the size is wrong; so the writer gets these. A frame identical to
     the one before is a backend handing back its latest frame again and is not counted. The
@@ -376,19 +376,18 @@ def measure_camera(
 
 def rate_from_intervals(intervals: list[float]) -> tuple[float, float, int]:
     """(rate, its uncertainty, gaps) from the intervals between consecutive frames, as the
-    docstring of measure_camera describes; (0, 0, 0) with no interval at all."""
+    docstring of measure_camera describes: the rate is the frames that arrived, less one,
+    over the span from the first to the last; the uncertainty is one frame over that span,
+    the counting error (a third of a frame per second over a 3-s warm-up, a few thousandths
+    over a 300-s calibration); a gap is an interval of more than two and a half typical ones.
+    (0, 0, 0) with fewer than two frames, when there is no interval at all."""
     if not intervals:
         return 0.0, 0.0, 0
+    span = sum(intervals)
+    rate = len(intervals) / span
+    uncertainty = 1 / span
     typical = statistics.median(intervals)
-    # with an even count the median can fall between two intervals, so a camera that bursts
-    # and stalls can leave nothing within the band: its typical interval then stands alone
-    kept = [i for i in intervals if 0.5 * typical <= i <= 1.5 * typical] or [typical]
-    gaps = sum(1 for i in intervals if i > 1.5 * typical)
-    mean = statistics.fmean(kept)
-    rate = 1 / mean
-    # d(1/T) = dT / T^2, with dT the standard error of the mean interval; a single interval
-    # gives a rate with no measure of its error, so its uncertainty is the rate itself
-    uncertainty = rate * rate * statistics.stdev(kept) / math.sqrt(len(kept)) if len(kept) > 1 else rate
+    gaps = sum(1 for i in intervals if i > 2.5 * typical)
     return rate, uncertainty, gaps
 
 

@@ -5,10 +5,11 @@ and write the calibration file the camera program reads at launch.
 
 Each camera is opened in the config's order with its requested size and rate, streamed for
 `discard` seconds while it settles (its first frames are not what it delivers later), then
-measured for `measure` seconds: the rate is the inverse of the mean interval between
-consecutive frames, with one standard error as its uncertainty, and a gap is an interval of
-more than one and a half typical ones. No other camera streams meanwhile, so the rate is the
-camera's own and not what a shared USB link leaves it. The camera program must not be
+measured for `measure` seconds: the rate is the frames that arrived, less one, over the span
+from the first to the last, with one frame over that span as its uncertainty, and a gap is
+an interval of more than two and a half typical ones (a hole of two or more frames). No
+other camera streams meanwhile, so the rate is the camera's own and not what a shared USB
+link leaves it. The camera program must not be
 running. The file goes beside the config unless -o says otherwise, and holds an entry for
 every camera that delivered frames; a camera that did not is reported and left out, and the
 camera program measures it at launch. A camera's entry holds only for the mode it was made
@@ -64,7 +65,7 @@ def calibrate_camera(config: Config, index: int, discard: float, measure: float)
         + f"{measured.frames} frames in {seconds:.1f} s, {measured.gaps} gap(s)"
     )
     if measured.gaps:
-        print(f"WARNING: {measured.gaps} frame(s) did not arrive during camera {name}'s measurement; the rate excludes them")
+        print(f"WARNING: {measured.gaps} hole(s) of two or more frames during camera {name}'s measurement; the rate counts the frames that arrived")
     if (measured.width, measured.height) != (width, height):
         print(f"WARNING: camera {name} delivers {measured.width}x{measured.height}, not the {width}x{height} requested")
     return CameraCalibration(
