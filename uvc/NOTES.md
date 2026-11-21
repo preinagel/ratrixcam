@@ -146,6 +146,14 @@ B and C differ only by name string. B has an extra H.264 stream and no 800x600. 
 - The user plans to push the branch to GitHub so that the deployment Mac can clone it. I
   never push.
 
+## Reopen-delay experiment (planned 2026-11-20; waiting for the rig)
+- Plan, rulings and RUN THIS commands: `uvc/REOPEN_DELAY.md` (the results go there too).
+  Tool: `uvc/reopen_delay.py`. Offline test: `uvc/offline_tests/test_reopen_logic.py`
+  (fake cv2, no processes, no USB).
+- Order: short alone, short load, long alone, kill alone. Long with load only if long alone
+  differs from short alone.
+- Stalled = under 230 frames in the first 10 s after the open returns; then watch to 60 s.
+
 ## Rig state and pending work
 - Rig state: every camera written to was restored to its own defaults and read back OK
   (last: persist-C run 2, 12:33:47). The rig was on loan to the camera developer after that.
