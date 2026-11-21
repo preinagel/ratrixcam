@@ -14,6 +14,19 @@ in this session's permissions, so these notes are the persistent record.
   needs documenting goes into a NEW report file under `uvc/`, never an edit to these.
 - This notes file is not a report; it stays mine to update.
 
+## Rig on loan = no camera scripts at all (user, 2026-11-20)
+- Incident, 2026-11-20 15:53-15:57: while the rig was on loan to the developer, I ran an
+  offline test of `uvc/reopen_delay.py` with stand-in cameras (`REOPEN_FAKE=1`). No camera was
+  opened, but the developer saw processes named `reopen_delay.py hold --index 0` at 15:55:51.
+  The user had approved the command trusting my rule, without being told it was offline.
+- **While the rig belongs to someone else, run no camera script in any mode**, not even with
+  stand-ins or test switches.
+- Offline tests use a separate harness that replaces the cv2 module, so the script under
+  test has no route to a real camera. Do not rely on a flag inside the script.
+- Before any offline test, say plainly in the message that it is offline and why it cannot
+  reach a camera.
+- Wait for the user's explicit hand-back before any camera work.
+
 ## How the user wants to work
 - **"Write to memory" / "update your memory" means: update this file, `uvc/NOTES.md`**, and
   commit it. It does not mean the Claude memory folder (that one is not writable here anyway).
