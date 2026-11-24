@@ -235,3 +235,13 @@ B 173.4 -> 18.1; C 108.6 -> 10.5). No other control was written.
 3. A reopen within about 1 s of a release by a process that stays alive (and had written
    controls through libusb) gave a stream that delivered nothing for 34 minutes, on 1 of 2
    occasions.
+
+### Changes to the tool after arm 2 (2026-11-24; offline)
+
+- **The end-of-sweep identification runs in its own process, which exits**, like every
+  other stream. The start-up presence check also runs in its own process. The main
+  experiment process now never opens a camera or a USB handle.
+- **A 60 s rest before the load readers start**, so no load stream opens soon after a
+  release.
+- **Every 30 s load window is logged**, not just the minimum and median.
+- The offline test still passes (17 of 17).

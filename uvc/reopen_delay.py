@@ -65,6 +65,7 @@ PY = sys.executable
 SELF = os.path.abspath(__file__)
 
 LOAD_WARMUP = 30.0
+LOAD_REST = 60.0         # rest after the previous camera was released, before the load starts
 
 
 def now():
@@ -295,26 +296,50 @@ def trial(kind, index, arm, delay, n, log):
     return res
 
 
-def identify_end(kind, index, log):
-    """The marker identification, once, after the sweep (restored and read back by probe)."""
-    port, _ = TEST[kind]
+def child_identify(a):
+    """The marker identification in its own process, which exits afterwards (as every other
+    stream in this experiment does). Restored and read back by probe."""
+    port, _ = TEST[a.kind]
     be = probe.usb_backend()
-    devs = probe.find_kind(be, kind, port)
+    devs = probe.find_kind(be, a.kind, port)
     if len(devs) != 1:
-        log(f"IDENTIFICATION: expected one kind {kind} camera on lab port {port}, found {len(devs)}")
-        return False
+        print(f"IDENTIFICATION: expected one kind {a.kind} camera on lab port {port}, found {len(devs)}")
+        emit(event="identified", ok=False)
+        return
     cv2 = probe.import_cv2()
-    found = probe.identify_index(cv2, capture_args(index), devs)
-    ok = found is not None
-    log(f"IDENTIFICATION at the end of kind {kind}'s sweep: index {index} "
-        + ("CONFIRMED" if ok else "NOT CONFIRMED: this camera's sweep is invalid"))
+    found = probe.identify_index(cv2, capture_args(a.index), devs)
     for dev in devs:
         lay = probe.vc_layout(dev)
         probe.readback_line(dev, lay, probe.defaults_of(dev, lay), "after identification, expected = defaults")
+    emit(event="identified", ok=found is not None, t=time.time())
+
+
+def child_present(a):
+    """Which test cameras are on their lab ports (USB id and name string). Runs in its own
+    process so that the main process never holds a USB handle on a camera."""
+    be = probe.usb_backend()
+    for kind in a.kinds:
+        port, _ = TEST[kind]
+        emit(event="present", kind=kind, port=port, found=len(probe.find_kind(be, kind, port)))
+
+
+def identify_end(kind, index, log):
+    """Runs child_identify in a new process, logs its output, waits for it to exit."""
+    c = Child("identify", "--kind", kind, "--index", index)
+    c.finish(timeout=180)
+    for line in c.other_output():
+        log("    | " + line)
+    e = next((e for e in c.events() if e.get("event") == "identified"), None)
+    ok = bool(e and e["ok"])
+    log(f"IDENTIFICATION (own process, exited) at the end of kind {kind}'s sweep: index {index} "
+        + ("CONFIRMED" if ok else "NOT CONFIRMED: this camera's sweep is invalid"))
     return ok
 
 
 def start_load(test_index, log):
+    log(f"  rest {LOAD_REST:g} s before starting the load (no camera has been opened by then "
+        f"for at least that long)")
+    time.sleep(LOAD_REST)
     loads = [Child("load", "--index", i) for i in ALL_INDICES if i != test_index]
     log(f"  load: {len(loads)} reader processes on indices "
         f"{', '.join(str(i) for i in ALL_INDICES if i != test_index)}; {LOAD_WARMUP:g} s warm-up")
@@ -335,8 +360,11 @@ def stop_load(loads, log):
         rates = [e["fps"] for e in ev]
         log(f"  load index {idx}: "
             + ("FAILED to open" if fail else
-               f"{len(rates)} x 30 s windows, fps min {min(rates):.1f} median {statistics.median(rates):.1f}"
+               f"{len(rates)} x 30 s windows, fps min {min(rates):.1f} median {statistics.median(rates):.1f} "
+               f"max {max(rates):.1f}"
                if rates else "no 30 s window completed"))
+        if rates:
+            log(f"    every window, from the start: {' '.join(f'{r:.1f}' for r in rates)}")
 
 
 def summarize(results, log):
@@ -372,12 +400,13 @@ def cmd_run(a):
     log(f"[{now()}] reopen_delay {a.arm} arm, load {'ON (other seven cameras streaming)' if a.load else 'off'}; "
         f"stream before release {spec['stream']:g} s; {'clean release then exit' if spec['release'] else 'SIGKILL, no release'}; "
         f"delays {a.delays or spec['delays']}; repeats {a.repeats}; kinds {' '.join(a.kinds)}; seed {a.seed}")
-    be = probe.usb_backend()
-    for kind in a.kinds:
-        port, _ = TEST[kind]
-        devs = probe.find_kind(be, kind, port)
-        log(f"  kind {kind}: lab port {port}: {'present' if len(devs) == 1 else f'{len(devs)} found'} "
-            f"(USB id and name string; no device opened)")
+    pc = Child("present", "--kinds", *a.kinds)
+    pc.finish(timeout=60)
+    for e in pc.events():
+        if e.get("event") == "present":
+            log(f"  kind {e['kind']}: lab port {e['port']}: "
+                f"{'present' if e['found'] == 1 else str(e['found']) + ' found'} "
+                f"(USB id and name string, read by a process that has exited; no stream opened)")
     rng = random.Random(a.seed)
     results = []
     for kind in a.kinds:
@@ -426,6 +455,13 @@ def main():
     o.add_argument("--at", type=float, required=True)
     o.add_argument("--delay", type=float, required=True)
     o.set_defaults(fn=child_reopen)
+    pr = sub.add_parser("present")
+    pr.add_argument("--kinds", nargs="+", choices=sorted(TEST), required=True)
+    pr.set_defaults(fn=child_present)
+    idp = sub.add_parser("identify")
+    idp.add_argument("--kind", choices=sorted(TEST), required=True)
+    idp.add_argument("--index", type=int, required=True)
+    idp.set_defaults(fn=child_identify)
     ld = sub.add_parser("load")
     ld.add_argument("--index", type=int, required=True)
     ld.set_defaults(fn=child_load)
