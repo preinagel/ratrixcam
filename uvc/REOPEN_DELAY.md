@@ -1,8 +1,9 @@
 # How long to wait before reopening a released camera (plan, 2026-11-20)
 
-Status: **arm 1 done (2026-11-24): no stall in 105 reopens; arms 2-4 pending.** The rig is on loan to the
-camera developer. This file will receive the results; the earlier reports
-(`REPORT.md`, `FRAME_DROPS.md`, `DIM_LIGHT_TEST.md`) are frozen.
+Status: **arm 1 done (2026-11-24): no stall in 105 reopens; arms 2-4 pending.** The plan
+was written on 2026-11-20 while the rig was on loan; it was handed back on 2026-11-24. This
+file holds the results; the earlier reports (`REPORT.md`, `FRAME_DROPS.md`,
+`DIM_LIGHT_TEST.md`) are frozen.
 
 ## The question
 
