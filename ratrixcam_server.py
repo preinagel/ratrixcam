@@ -276,13 +276,20 @@ class RateWatch:
     measured in a few seconds at launch. A camera changes its rate mid-run on its own, for
     one, when its auto-exposure lengthens the frame in dim light, which nothing on macOS
     controls (GitHub #51), or loses frames to a crowded USB link; without this the loss is
-    silent. Clips started before `settled_at` (rig_settled_at) are not compared."""
+    silent. Clips started before `settled_at` (rig_settled_at) are not compared. A departure
+    is said once, so a shortfall that persists leaves no further trace in the log; the tally
+    kept here is printed at shutdown (`summary`) so that a steady loss is seen in the end."""
 
     def __init__(self, name: str, rate: Rate, settled_at: float):
         self.name: str = name
         self.rate: Rate = rate
         self.settled_at: float = settled_at
         self.departed: bool = False
+        self.clips: int = 0  # clips compared, from the rig's settling on
+        self.short_clips: int = 0  # of them, clips with fewer frames than the budget allows
+        self.over_clips: int = 0  # and clips with more
+        self.frames_short: int = 0  # frames missing from the short clips, in all
+        self.worst: int = 0  # the largest shortfall of one clip
 
     def budget(self, seconds: float) -> float:
         """Frames a clip of this length may differ from the prediction and still be steady."""
@@ -293,18 +300,39 @@ class RateWatch:
         if clip_started < self.settled_at or seconds <= 0:
             return None
         expected = self.rate.fps * seconds
-        departed = abs(frames - expected) > self.budget(seconds)
+        short = expected - frames
+        departed = abs(short) > self.budget(seconds)
+        self.clips += 1
+        if departed and short > 0:
+            self.short_clips += 1
+            self.frames_short += round(short)
+            self.worst = max(self.worst, round(short))
+        elif departed:
+            self.over_clips += 1
         if departed == self.departed:
             return None
         self.departed = departed
         if departed:
-            short = expected - frames
             how = f"{short:.0f} short of" if short > 0 else f"{-short:.0f} more than"
             return (
                 f"WARNING: camera {self.name} delivered {frames} frames in a {seconds:.1f}-s clip, {how} the "
                 + f"{expected:.0f} expected at {self.rate.fps:.2f} fps"
             )
         return f"camera {self.name} delivers {self.rate.fps:.2f} fps again"
+
+    def summary(self) -> str:
+        """One line for the shutdown: how many of the compared clips held the camera's rate."""
+        rate = f"{self.rate.fps:.2f} fps"
+        if self.clips == 0:
+            return f"camera {self.name}: no clip was compared with its {rate}"
+        if self.short_clips == 0 and self.over_clips == 0:
+            return f"camera {self.name}: all {self.clips} clips at its {rate}"
+        parts = [f"camera {self.name}: {self.short_clips} of {self.clips} clips short of its {rate}"]
+        if self.short_clips:
+            parts.append(f"{self.frames_short} frames in all, worst {self.worst}")
+        if self.over_clips:
+            parts.append(f"{self.over_clips} clip(s) over")
+        return ", ".join(parts)
 
 
 class Measured(NamedTuple):
@@ -726,6 +754,7 @@ def run(
     )
     _ = wait_for_transfers(file_transfer_processes, abort_event)  # an abort arriving meanwhile is honoured too
 
+    print(rate_watch.summary())  # a shortfall is said once when it starts; the tally says whether it persisted
     print(f"ratrixcam server {device_id+1}: shutdown complete; saved {clip_count} files during this run")
 
 

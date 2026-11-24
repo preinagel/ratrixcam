@@ -199,6 +199,22 @@ def test_an_uncalibrated_rate_widens_the_budget_by_its_uncertainty():
 def test_rate_watch_ignores_an_empty_clip():
     watch = server.RateWatch("cam1", calibrated(30.0), settled_at=0.0)
     assert watch.clip_closed(0, 0.0, clip_started=120.0) is None
+    assert watch.summary() == "camera cam1: no clip was compared with its 30.00 fps"
+
+
+def test_the_shutdown_tally_counts_every_short_clip_not_only_the_one_that_was_said():
+    watch = server.RateWatch("cam1", calibrated(30.55), settled_at=100.0)
+    assert watch.clip_closed(1833, 60.0, clip_started=10.0) is None  # before the rig settled: not compared
+    assert watch.clip_closed(1833, 60.0, clip_started=120.0) is None  # at its rate (1833 expected)
+    assert watch.clip_closed(1825, 60.0, clip_started=180.0) is not None  # 8 short: said
+    assert watch.clip_closed(1820, 60.0, clip_started=240.0) is None  # 13 short: silent, but counted
+    assert watch.clip_closed(1833, 60.0, clip_started=300.0) is not None  # back
+    assert watch.clip_closed(1840, 60.0, clip_started=360.0) is not None  # 7 over: said
+    assert watch.summary() == "camera cam1: 2 of 5 clips short of its 30.55 fps, 21 frames in all, worst 13, 1 clip(s) over"
+    steady = server.RateWatch("cam2", calibrated(29.6), settled_at=0.0)
+    for n, start in ((1777, 10.0), (1776, 70.0), (1777, 130.0)):
+        assert steady.clip_closed(n, 60.03, clip_started=start) is None
+    assert steady.summary() == "camera cam2: all 3 clips at its 29.60 fps"
 
 
 # ------------------------------------------------- the frame-time file beside each clip
