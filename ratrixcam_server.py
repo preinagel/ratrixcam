@@ -248,6 +248,17 @@ WARM_UP_SECONDS = 3.0  # frames read and discarded at launch while the camera's 
                        # measured, counted from the first frame: 60 to 90 intervals, enough for the median
 FIRST_FRAME_WAIT = 5.0  # seconds a camera is given to deliver its first frame before it is declared dead
 FPS_TOLERANCE = 1  # a measured rate this close to the requested one is the requested one: cameras drift less
+GAP_THRESHOLD = 2.5  # an interval this many times the frame interval is a hole of two or more frames: counted as
+                     # a gap by the calibration, filled in the clips by the server. The host hands frames over on
+                     # its own tick, slightly off the camera's, so a doubled interval every few dozen frames is
+                     # pacing and not a loss; a single lost frame looks the same and is left to the clip's count
+GIVE_UP_SECONDS = 15.0  # a camera that delivers no frame for this long is presumed offline: the server exits and
+                        # the supervisor relaunches it. A display wake freezes delivery to every server for
+                        # about 5 s and then resumes; the limit is measured by the clock, not in reads
+SILENT_SAID_AFTER = 3.0  # seconds without a frame before the silence is said, once, and its end after it
+DUPLICATE_FILLERS = 1  # the first missing slots of a hole are duplicates of the previous frame, the rest blank
+EMPTY_READ_PAUSE = 0.1  # a read that came back empty at once is followed by this pause: a dead capture answers
+                        # at once and would otherwise spin until the give-up
                    # than this from nominal, and the standard value is what players expect in the label
 
 
@@ -415,7 +426,7 @@ def rate_from_intervals(intervals: list[float]) -> tuple[float, float, int]:
     rate = len(intervals) / span
     uncertainty = 1 / span
     typical = statistics.median(intervals)
-    gaps = sum(1 for i in intervals if i > 2.5 * typical)
+    gaps = sum(1 for i in intervals if i > GAP_THRESHOLD * typical)
     return rate, uncertainty, gaps
 
 
@@ -427,17 +438,17 @@ class Grabbed(NamedTuple):
 
 def grab_frame(capture: cv2.VideoCapture, name: str) -> Grabbed | None:
     """The next frame with the time it arrived, read just after it came back so that the
-    stamp is the frame's own and not the moment the wait for it began. Up to three reads,
-    since the backend gives up on a slow camera after a while; None, after a line, when the
-    camera delivers nothing."""
+    stamp is the frame's own and not the moment the wait for it began. One read: the backend
+    waits about a second for a frame and gives None when none came, which says nothing about
+    the camera; the loop decides, by the clock since the last frame, when it is dead. `name`
+    is the camera's, for a line about the read should one ever be needed here."""
+    _ = name
     asked = time.time()
-    for _ in range(3):
-        ok, frame = capture.read()
-        if ok:
-            arrived = time.time()
-            return Grabbed(frame, arrived, arrived - asked)
-    print(f"Cam_server: Failed to capture a frame from camera {name} at {datetime.now().strftime('%H:%M:%S.%f')}")
-    return None
+    ok, frame = capture.read()
+    if not ok:
+        return None
+    arrived = time.time()
+    return Grabbed(frame, arrived, arrived - asked)
 
 
 def write_frame(writer: cv2.VideoWriter, frame: MatLike, params: CameraParams, stamp: datetime, overlay_text: str) -> None:
@@ -459,8 +470,9 @@ def write_frame(writer: cv2.VideoWriter, frame: MatLike, params: CameraParams, s
     writer.write(frame)
 
 
-FRAME_TIMES_SUFFIX = "_frames.csv"  # beside each clip: one line per frame with its arrival time
-FRAME_TIMES_HEADER = "frame,arrived,waited_s,worked_s\n"
+FRAME_TIMES_SUFFIX = "_frames.csv"  # beside each clip: one line per frame written, with its arrival time
+FRAME_TIMES_HEADER = "frame,arrived,waited_s,worked_s,kind\n"
+FRAME_KINDS = ("frame", "duplicate", "blank")  # a frame the camera delivered; the fillers for a hole
 
 
 def frame_times_filename(clip_filename_: str) -> str:
@@ -470,11 +482,12 @@ def frame_times_filename(clip_filename_: str) -> str:
 
 
 class FrameTimes:
-    """The frame-time file of one clip: for every frame its number, the clock when it
-    arrived, the seconds the loop waited for it and the seconds the loop worked between the
-    previous frame and asking for this one. A gap after a long wait is a frame the camera
-    or the link did not deliver; a gap after long work is a frame that was overwritten while
-    the loop was busy; the clip alone cannot tell the two apart."""
+    """The frame-time file of one clip: for every frame written its number, the clock when
+    it arrived, the seconds the loop waited for it, the seconds the loop worked between the
+    previous read's return and asking for this one, and its kind. A filler's row carries the
+    nominal time of its slot and no wait or work. A gap after a long wait is a frame the
+    camera or the link did not deliver; a gap after long work is a frame that was overwritten
+    while the loop was busy; the clip alone cannot tell the two apart."""
 
     def __init__(self, path: str):
         self.path: str = path
@@ -486,10 +499,18 @@ class FrameTimes:
             print(f"WARNING: could not open the frame-time file {os.path.basename(path)}: {e.strerror or e}; the clip is recorded without it")
 
     def add(self, frame: int, arrived: float, waited: float, worked: float) -> None:
+        """A frame the camera delivered."""
         if self.file is None:
             return
         stamp = datetime.fromtimestamp(arrived).strftime("%Y-%m-%d %H:%M:%S.%f")
-        _ = self.file.write(f"{frame},{stamp},{waited:.4f},{worked:.4f}\n")
+        _ = self.file.write(f"{frame},{stamp},{waited:.4f},{worked:.4f},frame\n")
+
+    def add_filler(self, frame: int, slot: float, kind: str) -> None:
+        """A filler written for a slot no frame arrived in: its nominal time, and its kind."""
+        if self.file is None:
+            return
+        stamp = datetime.fromtimestamp(slot).strftime("%Y-%m-%d %H:%M:%S.%f")
+        _ = self.file.write(f"{frame},{stamp},,,{kind}\n")
 
     def close(self) -> None:
         if self.file is not None:
@@ -670,36 +691,105 @@ def run(
     params = params.model_copy(update={"fps": fps, "width": measured.width, "height": measured.height})
     rate_watch = RateWatch(params.name, rate, rig_settled_at(time.time(), device_id, len(config.cameras), config.time_slice))
 
-    frame_count: int = 0  # frames since the camera started: printed on each frame, paces the still updates
-    clip_first_frame: int = 0  # frame_count when the open clip started
+    # Two counts. Frames that ARRIVED pace the still and are what the watch compares with the
+    # camera's rate. Frames WRITTEN, arrived and fillers, are the burned-in label and the
+    # frame-time file's first column, so that a clip's frames and its rows match one to one.
+    interval: float = 1 / rate.fps  # one slot of a clip: the camera's frame interval
+    arrived_frames: int = 0
+    written_frames: int = 0
+    clip_arrived: int = 0  # frames that arrived in the open clip
     clip_count: int = 0
     file_transfer_processes: list[Process] = []
     writer_state: WriterState | None = None
-    last_arrived: float = time.time()  # when the previous frame came back; the loop's work since then goes in the frame-time file
+    last_arrived: float = time.time()  # when the previous frame came back: the give-up and the silence lines count from it
+    pass_end: float = last_arrived  # when the previous read came back, frame or not: the loop's work since then goes in the frame-time file
+    silent_said: bool = False
+    # A hole in the arrivals is filled slot by slot from the nominal time of the last written
+    # slot: a duplicate of the last frame for the first DUPLICATE_FILLERS slots, blanks after.
+    # Fillers are written as the hole goes on (each empty read fills the slots that have fully
+    # elapsed) and the remainder when the next frame arrives, so a frame that lands in a slot
+    # already filled adds nothing. A clip is opened only by an arrived frame and named by it:
+    # slots that fall between a clip's close and the next frame are not filled.
+    slot_time: float = 0.0  # the nominal time of the last written slot of the open clip
+    in_hole: bool = False  # fillers have been written since the last arrival
+    hole_fillers: int = 0  # fillers written in the current hole
+    last_written: MatLike | None = None  # the last arrived frame as written, overlay and all
+    blank: MatLike = np.zeros((params.height, params.width, 3), dtype=np.uint8)  # no label at all
 
-    # this loop is executed once per video frame until the camera is stopped
+    def fill(n: int) -> None:
+        """Write n fillers to the open clip for the slots after the last written one."""
+        nonlocal written_frames, slot_time, hole_fillers, in_hole
+        if writer_state is None or last_written is None:
+            return
+        for _ in range(n):
+            slot_time += interval
+            kind = "duplicate" if hole_fillers < DUPLICATE_FILLERS else "blank"
+            writer_state.writer.write(last_written if kind == "duplicate" else blank)
+            writer_state.times.add_filler(written_frames, slot_time, kind)
+            written_frames += 1
+            hole_fillers += 1
+            in_hole = True
+
+    def close_clip_at_boundary() -> None:
+        """The clock has passed the open clip's slice: fill its hole, if any, with the slots
+        that fell due up to the boundary, release the clip, compare its arrived count with
+        the camera's rate, and let go of the transfers that have finished since the last
+        clip. Nothing else is appended: a clip short of the clock's count by single lost
+        frames stays short, and the sidecar and the watch record it. The slots after the
+        boundary belong to no clip until a frame opens the next one."""
+        nonlocal writer_state, file_transfer_processes
+        if writer_state is None:
+            return
+        boundary = start + config.time_slice
+        slots = math.floor((boundary - slot_time) / interval)
+        if slots > 0 and (in_hole or boundary - slot_time > GAP_THRESHOLD * interval):
+            fill(slots)
+        seconds = boundary - start
+        close_writer(writer_state, file_transfer_processes, manifest, config.save_path)
+        message = rate_watch.clip_closed(clip_arrived, seconds, start)
+        if message is not None:
+            print(message)
+        file_transfer_processes = release_finished(file_transfer_processes)
+        writer_state = None
+
+    # one pass per read until the camera is stopped: a frame, or an empty read after the
+    # backend's wait of about a second, which is when the clock alone drives the clip
     while capture.isOpened() and not stop_event.is_set():
-        # the frame first: its arrival time is its stamp and decides which clip it opens or joins
+        asked = time.time()
         grabbed = grab_frame(capture, params.name)
         if grabbed is None:
-            break  # if you fail to capture, interpret that camera is down, fall out of loop
-        current_time: float = grabbed.arrived
-        current_datetime: datetime = datetime.fromtimestamp(timestamp=current_time)
-
-        # if not started yet, open first video file
-        # or if video slice duration has been exceeded, close video file and initialize new one
-        if writer_state is None or current_time - start > config.time_slice:
-            # close the old writer, compare its clip's frame count with the camera's rate, and
-            # let go of the transfers that have finished since the last clip
+            now = time.time()
+            if now - last_arrived > GIVE_UP_SECONDS:
+                print(f"Cam_server: no frame from camera {params.name} for {GIVE_UP_SECONDS:.0f} s at {datetime.now().strftime('%H:%M:%S')}; presumed offline")
+                break
+            if not silent_said and now - last_arrived > SILENT_SAID_AFTER:
+                print(f"Cam_server: camera {params.name} has delivered no frame for {now - last_arrived:.0f} s")
+                silent_said = True
             if writer_state is not None:
-                close_writer(writer_state, file_transfer_processes, manifest, config.save_path)
-                message = rate_watch.clip_closed(frame_count - clip_first_frame, current_time - start, start)
-                if message is not None:
-                    print(message)
-                file_transfer_processes = release_finished(file_transfer_processes)
-            start = current_time  # the clip's clock starts at its first frame; the clip ends at the first frame after time_slice
-            clip_first_frame = frame_count
+                if now - start > config.time_slice:
+                    close_clip_at_boundary()
+                else:
+                    # the slots that have fully elapsed, less the one the next frame may still land in
+                    elapsed = math.floor((now - slot_time) / interval) - 1
+                    if elapsed > 0 and (in_hole or now - slot_time > GAP_THRESHOLD * interval):
+                        fill(elapsed)
+            pass_end = now
+            if now - asked < EMPTY_READ_PAUSE:
+                time.sleep(EMPTY_READ_PAUSE)
+            continue
+
+        now = grabbed.arrived  # the frame's stamp, and the clock the clip boundary is judged by
+        current_datetime: datetime = datetime.fromtimestamp(timestamp=now)
+        if silent_said:
+            print(f"Cam_server: camera {params.name} delivers frames again after {now - last_arrived:.1f} s")
+            silent_said = False
+        if writer_state is not None and now - start > config.time_slice:
+            close_clip_at_boundary()
+        if writer_state is None:
+            start = now  # the clip's clock starts at its first frame; the clip ends when the clock passes time_slice
+            clip_arrived = 0
             clip_count += 1
+            slot_time, in_hole, hole_fillers = now, False, 0
 
             # open a new writer; the clip's destination day folder is created by move_file
             # when the clip is transferred, so this loop never touches the save drive
@@ -722,14 +812,22 @@ def run(
                 FrameTimes(os.path.join(temp_dir, frame_times_filename(current_file_name))),
             )
             print(f"Cam_server: Camera {params.name} will now stream to {current_file_name}")
+        else:
+            gap = now - slot_time
+            if in_hole or gap > GAP_THRESHOLD * interval:
+                fill(max(0, round(gap / interval) - 1))
+            slot_time, in_hole, hole_fillers = now, False, 0
 
-        overlay_text: str = camera_label + ' frame ' + str(frame_count)
+        overlay_text: str = camera_label + ' frame ' + str(written_frames)
         write_frame(writer_state.writer, grabbed.frame, params, current_datetime, overlay_text)
-        writer_state.times.add(frame_count, grabbed.arrived, grabbed.waited, grabbed.arrived - grabbed.waited - last_arrived)
-        last_arrived = grabbed.arrived
+        writer_state.times.add(written_frames, now, grabbed.waited, asked - pass_end)
+        last_written = grabbed.frame.copy()  # the duplicate filler, should the next slot stay empty
+        written_frames += 1
+        clip_arrived += 1
+        last_arrived = pass_end = now
 
         # once per N sec, try to update the still image
-        if frame_count % (config.preview_interval * params.fps) == 0:
+        if arrived_frames % (config.preview_interval * params.fps) == 0:
             try:
                 result = cv2.imwrite(camera_still_path, grabbed.frame)
                 if result is False:
@@ -738,7 +836,7 @@ def run(
                     )
             except Exception as e:
                 print(type(e), e)
-        frame_count += 1  # whether the still update succeeds or fails
+        arrived_frames += 1  # whether the still update succeeds or fails
 
     # reach this line whenever camera fails to capture a frame (camera presumed offline)
     print(f"Camera server {device_id+1} attempting to shut down nicely")

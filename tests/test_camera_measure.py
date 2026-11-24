@@ -22,11 +22,13 @@ else:
 class FakeCapture:
     """Frames of a given size at a given rate, as cv2.VideoCapture.read() would hand them
     out: each read blocks until the next frame is due. `repeat` makes every frame come back
-    a second time, as a backend handing out its latest frame again."""
+    a second time, as a backend handing out its latest frame again. `silences` maps a frame
+    number to seconds of silence after it, during which the frames are lost: a read blocks
+    until the silence ends, or comes back empty after a second, as the backend's does."""
 
     def __init__(
         self, fps: float, width: int, height: int, reported: tuple[float, int, int] = (0.0, 0, 0),
-        repeat: bool = False, frames: int | None = None, drop_every: int = 0,
+        repeat: bool = False, frames: int | None = None, drop_every: int = 0, silences: dict[int, float] | None = None,
     ):
         self.interval: float = 1 / fps
         self.drop_every: int = drop_every  # every n-th frame is lost, as when the reader was busy
@@ -35,6 +37,8 @@ class FakeCapture:
         self.reported: tuple[float, int, int] = reported
         self.repeat: bool = repeat
         self.frames_left: int | None = frames
+        self.silences: dict[int, float] = silences or {}
+        self.silent_until: float | None = None
         self.n: int = 0
         self.next_at: float = time.monotonic()
         self.last: npt.NDArray[np.uint8] | None = None
@@ -48,6 +52,14 @@ class FakeCapture:
         if self.frames_left is not None and self.frames_left <= 0:
             time.sleep(self.interval)
             return False, None
+        if self.silent_until is not None:
+            remaining = self.silent_until - time.monotonic()
+            if remaining > 1.0:  # the backend blocks for about a second, then gives up on this read
+                time.sleep(1.0)
+                return False, None
+            if remaining > 0:  # a shorter silence is only a late frame: the read blocks until it comes
+                time.sleep(remaining)
+            self.silent_until = None
         if self.repeat and self.last is not None and self.n % 2 == 1:
             self.n += 1
             return True, self.last  # the same frame again, at once
@@ -58,6 +70,9 @@ class FakeCapture:
         self.n += 1
         if self.drop_every and self.n % self.drop_every == 0:
             self.next_at += self.interval  # that frame went by unread
+        if self.n in self.silences:
+            self.silent_until = time.monotonic() + self.silences[self.n]
+            self.next_at += self.silences[self.n]  # the frames of the silence are gone
         if self.frames_left is not None:
             self.frames_left -= 1
         self.last = np.full((self.height, self.width, 3), self.n % 256, dtype=np.uint8)
@@ -134,6 +149,7 @@ def test_a_missed_frame_lowers_the_rate_and_only_a_longer_hole_is_a_gap():
     assert abs(rate - 51 / 1.04) < 1e-9 and gaps == 0
     rate, _, gaps = server.rate_from_intervals([0.02] * 50 + [0.06])  # two frames missing: a hole
     assert abs(rate - 51 / 1.06) < 1e-9 and gaps == 1
+    assert server.GAP_THRESHOLD == 2.5  # the same line the server fills a hole from
 
 
 def test_a_single_interval_has_a_rate_whose_uncertainty_is_itself():
@@ -224,13 +240,16 @@ def test_frame_times_go_beside_the_clip_one_line_per_frame(tmp_path: object):
     assert path.endswith("rat1_cam1_20261119_10-00-00_frames.csv")
     times = server.FrameTimes(path)
     times.add(0, 1763550000.123456, 0.0310, 0.0021)
-    times.add(1, 1763550000.156789, 0.0333, 0.0019)
+    times.add_filler(1, 1763550000.157, "duplicate")  # the slot no frame arrived in, at its nominal time
+    times.add_filler(2, 1763550000.190, "blank")
+    times.add(3, 1763550000.256789, 0.0333, 0.0019)
     times.close()
     with open(path) as f:
         lines = f.read().splitlines()
-    assert lines[0] == "frame,arrived,waited_s,worked_s"
-    assert len(lines) == 3 and lines[1].startswith("0,") and lines[1].endswith(",0.0310,0.0021")
-    assert lines[2].split(",")[1].endswith(".156789")  # the arrival to the microsecond
+    assert lines[0] == "frame,arrived,waited_s,worked_s,kind"
+    assert len(lines) == 5 and lines[1].startswith("0,") and lines[1].endswith(",0.0310,0.0021,frame")
+    assert lines[2].endswith(",,,duplicate") and lines[3].endswith(",,,blank")  # no wait, no work
+    assert lines[4].split(",")[1].endswith(".256789")  # the arrival to the microsecond
 
 
 def test_a_frame_time_file_that_cannot_be_opened_is_reported_and_skipped(tmp_path: object, capsys: pytest.CaptureFixture[str]):
