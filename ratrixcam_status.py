@@ -18,7 +18,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from ratrixcam_manifest import format_time
-from ratrixcam_naming import STATUS_FILENAME, VIDEO_EXT, camera_name, manifest_filename, temp_manifests_dir, temp_run_metadata_dir
+from ratrixcam_naming import STATUS_FILENAME, VIDEO_EXT, camera_name, frame_times_filename, manifest_filename, temp_manifests_dir, temp_run_metadata_dir
 from ratrixcam_utils import Config, not_writable, seconds_until_full, stills_dir, write_rate
 
 SCHEMA = 1
@@ -127,16 +127,23 @@ class WriteRateEstimate:
 
     def _size(self, path: str, name: str) -> int | None:
         """The clip's size: on the save drive under its manifest path, else in the camera's
-        temp folder; None if it is at neither place."""
+        temp folder; None if it is at neither place. The frame-time file beside the clip,
+        where there is one, is counted with it: it travels with the clip and takes its share
+        of the drive."""
         candidates = (
             Path(self.config.save_path) / path,
             Path(self.config.temp_path) / f"{self.config.study_label}_{name}" / Path(path).name,
         )
         for candidate in candidates:
             try:
-                return candidate.stat().st_size
+                size = candidate.stat().st_size
             except OSError:
                 continue
+            try:
+                size += candidate.with_name(frame_times_filename(candidate.name)).stat().st_size
+            except OSError:
+                pass
+            return size
         return None
 
 

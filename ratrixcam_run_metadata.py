@@ -20,6 +20,7 @@ from typing import IO, cast
 from ratrixcam_manifest import write_row
 from ratrixcam_status import StatusWriter
 from ratrixcam_naming import (
+    FRAME_TIMES_SUFFIX,
     MANIFEST_SUFFIX,
     NOTES_FILENAME,
     NOTES_TEMPLATE,
@@ -317,9 +318,9 @@ class RunMetadata:
             rows, all_read = self._manifest_rows()
             temp = Path(self.config.temp_path)
             skip = (self.temp_run_dir, Path(stills_dir(self.config.temp_path)))
-            clips = sorted(
-                clip for folder in temp.iterdir() if folder.is_dir() and folder not in skip for clip in folder.glob(f"*{VIDEO_EXT}")
-            )
+            folders = [folder for folder in temp.iterdir() if folder.is_dir() and folder not in skip]
+            clips = sorted(clip for folder in folders for clip in folder.glob(f"*{VIDEO_EXT}"))
+            sidecars = sorted(f for folder in folders for f in folder.glob(f"*{FRAME_TIMES_SUFFIX}"))
             listed = [clip for clip in clips if clip.name in rows]
             transferred = self._re_request(listed, rows)
             deleted, kept = self._triage_unlisted([clip for clip in clips if clip.name not in rows], all_read)
@@ -328,19 +329,60 @@ class RunMetadata:
                 + f"(they travel with their folder into the run metadata folder); without a manifest row: {deleted} deleted, {kept} kept"
             )
             self._rename_complete_partial_copies(rows, {clip.name for clip in clips})
+            if sidecars:
+                self._settle_sidecars(sidecars, rows, all_read)
             return transferred, len(listed) - transferred
         except OSError as e:
             print(f"WARNING: could not go through the clips left in temp: {_error_text(e)}")
             return 0, 0
 
+    def _settle_sidecars(self, sidecars: list[Path], rows: dict[str, str], all_read: bool) -> None:
+        """A clip's frame-time file left in temp goes where its clip went. One whose clip has
+        a manifest row is re-requested to the clip's day folder, whether the clip was just
+        re-requested with it or was transferred earlier and only its file stayed behind. One
+        whose clip has no row is a loose file under the unlisted-clip rule: it stays with a
+        clip that was kept (both travel with their folder), and is otherwise deleted, or kept
+        when a manifest could not be read."""
+        destinations: dict[str, str] = {}
+        loose: list[Path] = []
+        for f in sidecars:
+            clip_name = f.name[: -len(FRAME_TIMES_SUFFIX)] + VIDEO_EXT
+            if clip_name in rows:
+                destinations[f.name] = str(Path(rows[clip_name]).parent / f.name)
+            elif not (f.parent / clip_name).exists():
+                loose.append(f)
+        transferred = self._re_request([f for f in sidecars if f.name in destinations], destinations)
+        deleted = kept = 0
+        for f in loose:
+            if not all_read:
+                kept += 1
+                print(f"WARNING: {f.name} has no clip with a manifest row; kept because a manifest could not be read")
+                continue
+            try:
+                f.unlink()
+                deleted += 1
+                print(f"WARNING: {f.name} has no clip with a manifest row; deleted")
+            except OSError as e:
+                kept += 1
+                print(f"WARNING: {f.name} has no clip with a manifest row; could not be deleted ({e.strerror or e})")
+        print(
+            f"Frame-time files found in temp: {len(sidecars)}; {transferred} transferred, {len(destinations) - transferred} not transferred; "
+            + f"without a listed clip: {deleted} deleted, {kept} kept"
+        )
+
     def _re_request(self, listed: list[Path], rows: dict[str, str]) -> int:
-        """Re-request the transfer of each listed clip, one at a time, through the same function
-        the cameras use, to the destination its manifest row names; a stray partial copy there
-        is overwritten. Before each one, the two checks that function makes first (save folder
-        present, free space at least TRANSFER_SPACE_FACTOR times the clip) are made here: when
-        one fails the rest are not re-requested, with one line saying why, so a drive that
-        vanishes or fills during the pass does not cost a retry window per clip. Returns how
-        many arrived; the ones that did not were reported by the transfer function."""
+        """Re-request the transfer of each listed file, one at a time, through the same function
+        the cameras use, to the destination its row names (a clip's manifest row; for a
+        frame-time file, its clip's day folder); a stray partial copy there is overwritten.
+        A file of the same name already there is decided by that function's rules: identical
+        content is already transferred and the temp copy is removed; otherwise the one that
+        opens as video keeps the name, and when neither does, as for a frame-time file, the
+        larger keeps the name and the smaller is renamed where it lies. Before each one, the
+        two checks that function makes first (save folder present, free space at least
+        TRANSFER_SPACE_FACTOR times the file) are made here: when one fails the rest are not
+        re-requested, with one line saying why, so a drive that vanishes or fills during the
+        pass does not cost a retry window per file. Returns how many arrived; the ones that
+        did not were reported by the transfer function."""
         if not listed:
             return 0
         from ratrixcam_server import TRANSFER_SPACE_FACTOR, move_file  # cv2-heavy module; imported where used

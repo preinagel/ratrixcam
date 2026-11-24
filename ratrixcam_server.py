@@ -19,7 +19,7 @@ from cv2.typing import MatLike
 from pydantic import BaseModel
 
 from ratrixcam_manifest import ManifestMetadata
-from ratrixcam_naming import camera_name, clip_filename, still_path
+from ratrixcam_naming import camera_name, clip_filename, frame_times_filename, still_path
 from ratrixcam_utils import (
     CAMERA_LAUNCH_PAUSE,
     Calibration,
@@ -470,15 +470,8 @@ def write_frame(writer: cv2.VideoWriter, frame: MatLike, params: CameraParams, s
     writer.write(frame)
 
 
-FRAME_TIMES_SUFFIX = "_frames.csv"  # beside each clip: one line per frame written, with its arrival time
-FRAME_TIMES_HEADER = "frame,arrived,waited_s,worked_s,kind\n"
+FRAME_TIMES_HEADER = "frame,arrived,waited_s,worked_s,kind\n"  # the schema of the file named by ratrixcam_naming.frame_times_filename
 FRAME_KINDS = ("frame", "duplicate", "blank")  # a frame the camera delivered; the fillers for a hole
-
-
-def frame_times_filename(clip_filename_: str) -> str:
-    """The name of the frame-time file that goes with a clip."""
-    stem, _ = os.path.splitext(clip_filename_)
-    return stem + FRAME_TIMES_SUFFIX
 
 
 class FrameTimes:
@@ -487,7 +480,10 @@ class FrameTimes:
     previous read's return and asking for this one, and its kind. A filler's row carries the
     nominal time of its slot and no wait or work. A gap after a long wait is a frame the
     camera or the link did not deliver; a gap after long work is a frame that was overwritten
-    while the loop was busy; the clip alone cannot tell the two apart."""
+    while the loop was busy; the clip alone cannot tell the two apart. The header line is the
+    schema: readers take columns by name. The file is written line by line as the clip grows,
+    so a camera process killed mid-clip leaves one whose last line may be cut off and that
+    ends before the clip's last frame; readers tolerate a truncated final line."""
 
     def __init__(self, path: str):
         self.path: str = path

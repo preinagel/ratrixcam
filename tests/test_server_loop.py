@@ -16,6 +16,7 @@ import pytest
 from test_calibration import OpenableFakeCapture
 from test_run_metadata import make_config
 
+from ratrixcam_naming import frame_times_filename
 from ratrixcam_utils import Calibration, CameraCalibration, Config
 
 if TYPE_CHECKING:  # the real module for the checker; at run time the suite skips without OpenCV
@@ -106,7 +107,7 @@ def test_the_loop_cuts_clips_by_the_clock_and_stamps_each_frame_with_its_arrival
     assert len(clips) == len(writers) == len(times)  # every clip and its frame-time file arrived
     assert not list(Path(config.temp_path).glob("Test_subj001_cam1/*"))  # and left temp
     for clip, times_file in zip(clips, times):
-        assert times_file.name == server.frame_times_filename(clip.name)
+        assert times_file.name == frame_times_filename(clip.name)
     with open(times[0]) as f:
         rows = list(csv.DictReader(f))
     assert len(rows) == writers[0].frames

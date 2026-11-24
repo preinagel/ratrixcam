@@ -439,9 +439,14 @@ def write_clip(path: Path) -> None:
     writer.release()
 
 
-def start_run_with_a_stranded_clip(tmp_path, with_row=True, openable=True):
+SIDECAR = "subj001_cam1_20260102_03-04-05_frames.csv"  # the clip's frame-time file
+SIDECAR_TEXT = "frame,arrived,waited_s,worked_s,kind\n0,2026-01-02 03:04:05.100000,0.0330,0.0010,frame\n"
+
+
+def start_run_with_a_stranded_clip(tmp_path, with_row=True, openable=True, with_sidecar=False):
     """A started run whose camera folder in temp holds one clip the camera did not transfer,
-    with its manifest row unless with_row=False."""
+    with its manifest row unless with_row=False, and its frame-time file beside it when
+    with_sidecar=True."""
     run, temp = start_run_with_a_still(tmp_path)
     clip = temp / "Test_subj001_cam1" / CLIP
     if openable:
@@ -449,6 +454,8 @@ def start_run_with_a_stranded_clip(tmp_path, with_row=True, openable=True):
     else:
         clip.parent.mkdir()
         _ = clip.write_bytes(b"cut off by a kill: no index")
+    if with_sidecar:
+        _ = (clip.parent / SIDECAR).write_text(SIDECAR_TEXT)
     if with_row:
         write_row(str(temp_manifests_dir(run.config.temp_path) / "subj001_cam1_manifest.csv"), f"{DAY}/{CLIP}", "001", "cam1", "2026-01-02 03:04:05.000", 25)
     return run, temp, clip
@@ -498,6 +505,60 @@ def test_a_rowless_clip_that_does_not_open_is_deleted(tmp_path, capsys):
     out = capsys.readouterr().out
     assert f"WARNING: {CLIP} has no manifest row and cannot be opened as video; deleted" in out
     assert "without a manifest row: 1 deleted, 0 kept" in out
+
+
+# ------------------------------------------------- the clip's frame-time file goes where the clip goes
+
+def test_a_stranded_clip_takes_its_frame_time_file_with_it(tmp_path, capsys):
+    run, temp, _ = start_run_with_a_stranded_clip(tmp_path, with_sidecar=True)
+
+    run.collect_at_shutdown()
+
+    day = Path(run.config.save_path) / DAY
+    assert (day / CLIP).stat().st_size > 0 and (day / SIDECAR).read_text() == SIDECAR_TEXT
+    assert not temp.exists()
+    out = capsys.readouterr().out
+    assert f"Re-requesting the transfer of {SIDECAR}\n{SIDECAR} transferred\n" in out
+    assert "Frame-time files found in temp: 1; 1 transferred, 0 not transferred; without a listed clip: 0 deleted, 0 kept" in out
+    assert "WARNING" not in out
+
+
+def test_a_frame_time_file_left_behind_by_a_transferred_clip_follows_it(tmp_path, capsys):
+    run, temp, clip = start_run_with_a_stranded_clip(tmp_path, with_sidecar=True)
+    day = Path(run.config.save_path) / DAY
+    day.mkdir()
+    _ = shutil.move(str(clip), str(day / CLIP))  # the clip's own transfer succeeded; its frame-time file's did not
+
+    run.collect_at_shutdown()
+
+    assert (day / SIDECAR).read_text() == SIDECAR_TEXT
+    assert not temp.exists()
+    out = capsys.readouterr().out
+    assert "Clips found in temp: 0;" in out and "Frame-time files found in temp: 1; 1 transferred" in out
+    assert "WARNING" not in out
+
+
+def test_a_frame_time_file_of_a_deleted_rowless_clip_is_deleted_too(tmp_path, capsys):
+    run, temp, clip = start_run_with_a_stranded_clip(tmp_path, with_row=False, openable=False, with_sidecar=True)
+
+    run.collect_at_shutdown()
+
+    assert not clip.exists() and not temp.exists()
+    out = capsys.readouterr().out
+    assert f"WARNING: {SIDECAR} has no clip with a manifest row; deleted" in out
+    assert "Frame-time files found in temp: 1; 0 transferred, 0 not transferred; without a listed clip: 1 deleted, 0 kept" in out
+
+
+def test_a_frame_time_file_of_a_kept_rowless_clip_travels_with_it(tmp_path, capsys):
+    run, _, _ = start_run_with_a_stranded_clip(tmp_path, with_row=False, with_sidecar=True)
+
+    run.collect_at_shutdown()
+
+    folder = run.run_dir / "Test_subj001_cam1"
+    assert (folder / CLIP).exists() and (folder / SIDECAR).exists()
+    out = capsys.readouterr().out
+    assert "WARNING: folder Test_subj001_cam1 with 2 file(s) moved into the run metadata folder" in out
+    assert "Frame-time files found in temp: 1; 0 transferred, 0 not transferred; without a listed clip: 0 deleted, 0 kept" in out
 
 
 @pytest.mark.usefixtures("no_transfer_waiting")

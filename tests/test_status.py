@@ -132,6 +132,18 @@ def test_the_average_rate_is_all_bytes_so_far_over_the_recorded_time(tmp_path: P
     assert out.count("Write rate measured from the run's clips: 0.15 MB/s for the rig") == 1
 
 
+def test_a_clip_s_frame_time_file_counts_toward_the_write_rate(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    w = writer(tmp_path)
+    list_clip(w, 1, 6 * MB)
+    day = Path(w.config.save_path) / "Test_subj001_cam1_20260102"
+    clip = next(day.glob("*.mp4"))
+    _ = clip.with_name(clip.name[:-4] + "_frames.csv").write_bytes(b"f" * 100_000)  # beside the clip, it travels with it
+    run_time(w, 90)
+    save_free(monkeypatch, 10**12)
+    _ = snap(w, True)
+    assert w.rate == (6 * MB + 100_000) / 60
+
+
 def test_with_one_clip_the_average_and_the_conservative_rate_agree(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     w = writer(tmp_path)
     list_clip(w, 1, 6 * MB)

@@ -133,6 +133,20 @@ def camera_name(subject_prefix: str, subjID: str, view: str) -> str:
     return f"{subject_prefix}{subjID}_{view}"
 
 
+FRAME_TIMES_SUFFIX = "_frames.csv"  # the frame-time file beside each clip: one line per frame written
+
+
+def frame_times_filename(clip_filename_: str) -> str:
+    """The name of the frame-time file that goes with a clip, its companion wherever the clip
+    goes: transferred with it, carried by the collection, copied beside its compressed copy
+    and deleted with the raw clip. Its header line is its schema (frame, arrived, waited_s,
+    worked_s, kind): readers take columns by name, since columns have been added before. A
+    camera process killed mid-clip leaves a file whose last line may be cut off and that
+    ends before the clip's last frame, so readers tolerate a truncated final line."""
+    stem, _ = os.path.splitext(clip_filename_)
+    return stem + FRAME_TIMES_SUFFIX
+
+
 def clip_filename(camera_name_: str, started: datetime) -> str:
     """<camera name>_<YYYYMMDD>_<HH-MM-SS>.mp4 for a clip that started at `started`."""
     return f"{camera_name_}_{started:%Y%m%d_%H-%M-%S}{VIDEO_EXT}"

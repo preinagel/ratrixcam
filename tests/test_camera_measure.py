@@ -10,6 +10,8 @@ import numpy as np
 import numpy.typing as npt
 import pytest
 
+from ratrixcam_naming import frame_times_filename
+
 if TYPE_CHECKING:  # the real module for the checker; at run time the suite skips without OpenCV
     import cv2
 
@@ -236,7 +238,7 @@ def test_the_shutdown_tally_counts_every_short_clip_not_only_the_one_that_was_sa
 # ------------------------------------------------- the frame-time file beside each clip
 
 def test_frame_times_go_beside_the_clip_one_line_per_frame(tmp_path: object):
-    path = os.path.join(str(tmp_path), server.frame_times_filename("rat1_cam1_20261119_10-00-00.mp4"))
+    path = os.path.join(str(tmp_path), frame_times_filename("rat1_cam1_20261119_10-00-00.mp4"))
     assert path.endswith("rat1_cam1_20261119_10-00-00_frames.csv")
     times = server.FrameTimes(path)
     times.add(0, 1763550000.123456, 0.0310, 0.0021)

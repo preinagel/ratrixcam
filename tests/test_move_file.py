@@ -401,6 +401,29 @@ def test_an_identical_clip_on_the_drive_means_nothing_to_copy(clip: Clip, monkey
     assert "WARNING" not in out
 
 
+def test_a_frame_time_file_of_the_same_name_is_decided_by_content_then_size(tmp_path: Path, capsys: pytest.CaptureFixture[str]):
+    """A clip's frame-time file goes through the same function and the same rules; it never
+    opens as video, so after the identical case the larger keeps the name."""
+    temp = tmp_path / "temp" / "cam"
+    temp.mkdir(parents=True)
+    save_root = tmp_path / "save"
+    day = save_root / "day"
+    day.mkdir(parents=True)
+    name = "c_frames.csv"
+    rows = "frame,arrived,waited_s,worked_s,kind\n0,2026-01-02 03:04:05.100000,0.0330,0.0010,frame\n"
+    _ = (temp / name).write_text(rows)
+    _ = (day / name).write_text(rows)  # transferred earlier, identical
+    assert server.move_file(str(temp / name), str(day / name), str(save_root)) is True
+    assert not (temp / name).exists() and os.listdir(day) == [name]
+    assert f"{name} is already on the drive, identical" in capsys.readouterr().out
+    _ = (temp / name).write_text(rows + "1,2026-01-02 03:04:05.133000,0.0330,0.0010,frame\n")  # the fuller copy is in temp
+    assert server.move_file(str(temp / name), str(day / name), str(save_root)) is True
+    assert sorted(os.listdir(day)) == [name, "c_frames_superseded.csv"]
+    assert (day / name).read_text().count("\n") == 3
+    out = capsys.readouterr().out
+    assert "neither opens as video); the larger wins: the file on the drive is renamed c_frames_superseded.csv" in out
+
+
 def test_an_unopenable_file_on_the_drive_is_replaced_by_the_openable_temp_clip(clip: Clip, capsys: pytest.CaptureFixture[str]):
     size = openable_clip(Path(clip.temp_file), frames=5)
     Path(clip.out_file).parent.mkdir()
