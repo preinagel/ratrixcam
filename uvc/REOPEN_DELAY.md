@@ -1,6 +1,6 @@
 # How long to wait before reopening a released camera (plan, 2026-11-20)
 
-Status: **arm 1 done (2026-11-24): no stall in 105 reopens; arms 2-4 pending.** The plan
+Status: **arms 1 and 2 done (2026-11-24); arm 2 found an unplanned long stall (see Arm 2); arms 3-4 pending.** The plan
 was written on 2026-11-20 while the rig was on loan; it was handed back on 2026-11-24. This
 file holds the results; the earlier reports (`REPORT.md`, `FRAME_DROPS.md`,
 `DIM_LIGHT_TEST.md`) are frozen.
@@ -173,3 +173,65 @@ randomised order (logged); kinds A, B, C on lab ports 1, 2, 4.
     OpenCV one.
   - These conditions are not part of this experiment's design.
 - Arms 2 (load), 3 (long stream) and 4 (kill) test the remaining factors in the plan.
+
+### Arm 2: short stream, other seven cameras streaming (2026-11-24 12:28:30 to 13:53:33; `uvc/logs/reopen-short-load-run1.log`)
+
+`uvc/.venv/bin/python uvc/reopen_delay.py run --arm short --load`: as arm 1, with seven
+reader processes streaming the other cameras during each camera's sweep.
+
+**Summary as logged** (stalled = under 230 frames in the first 10 s):
+
+| Kind | 1 s | 2 s | 4 s | 8 s | 15 s | 30 s | 60 s |
+|---|---|---|---|---|---|---|---|
+| A (port 1) | 0/5 | 0/5 | 0/5 | 0/5 | 0/5 | 0/5 | 0/5 |
+| B (port 2) | 0/5 | 0/5 | 0/5 | 0/5 | 0/5 | 0/5 | 0/5 |
+| C (port 4) | 0/5 | 0/4 + 1 invalid | 0/4 + 1 invalid | 0/5 | **1/5** | **1/4** + 1 invalid | 0/5 |
+
+**Kind C: five sessions started and then stopped.**
+- Each one delivered 18-26 frames (about 0.7 s) and then nothing.
+  - **2 reopens**: trial 4 (30 s delay) gave 22 frames, then none for the rest of the 60 s
+    watch; trial 34 (15 s delay) gave 26 frames, then none.
+  - **3 first streams** (trials 13, 21 and 23, opened 5 s after a release) gave 18-22
+    frames, then never reached 5 s of normal streaming within the 180 s limit. These are
+    the "invalid" trials.
+- **In every case the next new process, 5 s after the stalled one was released, opened
+  the camera normally.** So this state belongs to one session, not to the device, and
+  waiting longer did not avoid it: it occurred at 5, 15 and 30 s after a release, and not
+  in the 1 s trials.
+- This is the pattern of persist-C run 1 (32 frames, then none). It is different from a
+  slow start.
+- In arm 1, the same camera alone had 0 such events in 70 sessions.
+
+**Kind B, port 2 (index 1): a load stream delivered nothing for the whole kind C sweep, 34
+minutes.**
+- The load reader on index 1 reported 0.0 fps (minimum and median) over all 68 windows of
+  30 s. Only the minimum and median are logged; a short burst at the start is possible.
+- How it was opened:
+  - It opened about 1 s after kind B's end-of-sweep identification released the same
+    camera (13:19:11).
+  - That identification runs in the main experiment process. It writes the marker
+    through libusb, streams through OpenCV, releases, and **stays alive**.
+  - The new reader process opened the camera at once, with no rest.
+- The same sequence on kind A's camera at 12:53:37 (the identification, then the load
+  reader on index 0) streamed normally: median 29.2 fps, minimum 28.0. So it failed on 1 of
+  2.
+- **Kind C's five stalls all happened while this dead stream was on the same hub** (lab
+  ports 1-4). During the kind A and B sweeps, all seven load streams delivered (minimum
+  27.8 fps), and A and B had no stall.
+- **This sequence was not part of the plan.** The experiment created it by running the
+  identification in the main process and starting the load at once. That confounds arm
+  2's kind C result: under load, or next to a dead stream on the same hub?
+
+**Restored:** each sweep ended with the identification marker (manual, 0.1 ms, gain 0) on
+the tested camera, restored and read back at its own defaults (A 12:53, B 13:19, C 13:53;
+9 OK read-backs, no MISMATCH). All three mappings were CONFIRMED (A 120.5 -> 1.6;
+B 173.4 -> 18.1; C 108.6 -> 10.5). No other control was written.
+
+**What arm 2 shows, as measured:**
+1. No stall on kinds A and B under load (0 of 70 sessions).
+2. A start-then-stop event on kind C (5 of about 70 sessions), all during the 34 minutes
+   when kind B's camera on the same hub was delivering nothing. A longer delay did not
+   prevent it, and an immediate new session cleared it.
+3. A reopen within about 1 s of a release by a process that stays alive (and had written
+   controls through libusb) gave a stream that delivered nothing for 34 minutes, on 1 of 2
+   occasions.
