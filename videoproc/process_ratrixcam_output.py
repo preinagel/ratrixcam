@@ -46,7 +46,7 @@ from pprint import pprint
 from typing import IO, Any, Callable, cast
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # the repo root, where ratrixcam_naming lives
-from ratrixcam_naming import MANIFEST_SUFFIX, MANIFESTS_DIRNAME, NOTES_FILENAME, RUN_METADATA_DIRNAME  # noqa: E402
+from ratrixcam_naming import FRAME_TIMES_SUFFIX, MANIFEST_SUFFIX, MANIFESTS_DIRNAME, NOTES_FILENAME, RUN_METADATA_DIRNAME  # noqa: E402
 
 import compress_drive  # noqa: E402
 import confirm_and_delete  # noqa: E402
@@ -312,12 +312,14 @@ def settle_run_folder(
 # ----------------------------------------------------------------------------- what remains at the root
 
 def looks_ratrixcam(name: str) -> bool:
-    """A file name of one of the kinds ratrixcam writes besides clips."""
+    """A file name of one of the kinds ratrixcam writes besides clips, the frame-time file
+    beside each clip among them."""
     lower = name.lower()
     return (
         fnmatch(name, "terminal_*.log")
         or fnmatch(lower, "*config*.json")
         or name.endswith(MANIFEST_SUFFIX)
+        or name.endswith(FRAME_TIMES_SUFFIX)
         or fnmatch(name, "cam_*_status.png")
         or name == NOTES_FILENAME
         or lower.startswith("readme")

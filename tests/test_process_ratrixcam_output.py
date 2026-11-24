@@ -10,7 +10,16 @@ from pathlib import Path
 
 from helpers import DATE, SUBJECT, VIDEOPROC_DIR, clip_start, fname, latest_run_dir, place, read_log, read_rows
 
+import process_ratrixcam_output  # noqa: E402  # conftest puts the videoproc folder on the path
+
 RUN_ID = "ratrixcam_20250101_095900_abcd1234"
+
+
+def test_a_frame_time_file_looks_like_ratrixcam_s_own():
+    looks = process_ratrixcam_output.looks_ratrixcam
+    assert looks(fname("10-00-00")[:-4] + "_frames.csv")  # the clip's companion, never an unknown file
+    assert looks("subj901_view1_manifest.csv") and looks("terminal_ratrixcam_x.log") and looks("notes.txt")
+    assert not looks("analysis.csv") and not looks("frames.csv")
 STUDY = "Study"
 
 

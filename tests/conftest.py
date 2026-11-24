@@ -15,7 +15,7 @@ import pytest
 
 from helpers import (
     NEAR_MISS_TIME, T11_DATE, T11_TIME, TIMES, VIDEOPROC_DIR,
-    dest_path, latest_run_dir, place, place_clip, read_log, run_compress_drive, session_folder,
+    dest_path, latest_run_dir, place, place_clip, read_log, run_compress_drive, session_folder, source_path,
 )
 
 sys.path.insert(0, str(VIDEOPROC_DIR))
@@ -139,6 +139,11 @@ def layout(tmp_path_factory, clips):
     }
     for key, clip in sources.items():
         _ = place_clip(clip, source_root, TIMES[key])
+    for key in ("t01", "t02"):  # a frame-time file beside a raw clip (compressed in run 1) and a compressed one (copied)
+        src = source_path(source_root, TIMES[key])
+        _ = src.with_name(src.name[:-4] + "_frames.csv").write_text("frame,arrived,waited_s,worked_s,kind\n0,2025-01-01 10:01:00.000000,0.0330,0.0010,frame\n")
+    # t02's copy cannot be written: a folder sits where the file would go, so its copy fails and the clip's row says so
+    (dest_path(dest_root, TIMES["t02"]).parent / (dest_path(dest_root, TIMES["t02"]).name[:-4] + "_frames.csv")).mkdir(parents=True)
 
     predest = {
         "t03": clips["R30"], "t04": clips["C20"], "t05": clips["junk"],

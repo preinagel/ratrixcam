@@ -34,6 +34,9 @@ from compress_drive import append_index_row, start_terminal_log
 from manifest import SUMMARY_FILENAME, ManifestError, read_manifests, summarize_by_subject_and_view, write_summary
 from util import build_output_path, code_version, get_codec_nframes, shorten
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # the repo root, where ratrixcam_naming lives
+from ratrixcam_naming import frame_times_filename  # noqa: E402
+
 EXTRA_FIELDS = [
     "source_codec",
     "destination_codec",
@@ -173,8 +176,12 @@ def delete_sources(
     source_root: Path, deletable: list[tuple[Path, Path]], run_dir: Path, short: Callable[[Path | str], str]
 ) -> int:
     """Delete verified source files one by one, logging each as it goes so an interrupted run
-    leaves a complete record; then remove the folders this left empty. Returns the number of
-    files deleted."""
+    leaves a complete record; then remove the folders this left empty. A clip's frame-time
+    file, where one sits beside it, goes with the clip and is logged on its own row, but
+    only when a file of its name and size sits beside the destination clip: a clip
+    compressed before frame-time files were copied, or whose copy failed, has no copy there,
+    and the raw file is then the only one and is left in place with a line saying so. It is
+    never deleted without its clip. Returns the number of files deleted."""
     print(f"\nAbout to permanently delete {len(deletable)} verified source file(s) under {short(source_root)}")
     try:
         answer = input("Type DELETE to proceed, anything else to abort: ")
@@ -197,6 +204,17 @@ def delete_sources(
             writer.writerow([src, dst, size, datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
             f.flush()
             n_deleted += 1
+            sidecar = src.with_name(frame_times_filename(src.name))
+            if sidecar.is_file():
+                copy = dst.with_name(sidecar.name)
+                size = sidecar.stat().st_size
+                if copy.is_file() and copy.stat().st_size == size:
+                    sidecar.unlink()
+                    writer.writerow([sidecar, copy, size, datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
+                    f.flush()
+                    n_deleted += 1
+                else:
+                    print(f"    {short(sidecar)} left in place: no copy of its name and size beside the destination clip")
     print(f"Deleted {n_deleted} file(s); record in {short(deletion_log)}")
     n_folders = remove_emptied_folders(source_root, {src.parent for src, _ in deletable})
     if n_folders:

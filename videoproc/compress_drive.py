@@ -46,6 +46,9 @@ from manifest import (
 )
 from util import build_output_path, code_version, file_lock, get_codec_nframes, shorten
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # the repo root, where ratrixcam_naming lives
+from ratrixcam_naming import frame_times_filename  # noqa: E402
+
 # NON-NEGOTIABLE HARDWIRED CONSTANTS DEFINED HERE
 # connectivity-loss handling: if the input/output root becomes unreachable (e.g. a
 # network-mounted volume drops), retry fast at first, then patiently, before giving up --
@@ -263,6 +266,24 @@ def copy_file(in_file: Path, out_file: Path, max_retries: int = 5) -> None:
             )
             time.sleep(retry_pause)
     raise RuntimeError(f"Failed to copy {in_file} to {out_file} after {max_retries} attempts")
+
+
+def copy_frame_times(input_path: Path, output_path: Path, logger: Logger) -> None:
+    """Copy the clip's frame-time file, where there is one beside the source, to beside the
+    output: it is the clip's companion wherever the clip goes. A copy that fails is a warning
+    on the clip's log row and the terminal, not an error: the clip's own outcome stands, and
+    the raw file is safe, since the deletion step removes a frame-time file only when its copy
+    sits beside the destination clip."""
+    sidecar = input_path.with_name(frame_times_filename(input_path.name))
+    if not sidecar.is_file():
+        return
+    try:
+        copy_file(sidecar, output_path.with_name(sidecar.name))
+    except Exception as e:
+        logger.error = f"WARNING: frame-time file not copied ({e})"
+        print(f"    WARNING: frame-time file not copied beside it: {e}")
+        return
+    print("    frame-time file copied beside it")
 
 
 @dataclass
@@ -535,6 +556,7 @@ def main(
                     copy_file(input_path, output_path)
                     logger.status = STATUS_COPIED
                     print("    source already compressed; copied without re-encoding")
+                    copy_frame_times(input_path, output_path, logger)
                     continue
 
                 # (6) motion detection -- only when requested
@@ -619,6 +641,7 @@ def main(
                 logger.compression_ratio = input_path.stat().st_size / output_path.stat().st_size
                 logger.valid_output = True
                 logger.status = STATUS_COMPRESSED
+                copy_frame_times(input_path, output_path, logger)
 
             except SkipFile as s:
                 logger.status = s.status

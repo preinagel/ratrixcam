@@ -27,6 +27,15 @@ def cd_prepared(run3, layout, clips):
     place(clips["junk"], dest_path(dest_root, TIMES["t05"]))
     dest_path(dest_root, TIMES["t02"]).unlink()
 
+    # frame-time files beside clips scenario D deletes: t11's with a matching copy beside the destination clip, t03's
+    # with none (compressed before the copies existed); and beside t05 (flagged, kept). t01's is from the layout
+    text = "frame,arrived,waited_s,worked_s,kind\n"
+    for key, date in (("t03", None), ("t05", None), ("t11", T11_DATE)):
+        src = source_path(source_root, TIMES[key]) if date is None else source_path(source_root, T11_TIME, date=date)
+        _ = src.with_name(src.name[:-4] + "_frames.csv").write_text(text)
+    t11_dest = dest_path(dest_root, T11_TIME, date=T11_DATE)
+    _ = t11_dest.with_name(t11_dest.name[:-4] + "_frames.csv").write_text(text)
+
     return source_root, dest_root
 
 
@@ -195,14 +204,22 @@ def confirm_d(cd_prepared, confirm_b):
     return {"result": result, "run_dir": run_dir}
 
 
-def test_confirm_d_deletes_exactly_the_three_verified_clips(confirm_d, cd_prepared):
+def test_confirm_d_deletes_exactly_the_three_verified_clips_and_the_frame_time_file_with_a_copy(confirm_d, cd_prepared):
     deletion_rows = read_rows(confirm_d["run_dir"] / "deletion_log.csv")
-    assert len(deletion_rows) == 3
+    assert len(deletion_rows) == 4  # three clips, and the frame-time file beside t11, on its own row
 
     source_root, _ = cd_prepared
     assert not source_path(source_root, TIMES["t03"]).exists()
     assert not source_path(source_root, T11_TIME, date=T11_DATE).exists()
     assert not source_path(source_root, NEAR_MISS_TIME, view="view").exists()
+    t11_sidecar = fname(T11_TIME, date=T11_DATE)[:-4] + "_frames.csv"  # its copy sat beside the destination clip
+    assert not (source_path(source_root, T11_TIME, date=T11_DATE).parent / t11_sidecar).exists()
+    assert any(row["input_path"].endswith(t11_sidecar) for row in deletion_rows)
+    t03_sidecar = fname(TIMES["t03"])[:-4] + "_frames.csv"  # no copy at the destination: the only one, left in place
+    assert (source_path(source_root, TIMES["t03"]).parent / t03_sidecar).exists()
+    assert f"{t03_sidecar} left in place: no copy of its name and size beside the destination clip" in confirm_d["result"].stdout
+    for key in ("t01", "t05"):  # their clips were not deleted, so their frame-time files stay
+        assert (source_path(source_root, TIMES[key]).parent / (fname(TIMES[key])[:-4] + "_frames.csv")).exists()
 
 
 def test_confirm_d_removes_the_folders_it_emptied_and_keeps_the_others(confirm_d, cd_prepared):

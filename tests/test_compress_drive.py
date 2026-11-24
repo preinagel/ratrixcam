@@ -5,7 +5,7 @@ test brief; each test function checks one outcome from the already-completed run
 from helpers import (
     NEAR_MISS_TIME, STUDYNAME, SUBJECT, T11_DATE, T11_TIME, TIMES,
     add_manifest_row, dest_path, fname, is_true, last_index_row, latest_run_dir, manifest_path,
-    place_clip, read_log, read_rows, run_compress_drive, session_folder_path,
+    place_clip, read_log, read_rows, run_compress_drive, session_folder_path, source_path,
 )
 
 
@@ -73,6 +73,18 @@ def test_run1_readonly_destination_folder_is_an_error(run1):
     row = run1["log"][fname(T11_TIME, date=T11_DATE)]
     assert row["status"] == "error"
     assert is_true(row["action_item"])
+
+
+def test_run1_frame_time_file_is_copied_beside_the_clip_and_a_failed_copy_is_a_warning_on_the_row(run1, layout):
+    source_root, dest_root, _ = layout
+    sidecar = fname(TIMES["t01"])[:-4] + "_frames.csv"  # t01 was compressed; its frame-time file went with it
+    assert (dest_path(dest_root, TIMES["t01"]).parent / sidecar).read_text() == (source_path(source_root, TIMES["t01"]).parent / sidecar).read_text()
+    assert run1["result"].stdout.count("frame-time file copied beside it") == 1
+    row = run1["log"][fname(TIMES["t02"])]  # t02 was copied; its frame-time file's copy could not be written
+    assert row["status"] == "copied" and not is_true(row["action_item"])
+    assert row["error"].startswith("WARNING: frame-time file not copied")
+    assert "WARNING: frame-time file not copied beside it" in run1["result"].stdout
+    assert not (dest_path(dest_root, TIMES["t03"]).parent / (fname(TIMES["t03"])[:-4] + "_frames.csv")).exists()  # none beside t03's source
 
 
 def test_run1_files_not_in_the_manifest_are_left_alone(run1, layout):
