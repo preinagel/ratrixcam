@@ -1,6 +1,6 @@
 # How long to wait before reopening a released camera (plan, 2026-11-20)
 
-Status: **plan and tooling only; nothing has run on the rig.** The rig is on loan to the
+Status: **arm 1 done (2026-11-24): no stall in 105 reopens; arms 2-4 pending.** The rig is on loan to the
 camera developer. This file will receive the results; the earlier reports
 (`REPORT.md`, `FRAME_DROPS.md`, `DIM_LIGHT_TEST.md`) are frozen.
 
@@ -124,4 +124,51 @@ first run for real on the rig.
 
 ## Results
 
-(none yet)
+### Check run (2026-11-24 10:46:44; `uvc/logs/reopen-check-run1.log`)
+
+Kind A only, delays 2 and 8 s, one trial each.
+- It tested the process handling on the rig: reopen delays of 2.00 and 8.01 s actual, both
+  normal (286 and 296 frames in the first 10 s).
+- Identification confirmed index 0 = kind A at lab port 1, restored and read back at its
+  defaults.
+
+### Arm 1: short stream, camera alone (2026-11-24 10:53:41 to 12:07:43; `uvc/logs/reopen-short-alone-run1.log`)
+
+`uvc/.venv/bin/python uvc/reopen_delay.py run --arm short`: 5 s of normal streaming, clean
+release, exit; reopen in a new process after 1, 2, 4, 8, 15, 30 or 60 s; 5 repeats each, in
+randomised order (logged); kinds A, B, C on lab ports 1, 2, 4.
+
+**No reopen stalled: 0 of 105.**
+
+| Kind (lab port, index) | Stalled, each delay 1/2/4/8/15/30/60 s | First-10-s frames, all trials | Open call | First frame after the call | Longest gap |
+|---|---|---|---|---|---|
+| A (1, 0) | 0 of 5 at every delay | 285-296 | 0.80-1.32 s | 1.18-1.38 s | 0.07 s (0.38-0.40 s in two 60 s trials) |
+| B (2, 1) | 0 of 5 at every delay | 297-306 | 1.35-1.88 s | 1.43-1.90 s | 0.04-0.08 s (0.36 s once) |
+| C (4, 3) | 0 of 5 at every delay | 292-293 | 1.19-1.26 s | 1.20-1.32 s | 0.07 s |
+
+- **The delays were exact:** within 0.01 s of the target in every trial.
+- **Each trial's first stream is a reopen too.** It opened 5 s after the previous trial's
+  reopen was released, plus process start-up, and it was also normal every time: first
+  frame at 1.15-1.26 s (A), 1.41-1.89 s (B) and 1.18-1.29 s (C).
+- Counting both kinds of reopen, **210 reopens 1-60 s after a release, with no stall.**
+- **Identification at the end of each sweep confirmed all three mappings:**
+  - index 0 = kind A, lab port 1: 136.4 -> 0.9;
+  - index 1 = kind B, lab port 2: 120.9 -> 1.9;
+  - index 3 = kind C, lab port 4: 107.0 -> 10.4.
+  Each marker was restored and read back at its camera's defaults (9 OK read-backs, no
+  MISMATCH). No other control was written.
+- The rates match the kinds' known wire rates: A and C about 29.3-29.6 fps, B about 30.5.
+
+**What this shows, and what it does not:**
+- With one camera streaming, a clean release after a short stream and a reopen in a new
+  process are safe from 1 s on. This was so in all 105 trials; with 5 trials per delay
+  and kind, a rare event cannot be excluded.
+- So the stalls seen before are not explained by release-then-reopen alone, under these
+  conditions.
+  - **persist-C run 1** stopped about 1 s after a normal start (32 frames, then none). It
+    did not fail to start. It came 8 s after a process that had held a libusb handle on
+    the camera and written controls (gainsweep-C run 1), at 352x288.
+  - **The developer's two cases** followed an AVFoundation session of their own, not an
+    OpenCV one.
+  - These conditions are not part of this experiment's design.
+- Arms 2 (load), 3 (long stream) and 4 (kill) test the remaining factors in the plan.
