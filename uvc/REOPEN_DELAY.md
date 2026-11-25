@@ -1,6 +1,6 @@
 # How long to wait before reopening a released camera (plan, 2026-11-20)
 
-Status: **arms 1 and 2 (and a kind C rerun) done (2026-11-24): no delay-dependent stall; kind C stops after ~0.8 s in about 6% of sessions under load, cleared by a new session; arms 3-4 pending.** The plan
+Status: **complete (2026-11-24): arms 1, 2 (with a kind C rerun) and 4 run; arms 3 and 5 skipped by the user. See Conclusion.** The plan
 was written on 2026-11-20 while the rig was on loan; it was handed back on 2026-11-24. This
 file holds the results; the earlier reports (`REPORT.md`, `FRAME_DROPS.md`,
 `DIM_LIGHT_TEST.md`) are frozen.
@@ -302,3 +302,49 @@ MISMATCH). No other control was written.
 What this suggests for the recorder, not tested here: a server whose kind C camera stops
 this way would see failed reads, leave its loop and exit, and the supervisor's relaunch
 would open a new session. In every case here, a new session 5 s later was normal.
+
+### Arm 4: killed process, camera alone (2026-11-24 16:50:52 to 17:02:02; `uvc/logs/reopen-kill-alone-run1.log`)
+
+`uvc/.venv/bin/python uvc/reopen_delay.py run --arm kill`: the first stream ran normally for
+5 s, then its process was killed with SIGKILL while streaming, without `release()`. A new
+process reopened the camera 8 s later. 5 repeats per kind.
+
+**No reopen stalled: 0 of 15.**
+
+| Kind (lab port) | Stalled at 8 s | First-10-s frames | First frame after the open call |
+|---|---|---|---|
+| A (port 1) | 0 of 5 | 285-296 | 1.22-1.32 s |
+| B (port 2) | 0 of 5 | 298-307 | 1.86-1.96 s |
+| C (port 4) | 0 of 5 | 293-294 | 1.22-1.31 s |
+
+- Every trial's first stream also started normally (first frame at 1.16-1.93 s).
+- **Identification** ran in its own process after each sweep and confirmed all three
+  mappings: A 128.7 -> 1.2, B 114.8 -> 0.7, C 108.8 -> 8.7. Each marker was restored and
+  read back at its camera's defaults (9 OK read-backs, no MISMATCH). No other control was
+  written.
+
+## Arms not run (user's decision, 2026-11-24)
+
+- Arm 3 (180 s stream before release) and arm 5 (arm 3 under load).
+- The proposed arm in which the releasing process stays alive (the condition of arm 2's
+  34-minute dead stream).
+
+The questions they would answer stay open: does a long stream before release change the
+result, and is the dead stream after an in-process release repeatable?
+
+## Conclusion (measurements as above; one lab rig, 640x480)
+
+- **No delay-dependent stall was found.** A new process reopening a camera 1 to 60 s after a
+  clean release, or 8 s after its previous process was killed, streamed normally:
+  - 105 of 105 reopens with the camera alone;
+  - 70 of 70 for kinds A and B under load;
+  - 15 of 15 after a kill.
+  In this data, waiting longer than 1 s gives no benefit.
+- **Kind C has a separate fault under load.** In about 6% of sessions (8 of about 140) it
+  delivers about 0.8 s of frames and then none, for as long as the session is kept open.
+  - It was not seen with kind C alone (0 of 70), nor on kinds A and B.
+  - It was not avoided by waiting before the open.
+  - A new session 5 s later was normal every time.
+- **The long dead stream (34 minutes) was seen once**, on kind B. A new process opened the
+  camera about 1 s after a release by a process that stayed alive. The same sequence on kind
+  A was normal. It was not reproduced, because the targeted arm was not run.

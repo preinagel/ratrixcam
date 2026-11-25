@@ -153,7 +153,16 @@ B and C differ only by name string. B has an extra H.264 stream and no 800x600. 
 - The user plans to push the branch to GitHub so that the deployment Mac can clone it. I
   never push.
 
-## Reopen-delay experiment (planned 2026-11-20; waiting for the rig)
+## Reopen-delay experiment (COMPLETE 2026-11-24; results and conclusion in uvc/REOPEN_DELAY.md)
+- Findings:
+  - No delay-dependent stall from 1 s on: 105/105 reopens alone, A/B 70/70 under load,
+    15/15 after SIGKILL.
+  - Kind C under load: about 6% of sessions give ~0.8 s of frames, then none; a new session
+    clears it.
+  - One 34-min dead stream (kind B) after an in-process release with a reopen ~1 s later;
+    not reproduced (arm not run).
+- Arms 3 and 5 and the in-process-release arm were skipped by the user's decision.
+- The soak-test log analysis belongs to the camera-dev session, not to me (user, 2026-11-24).
 - Plan, rulings and RUN THIS commands: `uvc/REOPEN_DELAY.md` (the results go there too).
   Tool: `uvc/reopen_delay.py`. Offline test: `uvc/offline_tests/test_reopen_logic.py`
   (fake cv2, no processes, no USB).

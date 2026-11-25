@@ -1,0 +1,123 @@
+[2026-11-24 16:50:52] recording check: /Users/rat_hub_01/Desktop/temp absent, ok
+[2026-11-24 16:50:52] reopen_delay kill arm, load off; stream before release 5 s; SIGKILL, no release; delays [8]; repeats 5; kinds A B C; seed 20261120
+  kind A: lab port 1: present (USB id and name string, read by a process that has exited; no stream opened)
+  kind B: lab port 2: present (USB id and name string, read by a process that has exited; no stream opened)
+  kind C: lab port 4: present (USB id and name string, read by a process that has exited; no stream opened)
+
+[2026-11-24 16:50:52] kind A, lab port 1, index 0: 5 trials, order [8, 8, 8, 8, 8]
+  trial 1: delay  8 s (actual 8.01) | hold start: first frame 1.325 s, normal from 1.325 s | reopen: open 1.214 s, first frame 1.216 s, first 10 s 296 frames, longest gap 0.066 s -> normal
+  JSON {"kind": "A", "arm": "kill", "delay": 8, "n": 1, "valid": true, "hold": {"event": "ready", "t": 1795567859.138109, "open_s": 1.307, "first_frame_s": 1.325, "normal_from_s": 1.325, "frames": 149}, "reopen": {"event": "reopen", "delay_actual": 8.005, "opened": true, "open_s": 1.214, "first_frame_s": 1.216, "first10": 296, "watched_s": 10.0, "bins": [30, 29, 30, 30, 29, 30, 29, 30, 29, 30], "longest_gap_s": 0.066}, "stalled": false, "recovery_s": 0}
+  trial 2: delay  8 s (actual 8.01) | hold start: first frame 1.166 s, normal from 1.166 s | reopen: open 0.822 s, first frame 1.221 s, first 10 s 285 frames, longest gap 0.399 s -> normal
+  JSON {"kind": "A", "arm": "kill", "delay": 8, "n": 2, "valid": true, "hold": {"event": "ready", "t": 1795567889.918247, "open_s": 1.161, "first_frame_s": 1.166, "normal_from_s": 1.166, "frames": 149}, "reopen": {"event": "reopen", "delay_actual": 8.005, "opened": true, "open_s": 0.822, "first_frame_s": 1.221, "first10": 285, "watched_s": 10.0, "bins": [19, 30, 29, 30, 30, 29, 30, 30, 29, 29], "longest_gap_s": 0.399}, "stalled": false, "recovery_s": 1}
+  trial 3: delay  8 s (actual 8.01) | hold start: first frame 1.156 s, normal from 1.156 s | reopen: open 1.226 s, first frame 1.258 s, first 10 s 295 frames, longest gap 0.067 s -> normal
+  JSON {"kind": "A", "arm": "kill", "delay": 8, "n": 3, "valid": true, "hold": {"event": "ready", "t": 1795567920.2259672, "open_s": 0.761, "first_frame_s": 1.156, "normal_from_s": 1.156, "frames": 150}, "reopen": {"event": "reopen", "delay_actual": 8.005, "opened": true, "open_s": 1.226, "first_frame_s": 1.258, "first10": 295, "watched_s": 10.0, "bins": [29, 29, 30, 30, 29, 30, 30, 29, 29, 30], "longest_gap_s": 0.067}, "stalled": false, "recovery_s": 0}
+  trial 4: delay  8 s (actual 8.01) | hold start: first frame 1.199 s, normal from 1.199 s | reopen: open 1.212 s, first frame 1.216 s, first 10 s 296 frames, longest gap 0.066 s -> normal
+  JSON {"kind": "A", "arm": "kill", "delay": 8, "n": 4, "valid": true, "hold": {"event": "ready", "t": 1795567951.04293, "open_s": 1.196, "first_frame_s": 1.199, "normal_from_s": 1.199, "frames": 149}, "reopen": {"event": "reopen", "delay_actual": 8.005, "opened": true, "open_s": 1.212, "first_frame_s": 1.216, "first10": 296, "watched_s": 10.0, "bins": [30, 29, 30, 29, 30, 30, 29, 30, 30, 29], "longest_gap_s": 0.066}, "stalled": false, "recovery_s": 0}
+  trial 5: delay  8 s (actual 8.01) | hold start: first frame 1.216 s, normal from 1.216 s | reopen: open 0.818 s, first frame 1.215 s, first 10 s 285 frames, longest gap 0.397 s -> normal
+  JSON {"kind": "A", "arm": "kill", "delay": 8, "n": 5, "valid": true, "hold": {"event": "ready", "t": 1795567981.857609, "open_s": 1.213, "first_frame_s": 1.216, "normal_from_s": 1.216, "frames": 149}, "reopen": {"event": "reopen", "delay_actual": 8.007, "opened": true, "open_s": 0.818, "first_frame_s": 1.215, "first10": 285, "watched_s": 10.0, "bins": [19, 30, 29, 30, 30, 29, 29, 30, 30, 29], "longest_gap_s": 0.397}, "stalled": false, "recovery_s": 1}
+  rest 60 s before identification
+    | 
+    | [2026-11-24 16:54:26] IDENTIFY: which of the 1 selected camera(s) is behind index 0
+    |   cv2 4.11.0 VideoCapture(0) isOpened=True backend=AVFOUNDATION open+set took 1182 ms
+    |   FORMAT requested 640x480 @ 30 fps (from command line); capture reports 640x480 @ 30.0 fps
+    |     stream [identify: warm-up] 2.0s: frames=59 failed_reads=0 fps=29.8 mean_brightness=128.0
+    |     stream [identify: baseline] 1.5s: frames=44 failed_reads=0 fps=29.6 mean_brightness=128.7
+    |   marker: dark (baseline 128.7)
+    |   candidate kind A at 0x01141000 (lab-rig port 1) loc 0x01141000 (bus 1 addr 5 ports (1, 4, 1))
+    |     write ae_mode:=manual(1): 1 [4.7 ms]
+    |     write exposure:=1 (0.1 ms): 1 [6.0 ms]
+    |     write gain:=0: 0 [25.7 ms]
+    |     [after write] kind A at 0x01141000 (lab-rig port 1) 01141000 ae_mode=1 exposure=1 (0.1 ms) gain=0: MATCHES (expected ae_mode=1 exposure=1 gain=0)
+    |     stream [identify: dark marker (0.1 ms, gain 0) on kind A at 0x01141000 (lab-rig port 1)] 1.5s: frames=44 failed_reads=0 fps=29.6 mean_brightness=1.2
+    |     restore [kind A at 0x01141000 (lab-rig port 1)]: ae_mode:=manual(1) first, so exposure accepts the write: 1 [0.6 ms]
+    |     restore exposure:=157 (default): 157 [4.5 ms]
+    |     restore gain:=0 (default): 0 [6.9 ms]
+    |     restore ae_mode:=8 (default): 8 [24.7 ms]
+    |     read-back [kind A at 0x01141000 (lab-rig port 1)] exposure=157 [0.9 ms] OK
+    |     read-back [kind A at 0x01141000 (lab-rig port 1)] gain=0 [0.8 ms] OK
+    |     read-back [kind A at 0x01141000 (lab-rig port 1)] ae_mode=8 [0.8 ms] OK
+    | index 0 is kind A at 0x01141000 (lab-rig port 1): brightness 128.7 -> 1.2 with the dark marker
+    |     [after identification, expected = defaults] kind A at 0x01141000 (lab-rig port 1) 01141000 ae_mode=8 exposure=157 (15.7 ms) gain=0: MATCHES (expected ae_mode=8 exposure=157 gain=0)
+IDENTIFICATION (own process, exited) at the end of kind A's sweep: index 0 CONFIRMED
+
+[2026-11-24 16:54:33] kind B, lab port 2, index 1: 5 trials, order [8, 8, 8, 8, 8]
+  trial 1: delay  8 s (actual 8.01) | hold start: first frame 1.876 s, normal from 1.876 s | reopen: open 1.895 s, first frame 1.922 s, first 10 s 306 frames, longest gap 0.036 s -> normal
+  JSON {"kind": "B", "arm": "kill", "delay": 8, "n": 1, "valid": true, "hold": {"event": "ready", "t": 1795568080.0977972, "open_s": 1.849, "first_frame_s": 1.876, "normal_from_s": 1.876, "frames": 155}, "reopen": {"event": "reopen", "delay_actual": 8.005, "opened": true, "open_s": 1.895, "first_frame_s": 1.922, "first10": 306, "watched_s": 10.0, "bins": [31, 30, 31, 30, 31, 31, 30, 30, 31, 31], "longest_gap_s": 0.036}, "stalled": false, "recovery_s": 0}
+  trial 2: delay  8 s (actual 8.00) | hold start: first frame 1.887 s, normal from 1.887 s | reopen: open 1.543 s, first frame 1.904 s, first 10 s 298 frames, longest gap 0.362 s -> normal
+  JSON {"kind": "B", "arm": "kill", "delay": 8, "n": 2, "valid": true, "hold": {"event": "ready", "t": 1795568112.227054, "open_s": 1.856, "first_frame_s": 1.887, "normal_from_s": 1.887, "frames": 155}, "reopen": {"event": "reopen", "delay_actual": 8.002, "opened": true, "open_s": 1.543, "first_frame_s": 1.904, "first10": 298, "watched_s": 10.0, "bins": [23, 30, 31, 30, 31, 30, 31, 30, 31, 31], "longest_gap_s": 0.362}, "stalled": false, "recovery_s": 0}
+  trial 3: delay  8 s (actual 8.01) | hold start: first frame 1.931 s, normal from 1.931 s | reopen: open 1.848 s, first frame 1.861 s, first 10 s 306 frames, longest gap 0.051 s -> normal
+  JSON {"kind": "B", "arm": "kill", "delay": 8, "n": 3, "valid": true, "hold": {"event": "ready", "t": 1795568144.015838, "open_s": 1.899, "first_frame_s": 1.931, "normal_from_s": 1.931, "frames": 155}, "reopen": {"event": "reopen", "delay_actual": 8.005, "opened": true, "open_s": 1.848, "first_frame_s": 1.861, "first10": 306, "watched_s": 10.0, "bins": [31, 31, 30, 30, 32, 30, 30, 30, 32, 30], "longest_gap_s": 0.051}, "stalled": false, "recovery_s": 0}
+  trial 4: delay  8 s (actual 8.01) | hold start: first frame 1.838 s, normal from 1.838 s | reopen: open 1.931 s, first frame 1.957 s, first 10 s 306 frames, longest gap 0.036 s -> normal
+  JSON {"kind": "B", "arm": "kill", "delay": 8, "n": 4, "valid": true, "hold": {"event": "ready", "t": 1795568176.045692, "open_s": 1.826, "first_frame_s": 1.838, "normal_from_s": 1.838, "frames": 155}, "reopen": {"event": "reopen", "delay_actual": 8.005, "opened": true, "open_s": 1.931, "first_frame_s": 1.957, "first10": 306, "watched_s": 10.0, "bins": [31, 30, 31, 30, 31, 31, 30, 30, 31, 31], "longest_gap_s": 0.036}, "stalled": false, "recovery_s": 0}
+  trial 5: delay  8 s (actual 8.01) | hold start: first frame 1.851 s, normal from 1.851 s | reopen: open 1.904 s, first frame 1.905 s, first 10 s 307 frames, longest gap 0.036 s -> normal
+  JSON {"kind": "B", "arm": "kill", "delay": 8, "n": 5, "valid": true, "hold": {"event": "ready", "t": 1795568208.161406, "open_s": 1.836, "first_frame_s": 1.851, "normal_from_s": 1.851, "frames": 155}, "reopen": {"event": "reopen", "delay_actual": 8.005, "opened": true, "open_s": 1.904, "first_frame_s": 1.905, "first10": 307, "watched_s": 10.0, "bins": [32, 30, 31, 30, 31, 31, 30, 30, 31, 31], "longest_gap_s": 0.036}, "stalled": false, "recovery_s": 0}
+  rest 60 s before identification
+    | 
+    | [2026-11-24 16:58:13] IDENTIFY: which of the 1 selected camera(s) is behind index 1
+    |   cv2 4.11.0 VideoCapture(1) isOpened=True backend=AVFOUNDATION open+set took 1852 ms
+    |   FORMAT requested 640x480 @ 30 fps (from command line); capture reports 640x480 @ 30.0 fps
+    |     stream [identify: warm-up] 2.0s: frames=60 failed_reads=0 fps=30.2 mean_brightness=113.4
+    |     stream [identify: baseline] 1.5s: frames=46 failed_reads=0 fps=30.3 mean_brightness=114.8
+    |   marker: dark (baseline 114.8)
+    |   candidate kind B at 0x01142000 (lab-rig port 2) loc 0x01142000 (bus 1 addr 8 ports (1, 4, 2))
+    |     write ae_mode:=manual(1): 1 [0.6 ms]
+    |     write exposure:=1 (0.1 ms): 1 [0.6 ms]
+    |     write gain:=0: 0 [0.5 ms]
+    |     [after write] kind B at 0x01142000 (lab-rig port 2) 01142000 ae_mode=1 exposure=1 (0.1 ms) gain=0: MATCHES (expected ae_mode=1 exposure=1 gain=0)
+    |     stream [identify: dark marker (0.1 ms, gain 0) on kind B at 0x01142000 (lab-rig port 2)] 1.5s: frames=46 failed_reads=0 fps=30.3 mean_brightness=0.7
+    |     restore [kind B at 0x01142000 (lab-rig port 2)]: ae_mode:=manual(1) first, so exposure accepts the write: 1 [0.4 ms]
+    |     restore exposure:=156 (default): 156 [0.5 ms]
+    |     restore gain:=0 (default): 0 [0.5 ms]
+    |     restore ae_mode:=8 (default): 8 [0.5 ms]
+    |     read-back [kind B at 0x01142000 (lab-rig port 2)] exposure=156 [0.5 ms] OK
+    |     read-back [kind B at 0x01142000 (lab-rig port 2)] gain=0 [23.6 ms] OK
+    |     read-back [kind B at 0x01142000 (lab-rig port 2)] ae_mode=8 [0.6 ms] OK
+    | index 1 is kind B at 0x01142000 (lab-rig port 2): brightness 114.8 -> 0.7 with the dark marker
+    |     [after identification, expected = defaults] kind B at 0x01142000 (lab-rig port 2) 01142000 ae_mode=8 exposure=156 (15.6 ms) gain=0: MATCHES (expected ae_mode=8 exposure=156 gain=0)
+IDENTIFICATION (own process, exited) at the end of kind B's sweep: index 1 CONFIRMED
+
+[2026-11-24 16:58:21] kind C, lab port 4, index 3: 5 trials, order [8, 8, 8, 8, 8]
+  trial 1: delay  8 s (actual 8.01) | hold start: first frame 1.248 s, normal from 1.248 s | reopen: open 1.216 s, first frame 1.218 s, first 10 s 293 frames, longest gap 0.076 s -> normal
+  JSON {"kind": "C", "arm": "kill", "delay": 8, "n": 1, "valid": true, "hold": {"event": "ready", "t": 1795568307.4043038, "open_s": 1.217, "first_frame_s": 1.248, "normal_from_s": 1.248, "frames": 148}, "reopen": {"event": "reopen", "delay_actual": 8.005, "opened": true, "open_s": 1.216, "first_frame_s": 1.218, "first10": 293, "watched_s": 10.0, "bins": [30, 29, 29, 30, 29, 29, 30, 29, 29, 29], "longest_gap_s": 0.076}, "stalled": false, "recovery_s": 0}
+  trial 2: delay  8 s (actual 8.01) | hold start: first frame 1.191 s, normal from 1.191 s | reopen: open 1.259 s, first frame 1.26 s, first 10 s 293 frames, longest gap 0.067 s -> normal
+  JSON {"kind": "C", "arm": "kill", "delay": 8, "n": 2, "valid": true, "hold": {"event": "ready", "t": 1795568338.211194, "open_s": 1.187, "first_frame_s": 1.191, "normal_from_s": 1.191, "frames": 148}, "reopen": {"event": "reopen", "delay_actual": 8.005, "opened": true, "open_s": 1.259, "first_frame_s": 1.26, "first10": 293, "watched_s": 10.0, "bins": [30, 29, 29, 30, 29, 29, 30, 29, 29, 29], "longest_gap_s": 0.067}, "stalled": false, "recovery_s": 0}
+  trial 3: delay  8 s (actual 8.01) | hold start: first frame 1.214 s, normal from 1.214 s | reopen: open 1.258 s, first frame 1.283 s, first 10 s 294 frames, longest gap 0.067 s -> normal
+  JSON {"kind": "C", "arm": "kill", "delay": 8, "n": 3, "valid": true, "hold": {"event": "ready", "t": 1795568369.116404, "open_s": 1.212, "first_frame_s": 1.214, "normal_from_s": 1.214, "frames": 148}, "reopen": {"event": "reopen", "delay_actual": 8.005, "opened": true, "open_s": 1.258, "first_frame_s": 1.283, "first10": 294, "watched_s": 10.0, "bins": [30, 29, 30, 29, 29, 29, 30, 29, 29, 30], "longest_gap_s": 0.067}, "stalled": false, "recovery_s": 0}
+  trial 4: delay  8 s (actual 8.01) | hold start: first frame 1.219 s, normal from 1.219 s | reopen: open 1.251 s, first frame 1.314 s, first 10 s 293 frames, longest gap 0.066 s -> normal
+  JSON {"kind": "C", "arm": "kill", "delay": 8, "n": 4, "valid": true, "hold": {"event": "ready", "t": 1795568399.9962199, "open_s": 1.19, "first_frame_s": 1.219, "normal_from_s": 1.219, "frames": 148}, "reopen": {"event": "reopen", "delay_actual": 8.005, "opened": true, "open_s": 1.251, "first_frame_s": 1.314, "first10": 293, "watched_s": 10.0, "bins": [29, 29, 29, 30, 29, 29, 30, 29, 29, 30], "longest_gap_s": 0.066}, "stalled": false, "recovery_s": 0}
+  trial 5: delay  8 s (actual 8.01) | hold start: first frame 1.245 s, normal from 1.245 s | reopen: open 1.255 s, first frame 1.257 s, first 10 s 293 frames, longest gap 0.066 s -> normal
+  JSON {"kind": "C", "arm": "kill", "delay": 8, "n": 5, "valid": true, "hold": {"event": "ready", "t": 1795568430.9120462, "open_s": 1.212, "first_frame_s": 1.245, "normal_from_s": 1.245, "frames": 148}, "reopen": {"event": "reopen", "delay_actual": 8.005, "opened": true, "open_s": 1.255, "first_frame_s": 1.257, "first10": 293, "watched_s": 10.0, "bins": [30, 29, 29, 30, 29, 29, 30, 29, 29, 29], "longest_gap_s": 0.066}, "stalled": false, "recovery_s": 0}
+  rest 60 s before identification
+    | 
+    | [2026-11-24 17:01:55] IDENTIFY: which of the 1 selected camera(s) is behind index 3
+    |   cv2 4.11.0 VideoCapture(3) isOpened=True backend=AVFOUNDATION open+set took 1199 ms
+    |   FORMAT requested 640x480 @ 30 fps (from command line); capture reports 640x480 @ 30.0 fps
+    |     stream [identify: warm-up] 2.0s: frames=59 failed_reads=0 fps=29.2 mean_brightness=103.5
+    |     stream [identify: baseline] 1.5s: frames=44 failed_reads=0 fps=29.0 mean_brightness=108.8
+    |   marker: dark (baseline 108.8)
+    |   candidate kind C at 0x01144000 (lab-rig port 4) loc 0x01144000 (bus 1 addr 7 ports (1, 4, 4))
+    |     write ae_mode:=manual(1): 1 [0.5 ms]
+    |     write exposure:=1 (0.1 ms): 1 [0.7 ms]
+    |     write gain:=0: 0 [0.6 ms]
+    |     [after write] kind C at 0x01144000 (lab-rig port 4) 01144000 ae_mode=1 exposure=1 (0.1 ms) gain=0: MATCHES (expected ae_mode=1 exposure=1 gain=0)
+    |     stream [identify: dark marker (0.1 ms, gain 0) on kind C at 0x01144000 (lab-rig port 4)] 1.5s: frames=43 failed_reads=0 fps=28.9 mean_brightness=8.7
+    |     restore [kind C at 0x01144000 (lab-rig port 4)]: ae_mode:=manual(1) first, so exposure accepts the write: 1 [0.6 ms]
+    |     restore exposure:=157 (default): 157 [0.4 ms]
+    |     restore gain:=0 (default): 0 [0.5 ms]
+    |     restore ae_mode:=8 (default): 8 [0.5 ms]
+    |     read-back [kind C at 0x01144000 (lab-rig port 4)] exposure=157 [0.6 ms] OK
+    |     read-back [kind C at 0x01144000 (lab-rig port 4)] gain=0 [1.1 ms] OK
+    |     read-back [kind C at 0x01144000 (lab-rig port 4)] ae_mode=8 [5.1 ms] OK
+    | index 3 is kind C at 0x01144000 (lab-rig port 4): brightness 108.8 -> 8.7 with the dark marker
+    |     [after identification, expected = defaults] kind C at 0x01144000 (lab-rig port 4) 01144000 ae_mode=8 exposure=157 (15.7 ms) gain=0: MATCHES (expected ae_mode=8 exposure=157 gain=0)
+IDENTIFICATION (own process, exited) at the end of kind C's sweep: index 3 CONFIRMED
+
+[2026-11-24 17:02:02] SUMMARY (per kind and delay; stalled = first 10 s under 230 frames; recovery = first 3 s in a row with 20+ frames each)
+  kind A  delay  8 s: stalled 0 of 5; first-10-s frames 285-296
+  kind A: HOLD start (reopen 5 s after the previous trial): first frame 1.16-1.32 s
+  kind B  delay  8 s: stalled 0 of 5; first-10-s frames 298-307
+  kind B: HOLD start (reopen 5 s after the previous trial): first frame 1.84-1.93 s
+  kind C  delay  8 s: stalled 0 of 5; first-10-s frames 293-294
+  kind C: HOLD start (reopen 5 s after the previous trial): first frame 1.19-1.25 s
+
+[2026-11-24 17:02:02] done
