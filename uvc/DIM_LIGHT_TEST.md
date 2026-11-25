@@ -6,7 +6,8 @@ is run under the real recording lights. The analysis needs exposures under 5 ms;
 included for comparison, so the log shows a warning for it. That warning is expected. The
 script prints **measurements only**: luminance values, noise and frame rate. It makes no
 judgement of whether an image is usable. That assessment belongs to the analysis team,
-from these numbers.
+from these numbers and from pictures the script saves of each camera at a selection of
+settings.
 
 Every camera is put back to its own automatic settings at the end of its sweep. The script
 reads the settings back to confirm.
@@ -40,7 +41,8 @@ new version. If the command shows an error, stop and send the Terminal output to
   recording. Do not unplug or move anything.
 - Set the lights as they are during a recording. This test is about that light.
 - If possible, nothing should move in front of the cameras during the test. Motion makes the
-  noise figures larger. If animals are present, that is fine, but write it down (see step 6).
+  noise figures larger. If animals are present, that is fine; the test asks about it at the
+  start (step 4).
 - Have a pen and paper ready: in step 2 you write down two numbers, N and M, which you need
   in step 4.
 
@@ -149,12 +151,13 @@ OpenCV.
 
 ## 2. Find out which cameras this rig has
 
-Neither command in this step opens a camera; they only list what is plugged in.
+Neither command in this step opens a camera; they only list what is plugged in. (The test
+saves both lists itself in step 4; here they are only for counting.)
 
 **2a. The test cameras (kinds A, B and C):**
 
 ```
-cd ~/Desktop/ratrixcam-uvc && system_profiler SPUSBDataType 2>&1 | tee uvc/logs/dim-usb-cameras.log | awk '/Camera:/{c=1; print; next} c && /Product ID|Location ID/{print} /Location ID/{c=0}'
+cd ~/Desktop/ratrixcam-uvc && system_profiler SPUSBDataType 2>&1 | awk '/Camera:/{c=1; print; next} c && /Product ID|Location ID/{print} /Location ID/{c=0}'
 ```
 
 Each camera shows as three lines: its name, its product id and its location. The kind is:
@@ -170,7 +173,7 @@ Each camera shows as three lines: its name, its product id and its location. The
 **2b. Every camera macOS can open, including any webcam:**
 
 ```
-cd ~/Desktop/ratrixcam-uvc && system_profiler SPCameraDataType 2>&1 | tee uvc/logs/dim-all-cameras.log | grep -E "Model ID|Unique ID"
+cd ~/Desktop/ratrixcam-uvc && system_profiler SPCameraDataType 2>&1 | grep -E "Model ID|Unique ID"
 ```
 
 Each camera shows as a "Model ID" line and a "Unique ID" line. **Write down M**: the number of
@@ -193,85 +196,117 @@ requester first.
 
 ## 4. Run the test
 
-This sweeps every camera in turn and writes everything to one log file.
+This sweeps every camera in turn. Everything it produces goes into one new folder, named
+after the date and time (for example `uvc/results/dim-2026-11-26-143000/`), and at the end
+the folder is packed into one zip file. That zip file is the only thing you send.
 
 **If M equals N** (no other camera):
 
 ```
-cd ~/Desktop/ratrixcam-uvc && uvc/.venv/bin/python uvc/probe.py dimsweep 2>&1 | tee uvc/logs/dim-sweep-run1.log
+cd ~/Desktop/ratrixcam-uvc && uvc/.venv/bin/python uvc/probe.py dimsweep
 ```
 
 **If M is larger than N** (another camera is present): type your M in place of the `M` at the
 end of `--count M`:
 
 ```
-cd ~/Desktop/ratrixcam-uvc && uvc/.venv/bin/python uvc/probe.py dimsweep --count M 2>&1 | tee uvc/logs/dim-sweep-run1.log
+cd ~/Desktop/ratrixcam-uvc && uvc/.venv/bin/python uvc/probe.py dimsweep --count M
 ```
 
-**First, check the third line.** Within a few seconds the test prints its third line, which
+**First, answer four questions.** The test starts by asking, one at a time: which Mac, room
+and stations this is; whether the lamps, IR filters and hoods are as for a recording;
+whether animals are present or anything will move in view; and anything else to note. Type
+each answer and press Return (for the last one, just Return if there is nothing). The
+answers are saved with the results.
+
+**Then check the camera count.** A few seconds after the last answer, a line appears that
 begins with the date and time, then `selected`, a number, and `camera(s) of any target kind
 (A, B, C)`.
 - **The number equals your N:** carry on and let the test run.
 - **It does not:** press Ctrl-C once, wait for the prompt, run the safety restore in step 5,
   and send the Terminal output to the requester.
 
-**How long it runs:** about 1½ to 2 minutes per camera, so about 15 minutes for eight
-cameras (the lab run with eight cameras took 12 minutes). It ends by itself: the last lines
-are `final read-back, every target camera` followed by `OK` lines, and then the Terminal
-prompt comes back. You do not need to watch it the whole time, but stay nearby so you can
-answer the camera-permission question below and check the end. If it is still running after
-30 minutes, or nothing new has appeared in the Terminal for 5 minutes, press Ctrl-C once,
-run the safety restore in step 5, and send the Terminal output to the requester.
+**How long it runs:** about 2 minutes per camera, so about 15 to 20 minutes for eight
+cameras. It ends by itself. The last lines are `final read-back, every target camera`
+followed by `OK` lines, then `packing the results folder ...` and finally a line beginning
+`RESULTS FILE TO SEND:` with the zip file's name and size; then the Terminal prompt comes
+back. You do not need to watch it the whole time, but stay nearby so you can answer the
+camera-permission question below and check the end. If it is still running after 30
+minutes, or nothing new has appeared in the Terminal for 5 minutes, press Ctrl-C once, run
+the safety restore in step 5, and send the Terminal output to the requester.
 
 While it runs:
 - The first time, macOS may ask whether Terminal may use the camera. Click Allow. If you
   clicked Don't Allow, press Ctrl-C once, run the safety restore in step 5, open System
-  Settings > Privacy & Security > Camera, turn Terminal on, close and reopen Terminal, and start step 4 again.
+  Settings > Privacy & Security > Camera, turn Terminal on, close and reopen Terminal, and
+  start step 4 again.
 - Nothing appears on screen except text in the Terminal: the script shows no picture, and
   there is nothing to open in a browser. Behind the scenes it changes each camera's
   settings: for about two seconds it makes the image very dark (or, in very dim light, very
   bright) to check which camera it is talking to, and then it steps through the exposures
-  and gains.
+  and gains. Along the way it saves pictures from each camera into the results folder.
 - The log shows `WARNING: exposure 10 ms is NOT under 5 ms` for every camera. This is
   intended.
 - If another camera is present (M larger than N), the log shows `IDENTIFICATION FAILED` for
   that camera's number. This is expected: it is not a test camera and is skipped.
-- Do not touch the cameras or cables until the last line says `final read-back`.
+- Do not touch the cameras or cables until the `RESULTS FILE TO SEND` line appears.
 - If you have to stop the run early, press Ctrl-C once and wait for the prompt. The script
-  puts the camera it was working on back to automatic by itself. Then run the safety
-  restore in step 5 anyway, to check every camera.
+  puts the camera it was working on back to automatic by itself and still packs what it
+  has into a zip file. Then run the safety restore in step 5 anyway, to check every camera.
 
-If you run it again, change `run1` to `run2` in the log name, so the first log is kept.
+Each run makes its own new folder and zip file, so running it again never overwrites an
+earlier run.
 
 ## 5. Safety restore (only if a run was stopped early or ended with an error)
 
 This puts every test camera back to its own automatic settings and reads them back:
 
 ```
-cd ~/Desktop/ratrixcam-uvc && uvc/.venv/bin/python uvc/probe.py restore --kind all 2>&1 | tee uvc/logs/dim-restore-run1.log
+cd ~/Desktop/ratrixcam-uvc && mkdir -p uvc/results && uvc/.venv/bin/python uvc/probe.py restore --kind all 2>&1 | tee uvc/results/dim-restore.log
 ```
 
 Every camera should end with `OK` lines.
 
-## 6. Write down the conditions and send the files
+## 6. Send the results
 
-Create a short note in `uvc/logs/dim-notes.txt` with:
-- the date and time;
-- the room and rig name;
-- N and M from step 2;
-- which lamps were on, and whether the IR filters and hoods were fitted as for recording;
-- whether animals or anything else moved in front of the cameras;
-- anything unusual, such as an error message or a camera that stayed dark.
+Send the requester **the zip file** named on the `RESULTS FILE TO SEND:` line. It is in the
+folder `~/Desktop/ratrixcam-uvc/uvc/results/`, with a name like
+`dim-2026-11-26-143000.zip`. To find it in Finder, run:
 
-Send only these files to the requester, all from `~/Desktop/ratrixcam-uvc/uvc/logs/` (the
-folder also holds older lab logs that came with the code; they are not needed):
-- `dim-usb-cameras.log`;
-- `dim-all-cameras.log`;
-- `dim-sweep-run1.log` (and any later runs);
-- `dim-restore-run1.log`, if you ran it;
-- `dim-notes.txt`.
+```
+cd ~/Desktop/ratrixcam-uvc && open uvc/results
+```
 
-## What the log contains (for the requester and the analysis team)
+Also send, if they exist:
+- `dim-restore.log` from the same folder, if you ran step 5;
+- in your message, anything unusual that happened during the run (an error message, a
+  camera that stayed dark, someone entering the room).
+
+The zip file holds the log, the camera lists, your answers to the four questions, and the
+pictures. Expect it to be roughly 100 to 200 MB for eight cameras; if it is too large for
+email, use a file-sharing link or a USB stick.
+
+## What the zip file contains (for the requester and the analysis team)
+
+- `dim-sweep.log`: everything the Terminal showed (described below);
+- `notes.txt`: the operator's answers to the four questions, with the date and time;
+- `usb-devices.txt`, `cameras.txt`: the full USB and camera lists (system_profiler);
+- one folder per camera, `index<N>-0x<location>/`, whose file names all begin with the
+  camera's location and kind (for example `0x01142000_C_...`):
+  - `..._auto_before.png`, `..._auto_after.png`: a frame in auto exposure, before and after
+    the sweep;
+  - `..._<E>ms_gain<G>.png`: a frame at each exposure E (2, 3, 4, 10 ms) at gains 0, 50
+    and 100, the last frame of that step's measurement;
+  - `..._auto_pair1.png`, `..._auto_pair2.png`: two consecutive frames in auto, the kind of
+    pair the noise column is computed from;
+  - `..._auto_clip.avi`: 3 seconds of video in auto.
+
+  All pictures are the frames as OpenCV delivers them, after the camera's MJPEG
+  compression. The PNG files are lossless copies of those frames, full size, with nothing
+  drawn on them. The clip is compressed again (MJPEG, quality 90) to keep it small, so it is
+  not pixel-identical to what the camera sent; use the PNG files for pixel values.
+
+## What the log contains
 
 For each camera index:
 - the line `index N is kind K at 0x...`: which camera, and which kind, the numbers belong to;

@@ -71,6 +71,8 @@ import argparse
 import array
 import json
 import os
+import shutil
+import subprocess
 import sys
 import threading
 import time
@@ -443,11 +445,18 @@ class Reader(threading.Thread):
         super().__init__(daemon=True)
         self.cap, self.samples, self.stop_evt, self.shape = cap, [], threading.Event(), None
         self.prev = None
+        self.last_frame = None  # the latest good frame, as decoded (for stills)
+        self.sink, self.sink_lock = None, threading.Lock()  # sink(frame) is called per good frame (clips)
 
     def run(self):
         while not self.stop_evt.is_set():
             ok, frame = self.cap.read()
             t = time.monotonic()
+            if ok:
+                self.last_frame = frame
+                with self.sink_lock:
+                    if self.sink is not None:
+                        self.sink(frame)
             if ok and self.shape is None:
                 self.shape = frame.shape[:2]
             quality = None
@@ -1045,10 +1054,75 @@ def quality_table(rows):
         print(f"      {name:<16}" + "".join(cells))
 
 
+# ---------------------------------------------------------------- dimsweep outputs
+# Pictures for the dim-light test (2026-11-25): what each view contains and what each setting
+# looks like. All are the frames as OpenCV delivers them (decoded from the camera's MJPEG).
+STILL_GAINS = (0, 50, 100)  # one still per exposure at these gains (if in the camera's range)
+CLIP_SECONDS = 3.0          # one clip per camera, in auto, before the sweep
+CLIP_QUALITY = 90           # the clip is re-encoded as MJPEG at this quality (not bit-identical)
+
+
+def save_still(cv2, reader, path):
+    """The latest decoded frame as a lossless PNG, full size, no overlay (a second lossy
+    compression on top of the camera's MJPEG would blur the judgement). Prints the file name or why not."""
+    frame = reader.last_frame
+    if frame is None:
+        print(f"    still: no frame to save for {os.path.basename(path)}")
+        return
+    ok = cv2.imwrite(path, frame)
+    print(f"    still: {os.path.basename(path)}{'' if ok else ' NOT WRITTEN'}")
+
+
+def save_pair(cv2, reader, folder, label_):
+    """Two consecutive decoded frames as lossless PNG: the exact pixels the noise column is
+    computed from (frame-to-frame difference), for checking it by eye or in other software."""
+    got, seen = [], None
+    deadline = time.monotonic() + 2.0
+    while len(got) < 2 and time.monotonic() < deadline:
+        f = reader.last_frame
+        if f is not None and f is not seen:
+            got.append(f)
+            seen = f
+        time.sleep(0.005)
+    for k, f in enumerate(got, start=1):
+        cv2.imwrite(os.path.join(folder, f"{label_}_pair{k}.png"), f)
+    print(f"    frame pair: {len(got)} consecutive frame(s) saved as {label_}_pair1/2.png")
+
+
+def record_clip(cv2, reader, path, seconds, fps):
+    """`seconds` of the stream as an MJPEG .avi (OpenCV's own writer, quality CLIP_QUALITY).
+    Re-encoded, so compression differs slightly from what the camera sent."""
+    shape = reader.shape
+    if shape is None:
+        print("    clip: no frame yet, not recorded")
+        return
+    size = (shape[1], shape[0])
+    fourcc = cv2.VideoWriter_fourcc(*"MJPG")
+    writer = cv2.VideoWriter(path, cv2.CAP_OPENCV_MJPEG, fourcc, fps, size,
+                             [cv2.VIDEOWRITER_PROP_QUALITY, CLIP_QUALITY])
+    if not writer.isOpened():
+        print(f"    clip: writer did not open for {os.path.basename(path)}; not recorded")
+        return
+    count = [0]
+
+    def sink(frame):
+        writer.write(frame)
+        count[0] += 1
+    with reader.sink_lock:
+        reader.sink = sink
+    time.sleep(seconds)
+    with reader.sink_lock:
+        reader.sink = None
+    writer.release()
+    print(f"    clip: {os.path.basename(path)}, {count[0]} frames in {seconds:g} s (re-encoded MJPEG, quality {CLIP_QUALITY})")
+
+
 def sweep_index(cv2, args, devs):
     """Identify the camera behind args.index among devs, then, on that camera only, while
     the index streams: for each manual exposure in args.exposures, step gain through its
     range, measuring the luminance statistics at each step, and in auto before and after.
+    With args.out_dir set (dimsweep), also saves into a folder for this index: a still in
+    auto before and at each exposure at gains STILL_GAINS, a clip and a frame pair in auto.
     Restores the camera to its own defaults (also on Ctrl-C or an error) and reads it back.
     Returns a summary dict, or None if not identified."""
     found = identify_index(cv2, args, devs)
@@ -1072,6 +1146,13 @@ def sweep_index(cv2, args, devs):
     reader = Reader(cap)
     reader.start()
     rows, written = [], False
+    out = getattr(args, "out_dir", None)
+    pics = None
+    if out:
+        pics = os.path.join(out, f"index{args.index}-0x{location_id(dev):08x}")
+        tag0 = f"0x{location_id(dev):08x}_{kind}"  # every file name says which camera it is
+        os.makedirs(pics, exist_ok=True)
+        print(f"  pictures for this camera go to {os.path.relpath(pics, out)}/")
     try:
         watch(reader, "warm-up", 3.0)
         print_measured_size(reader, [dev])
@@ -1081,6 +1162,10 @@ def sweep_index(cv2, args, devs):
             print("    gain range unreadable; nothing written")
             return None
         rows.append(("auto (before)", watch_quality(reader, "auto (before)", args.dwell * 2)))
+        if pics:
+            save_still(cv2, reader, os.path.join(pics, f"{tag0}_auto_before.png"))
+            save_pair(cv2, reader, pics, f"{tag0}_auto")
+            record_clip(cv2, reader, os.path.join(pics, f"{tag0}_auto_clip.avi"), CLIP_SECONDS, args.fps or 30)
         gains = list(range(gmin, gmax + 1, args.step))
         if gains[-1] != gmax:
             gains.append(gmax)
@@ -1092,9 +1177,15 @@ def sweep_index(cv2, args, devs):
                 rb, rb_err, _ = xfer(dev, lay, "gain", GET_CUR)
                 tag = f"{exposure / 10:g} ms, gain {g} (write {fmt(*w)}, read back {'ERR' if rb_err else rb})"
                 rows.append((f"{exposure / 10:g} ms gain {g}", watch_quality(reader, tag, args.dwell, settle=args.settle)))
+                if pics and g in STILL_GAINS:
+                    save_still(cv2, reader, os.path.join(pics, f"{tag0}_{exposure / 10:g}ms_gain{g}.png"))
         restore_defaults(dev, lay)
         written = False
         rows.append(("auto (after)", watch_quality(reader, "auto (after)", args.dwell * 2, settle=1.0)))
+        if pics:
+            save_still(cv2, reader, os.path.join(pics, f"{tag0}_auto_after.png"))
+            n_files = len(os.listdir(pics))
+            print(f"    pictures: {n_files} files in {os.path.basename(pics)}/")
     finally:
         if written:
             restore_defaults(dev, lay)
@@ -1122,11 +1213,109 @@ def cmd_gainsweep(args):
         readback_line(dev, lay, defaults_of(dev, lay), "final, expected = this camera's defaults")
 
 
+RESULTS_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "results")
+NOTES_QUESTIONS = [
+    ("rig", "Which Mac, room and stations is this (for example: mac 1, stations 9 and 10)?"),
+    ("lighting", "Are the lamps, IR filters and hoods as for a recording? If not, what differs?"),
+    ("animals", "Are animals present, or will anything move in view during the test?"),
+    ("other", "Anything else to note (press Return if nothing)?"),
+]
+
+
+class Tee:
+    """Writes to the terminal and to the run's log file."""
+
+    def __init__(self, stream, fh):
+        self.stream, self.fh = stream, fh
+
+    def write(self, s):
+        self.stream.write(s)
+        self.fh.write(s)
+        self.fh.flush()
+
+    def flush(self):
+        self.stream.flush()
+        self.fh.flush()
+
+
+def make_results_dir(root=None):
+    """A new folder named after the date and time: results/dim-YYYY-MM-DD-HHMMSS."""
+    root = root or RESULTS_ROOT
+    name = time.strftime("dim-%Y-%m-%d-%H%M%S")
+    path = os.path.join(root, name)
+    os.makedirs(path, exist_ok=False)
+    return path
+
+
+def save_system_reports(out):
+    """The USB device list and the macOS camera list, as system_profiler prints them. These
+    list what is plugged in; neither opens a camera."""
+    for kind, fname in (("SPUSBDataType", "usb-devices.txt"), ("SPCameraDataType", "cameras.txt")):
+        try:
+            r = subprocess.run(["system_profiler", kind], capture_output=True, text=True, timeout=60)
+            text = r.stdout + r.stderr
+        except (OSError, subprocess.SubprocessError) as e:
+            text = f"system_profiler {kind} failed: {e}\n"
+        with open(os.path.join(out, fname), "w") as fh:
+            fh.write(text)
+        print(f"[{now()}] saved {fname} (system_profiler {kind}, {len(text.splitlines())} lines)")
+
+
+def ask_notes(out):
+    """Asks the operator the NOTES_QUESTIONS and writes the answers to notes.txt."""
+    lines = [f"date and time: {now()}"]
+    print("\nBefore the test starts, a few questions for the notes (type the answer, then press Return):")
+    for key, q in NOTES_QUESTIONS:
+        try:
+            a = input(f"  {q}\n  > ")
+        except EOFError:
+            a = "(no answer: no keyboard input)"
+        lines.append(f"{key}: {a.strip()}")
+    with open(os.path.join(out, "notes.txt"), "w") as fh:
+        fh.write("\n".join(lines) + "\n")
+    print(f"[{now()}] saved notes.txt\n")
+
+
+def pack_results(out):
+    """Zips the results folder next to it (results/<name>.zip); returns the zip's path."""
+    return shutil.make_archive(out, "zip", root_dir=os.path.dirname(out), base_dir=os.path.basename(out))
+
+
 def cmd_dimsweep(args):
     """For a rig whose port layout is unknown: every target camera (kinds A, B, C) is a
     candidate; cv2 indices 0 .. N-1 (N = target cameras found, or --count) are each
-    identified and swept in turn. Results per index and kind, never pooled."""
+    identified and swept in turn. Results per index and kind, never pooled.
+    Everything goes into one new folder, uvc/results/dim-<date>-<time>/: the log
+    (dim-sweep.log), the USB and camera lists, notes.txt (asked at the start unless
+    --no-notes), and per camera its stills, frame pair and clip. At the end, also on
+    Ctrl-C or an error, the folder is zipped to uvc/results/dim-<date>-<time>.zip: the one
+    file the operator sends."""
     guard()
+    out = make_results_dir()
+    log_fh = open(os.path.join(out, "dim-sweep.log"), "w")
+    old_out, old_err = sys.stdout, sys.stderr
+    sys.stdout, sys.stderr = Tee(old_out, log_fh), Tee(old_err, log_fh)
+    try:
+        print(f"[{now()}] probe.py dimsweep  python {sys.version.split()[0]}  pid {os.getpid()}")
+        print(f"[{now()}] results folder: {out}")
+        if not args.no_notes:
+            ask_notes(out)
+        save_system_reports(out)
+        args.out_dir = out
+        _dimsweep_body(args)
+    finally:
+        print(f"\n[{now()}] packing the results folder ...")
+        sys.stdout.flush()
+        sys.stdout, sys.stderr = old_out, old_err
+        log_fh.close()
+        try:
+            z = pack_results(out)
+            print(f"[{now()}] RESULTS FILE TO SEND: {z} ({os.path.getsize(z) / 1e6:.1f} MB)")
+        except OSError as e:
+            print(f"[{now()}] packing failed ({e}); send the whole folder {out} instead")
+
+
+def _dimsweep_body(args):
     be = usb_backend()
     args.kind, args.port = "any", None
     devs = find_selected(be, args)
@@ -1668,6 +1857,7 @@ def main():
     ds = sub.add_parser("dimsweep", parents=[stream, sweep],
                         help="gain sweep on every camera of an unknown rig, indices 0..N-1")
     ds.add_argument("--count", type=int, help="number of cv2 indices to sweep (default: target cameras found)")
+    ds.add_argument("--no-notes", action="store_true", help="do not ask the notes questions at the start")
     ds.set_defaults(fn=cmd_dimsweep, width=640, height=480, fps=30)
     ps = sub.add_parser("persist", parents=[stream])
     ps.add_argument("--gain", type=int, default=10, help="manual gain under test (non-default, so a revert shows)")

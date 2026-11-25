@@ -232,3 +232,21 @@ B and C differ only by name string. B has an extra H.264 stream and no 800x600. 
   camera unknown (asked the user).
 - Step 2a filter fixed (awk prints only camera blocks; checked on the deployment's USB log).
   Step 6 now says to send only the listed files.
+
+## Dim-light test v2: results folder with pictures (drafted 2026-11-25, NOT yet lab-checked)
+- `probe.py dimsweep` now writes everything into `uvc/results/dim-YYYY-MM-DD-HHMMSS/`
+  (gitignored) and zips it to `uvc/results/<same>.zip` at the end, also on Ctrl-C/error:
+  dim-sweep.log (Tee of stdout/stderr), notes.txt (4 questions asked at the start;
+  `--no-notes` skips), usb-devices.txt and cameras.txt (system_profiler), and per camera
+  `index<N>-0x<loc>/` with PNG stills `0x<loc>_<kind>_{auto_before,auto_after,<E>ms_gain{0,50,100}}.png`,
+  `_auto_pair1/2.png` (two consecutive frames), `_auto_clip.avi` (3 s, OpenCV MJPEG writer
+  quality 90, re-encoded).
+- User's decisions: one still per setting, clip yes, zip yes, auto-named folder; no further
+  refinement unless it becomes a routine calibration step. Code reviewer's notes adopted:
+  PNG (lossless), auto-after still, self-describing file names; `--frames all` skipped.
+- User context: lid views see a shiny metal cage-floor grid (maybe litter) filling the FOV;
+  the user's guess for the lid cameras' high frame-to-frame variation is compression
+  artefacts. IR lamps are DC-driven, on 24/7, IR-pass filters: no flicker expected.
+- Offline test: `uvc/offline_tests/test_dim_outputs.py` (fake cv2; 14 checks pass).
+- Still needed: a lab check on hardware when the rig is handed back (real VideoWriter with
+  CAP_OPENCV_MJPEG + quality param, PNG sizes, zip size), then the user pushes.
