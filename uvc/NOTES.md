@@ -45,6 +45,9 @@ in this session's permissions, so these notes are the persistent record.
 - Open item: step 2a's grep (`Camera:|Product ID|Location ID`) prints lines for every USB
   device, not just cameras (operator feedback, 2026-11-25). Fix the filter once the
   deployment's `dim-usb-cameras.log` is available; do not guess the format.
+- 2026-11-25, second update: step 1 now installs Apple command-line tools (git), Homebrew
+  and libusb itself (steps renumbered 1a-1f; the venv is 1f). "Rig owner" replaced by "the
+  requester" (operators are the rig owners). Camera permission denial: fix in System Settings.
 
 ## Rig on loan = no camera scripts at all (user, 2026-11-20)
 - Incident, 2026-11-20 15:53-15:57: while the rig was on loan to the developer, I ran an

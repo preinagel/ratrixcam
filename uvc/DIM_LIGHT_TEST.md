@@ -11,8 +11,12 @@ from these numbers.
 Every camera is put back to its own automatic settings at the end of its sweep. The script
 reads the settings back to confirm.
 
-Total time: about 20 minutes to install, then about 2 minutes per camera (about 15 minutes
-for eight cameras).
+Total time: up to about 45 minutes to install the first time (a few minutes on a Mac where
+it was done before), then about 2 minutes per camera (about 15 minutes for eight cameras).
+
+"The requester" below means the person who asked for this test and receives the results.
+When a step says to stop and contact the requester, send them what the Terminal shows (a
+screenshot or the copied text).
 
 ## If you were told these instructions have been updated
 
@@ -24,8 +28,8 @@ cd ~/Desktop/ratrixcam-uvc && git pull
 ```
 
 It should end with a summary of the changed files, or with `Already up to date.` Your log
-files and the Python environment from step 1d are kept. Then reopen this file to read the
-new version. If the command shows an error, stop and tell the rig owner.
+files and the Python environment from step 1f are kept. Then reopen this file to read the
+new version. If the command shows an error, stop and send the Terminal output to the requester.
 
 ## Before you start
 
@@ -42,35 +46,84 @@ new version. If the command shows an error, stop and tell the rig owner.
 
 ## 1. Install (once per Mac)
 
-Open Terminal. Run each block, one at a time.
+Open Terminal. Run each block, one at a time. Steps 1b to 1d install three things that a
+recording Mac usually does not have: Apple's command-line tools (which include `git`),
+Homebrew (a package installer), and libusb (the USB library the script needs). Each step
+first checks whether the thing is already there, so on a Mac where this was done before,
+those steps take a second each. You need the Mac's administrator password, and an internet
+connection.
 
-**1a. Check that Terminal has the tools.** This prints a version number for each tool. If
-any line shows an error, stop and tell the rig owner.
+**1a. Check for Python and OpenCV**, the ones the recorder itself uses:
 
 ```
-cd ~ && git --version && python3 --version && python3 -c "import cv2, numpy; print('opencv', cv2.__version__, 'numpy', numpy.__version__)"
+cd ~ && python3 --version && python3 -c "import cv2, numpy; print('opencv', cv2.__version__, 'numpy', numpy.__version__)"
 ```
 
-The last part checks for the OpenCV that the recorder itself uses. It is already installed
-on a recording Mac.
+It should print a Python version, then a line beginning `opencv`. These are already
+installed on a recording Mac. If either line shows an error instead, stop: the recorder's
+Python is not the one Terminal finds, and the test cannot be run on this Mac until that is
+sorted out with the requester.
 
-**1b. Check for libusb**, the USB library the script needs:
+**1b. Apple's command-line tools (for `git`).** Check:
+
+```
+cd ~ && xcode-select -p && git --version
+```
+
+- If it prints a folder (such as `/Library/Developer/CommandLineTools`) and a `git version`
+  line, they are installed. Go on to 1c.
+- If it prints an error, or a window pops up offering to install the tools, install them:
+
+  ```
+  cd ~ && xcode-select --install
+  ```
+
+  A window opens. Click **Install** and agree to the licence. It takes about 5 to 15
+  minutes. When the window says the software was installed, close it, then run the check
+  above again; it should now print the folder and the `git version` line.
+
+**1c. Homebrew.** Check:
+
+```
+cd ~ && (ls /opt/homebrew/bin/brew || ls /usr/local/bin/brew) 2>&1
+```
+
+- If one path is listed without "No such file", Homebrew is installed. Go on to 1d.
+- If both say "No such file", install Homebrew with the command from its website
+  (https://brew.sh), copied here:
+
+  ```
+  cd ~ && /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+  ```
+
+  - It asks for the Mac's password (nothing shows as you type; press Return at the end),
+    then asks you to press Return to continue. It takes a few minutes.
+  - At the end it prints **Next steps** with one or two commands to run. Run them exactly as
+    printed (copy each line into Terminal). On most Macs they are:
+
+    ```
+    echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile && eval "$(/opt/homebrew/bin/brew shellenv)"
+    ```
+
+  - Then run the check above again; one path should now be listed.
+
+**1d. libusb.** Check:
 
 ```
 cd ~ && ls /opt/homebrew/lib/libusb-1.0.dylib /usr/local/lib/libusb-1.0.dylib 2>&1
 ```
 
-- If one of the two paths is listed without "No such file", libusb is installed. Go on to 1c.
-- If both say "No such file" and the Mac has Homebrew, install libusb with:
+- If one of the two paths is listed without "No such file", libusb is installed (the other
+  path saying "No such file" is normal). Go on to 1e.
+- If both say "No such file", install it:
 
   ```
-  cd ~ && brew install libusb
+  cd ~ && (/opt/homebrew/bin/brew install libusb || /usr/local/bin/brew install libusb)
   ```
 
-  Then repeat the check.
-- If the Mac has no Homebrew, stop and tell the rig owner.
+  Then run the check again; one path should now be listed.
 
-**1c. Get the test code.** It goes into a new folder on the Desktop, next to the recorder's
+**1e. Get the test code.** It goes into a new folder on the Desktop, next to the recorder's
 own folder, which it does not touch.
 
 ```
@@ -84,7 +137,7 @@ instead of cloning:
 cd ~/Desktop/ratrixcam-uvc && git pull
 ```
 
-**1d. Make the script's Python environment** and install its one extra package, pyusb. Skip
+**1f. Make the script's Python environment** and install its one extra package, pyusb. Skip
 this if it was done on an earlier visit.
 
 ```
@@ -127,15 +180,16 @@ Each camera shows as a "Model ID" line and a "Unique ID" line. **Write down M**:
 - **M is larger than N:** there is another camera, such as a webcam. The test never writes to
   it, but it takes one of the camera numbers, so in step 4 you use the second command, with
   your M.
-- **The output looks different from this description, or shows nothing:** stop and tell the
-  rig owner.
+- **The output looks different from this description, or shows nothing:** stop and send the
+  Terminal output to the requester.
 
 ## 3. Check that nothing else has the cameras
 
 Make sure the recorder is stopped (see "Before you start"). The script also refuses to run
 if the folder `~/Desktop/temp` exists, because the lab recorder uses that folder while it
 records. If it refuses for that reason but you are sure the recorder is stopped, **do not
-delete the folder**. Tell the rig owner.
+delete the folder**: it may hold video that has not been processed yet. Check with the
+requester first.
 
 ## 4. Run the test
 
@@ -159,7 +213,7 @@ begins with the date and time, then `selected`, a number, and `camera(s) of any 
 (A, B, C)`.
 - **The number equals your N:** carry on and let the test run.
 - **It does not:** press Ctrl-C once, wait for the prompt, run the safety restore in step 5,
-  and tell the rig owner.
+  and send the Terminal output to the requester.
 
 **How long it runs:** about 1½ to 2 minutes per camera, so about 15 minutes for eight
 cameras (the lab run with eight cameras took 12 minutes). It ends by itself: the last lines
@@ -167,11 +221,12 @@ are `final read-back, every target camera` followed by `OK` lines, and then the 
 prompt comes back. You do not need to watch it the whole time, but stay nearby so you can
 answer the camera-permission question below and check the end. If it is still running after
 30 minutes, or nothing new has appeared in the Terminal for 5 minutes, press Ctrl-C once,
-run the safety restore in step 5, and tell the rig owner.
+run the safety restore in step 5, and send the Terminal output to the requester.
 
 While it runs:
 - The first time, macOS may ask whether Terminal may use the camera. Click Allow. If you
-  clicked Don't Allow, stop and tell the rig owner.
+  clicked Don't Allow, press Ctrl-C once, run the safety restore in step 5, open System
+  Settings > Privacy & Security > Camera, turn Terminal on, close and reopen Terminal, and start step 4 again.
 - Nothing appears on screen except text in the Terminal: the script shows no picture, and
   there is nothing to open in a browser. Behind the scenes it changes each camera's
   settings: for about two seconds it makes the image very dark (or, in very dim light, very
@@ -208,14 +263,14 @@ Create a short note in `uvc/logs/dim-notes.txt` with:
 - whether animals or anything else moved in front of the cameras;
 - anything unusual, such as an error message or a camera that stayed dark.
 
-Send these files to the rig owner, all from `~/Desktop/ratrixcam-uvc/uvc/logs/`:
+Send these files to the requester, all from `~/Desktop/ratrixcam-uvc/uvc/logs/`:
 - `dim-usb-cameras.log`;
 - `dim-all-cameras.log`;
 - `dim-sweep-run1.log` (and any later runs);
 - `dim-restore-run1.log`, if you ran it;
 - `dim-notes.txt`.
 
-## What the log contains (for the rig owner and the analysis team)
+## What the log contains (for the requester and the analysis team)
 
 For each camera index:
 - the line `index N is kind K at 0x...`: which camera, and which kind, the numbers belong to;
