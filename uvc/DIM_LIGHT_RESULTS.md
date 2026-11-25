@@ -22,13 +22,26 @@ The note's date reads 12/25/26; the log's timestamps are 2026-11-25 12:27:09 to 
   hubs: locations 0x00141000-0x00144000 (bus 0) and 0x01141000-0x01144000 (bus 1).
   `dim-usb-cameras.log` and `dim-all-cameras.log` agree: 8 cameras, no other camera (N = M = 8).
   No kind A or B on this rig.
-- **Which station each camera belongs to is not in the files.** The log's "lab-rig port N"
-  labels are the lab rig's port table applied to matching location ids; they say nothing
-  about this rig. Cameras are named here by location id.
 - **Identification:** every index identified on the first try with the dark marker
-  (baseline 100.9-129.8, dropping to 0.0-1.2). Index to location: 0→0x01141000,
-  1→0x01142000, 2→0x01143000, 3→0x01144000, 4→0x00141000, 5→0x00142000, 6→0x00143000,
-  7→0x00144000.
+  (baseline 100.9-129.8, dropping to 0.0-1.2).
+- **Camera names** (from the user, 2026-11-25: station 9 is cameras 1-4, station 10 is
+  cameras 5-8, each in the order face, lid, home, buddy, as in the user manual's layout
+  figure). This assumes the recorder's camera number is the OpenCV index + 1, the same index
+  order the probe opened; the log does not record the recorder's numbering itself. The log's
+  "lab-rig port N" labels are the lab rig's port table and do not apply here.
+
+  | camera | station | view | index | location |
+  |---|---|---|---|---|
+  | 1 | 9 | face | 0 | 0x01141000 |
+  | 2 | 9 | lid | 1 | 0x01142000 |
+  | 3 | 9 | home | 2 | 0x01143000 |
+  | 4 | 9 | buddy | 3 | 0x01144000 |
+  | 5 | 10 | face | 4 | 0x00141000 |
+  | 6 | 10 | lid | 5 | 0x00142000 |
+  | 7 | 10 | home | 6 | 0x00143000 |
+  | 8 | 10 | buddy | 7 | 0x00144000 |
+
+  The tables below name cameras by location; this table converts.
 - **Format:** 640x480 MJPEG at 30 fps on every camera (camera-side commit read back).
 - **Frame delivery:** 29.2-30.4 fps in every one of the 368 measured steps; 0 failed reads.
 - **Restore:** every camera read back at its defaults (ae_mode 8, exposure 157, gain 0) after
@@ -42,26 +55,33 @@ The note's date reads 12/25/26; the log's timestamps are 2026-11-25 12:27:09 to 
 - **Auto exposure** (as recorded today): Y mean 100-130 on every camera at 29.3 fps. The
   probe cannot read which exposure the camera's auto mode chose (in auto the control reads
   back the stored default, 157), only the resulting image.
-- **Two cameras, 0x00142000 and 0x01142000** (index 5 and 1, the second camera on each hub),
-  are brighter at **2 ms, gain 0** than in auto: Y mean 155 and 165 against 111 and 113 in
-  auto. At 2 ms with gain 50 or more, 49-83% of pixels are at 250 or above (ge250). These two
-  also have the highest temporal noise in auto (6.4 and 9.0; the other six 1.5-4.3), and their
-  noise stays at 4-9 at short exposures. The log cannot say why (scene content, lamp flicker
-  or something moving are all possible).
+- **The two lid cameras, 2 and 6** (0x01142000 and 0x00142000), are brighter at **2 ms,
+  gain 0** than in auto: Y mean 165 and 155 against 113 and 111 in auto. At 2 ms with gain
+  50 or more, 49-83% of pixels are at 250 or above (ge250).
+- **The lid cameras also have the largest frame-to-frame variation** (the `noise` column).
+  What that column measures: for each pair of consecutive frames, the difference
+  Y(next frame) − Y(this frame) at every sampled pixel; the standard deviation of those
+  differences across the picture; divided by √2; then the median over all frame pairs in
+  the step. It is variation over time at a fixed pixel, not the spread of values within one
+  frame (that spread is what p1/p50/p99 describe). Anything that changes between frames
+  counts: sensor noise, something moving, a lamp flickering unevenly across the picture,
+  compression differences. In auto it is 6.4 (camera 2) and 9.0 (camera 6), against 1.5-4.3
+  on the other six at a similar Y mean (100-130). At short exposures it stays at 4-9 on the
+  lid cameras. The numbers cannot say which cause it is; a short clip from each camera would.
 - **The other six cameras** at the short exposures, gain 0 → 100:
 
-  | camera | 2 ms Y mean | 2 ms black % | 3 ms Y mean | 3 ms black % | 4 ms Y mean | 4 ms black % | 10 ms gain 0 Y mean |
+  | camera (station view) | 2 ms Y mean | 2 ms black % | 3 ms Y mean | 3 ms black % | 4 ms Y mean | 4 ms black % | 10 ms gain 0 Y mean |
   |---|---|---|---|---|---|---|---|
-  | 0x00141000 | 4.7 → 16.1 | 83 → 71 | 8.7 → 32.7 | 79 → 18 | 14.3 → 50.4 | 66 → 0.2 | 53.1 |
-  | 0x00143000 | 5.6 → 21.4 | 80 → 40 | 11.7 → 40.2 | 57 → 14 | 18.9 → 59.0 | 37 → 4.6 | 62.4 |
-  | 0x00144000 | 2.2 → 16.6 | 86 → 27 | 8.0 → 36.8 | 54 → 1.6 | 15.7 → 57.2 | 19 → 0.0 | 61.9 |
-  | 0x01141000 | 1.2 → 13.3 | 97 → 21 | 5.9 → 31.9 | 64 → 0.0 | 13.2 → 50.4 | 9.4 → 0.0 | 55.4 |
-  | 0x01143000 | 14.0 → 33.7 | 72 → 45 | 21.9 → 53.5 | 56 → 21 | 30.3 → 72.4 | 40 → 9.4 | 75.1 |
-  | 0x01144000 | 3.4 → 19.8 | 80 → 26 | 10.1 → 41.4 | 45 → 2.9 | 18.3 → 63.1 | 19 → 0.5 | 66.7 |
+  | 5 (10 face) | 4.7 → 16.1 | 83 → 71 | 8.7 → 32.7 | 79 → 18 | 14.3 → 50.4 | 66 → 0.2 | 53.1 |
+  | 7 (10 home) | 5.6 → 21.4 | 80 → 40 | 11.7 → 40.2 | 57 → 14 | 18.9 → 59.0 | 37 → 4.6 | 62.4 |
+  | 8 (10 buddy) | 2.2 → 16.6 | 86 → 27 | 8.0 → 36.8 | 54 → 1.6 | 15.7 → 57.2 | 19 → 0.0 | 61.9 |
+  | 1 (9 face) | 1.2 → 13.3 | 97 → 21 | 5.9 → 31.9 | 64 → 0.0 | 13.2 → 50.4 | 9.4 → 0.0 | 55.4 |
+  | 3 (9 home) | 14.0 → 33.7 | 72 → 45 | 21.9 → 53.5 | 56 → 21 | 30.3 → 72.4 | 40 → 9.4 | 75.1 |
+  | 4 (9 buddy) | 3.4 → 19.8 | 80 → 26 | 10.1 → 41.4 | 45 → 2.9 | 18.3 → 63.1 | 19 → 0.5 | 66.7 |
 
   ("black" = luminance 5 or less.) Temporal noise at 4 ms, gain 100 on these six: 1.8-4.8;
   in auto: 1.5-4.3.
-- On 0x01143000 a bright area is at the top at every setting: y_p99 254-255 and ge250 1.5%
+- On camera 3 (station 9 home, 0x01143000) a bright area is at the top at every setting: y_p99 254-255 and ge250 1.5%
   already at 2 ms, gain 0. Kind C decodes up to 255, as in the lab.
 - Frame rate did not change with exposure or gain at any step (29.2-30.4 fps throughout).
 
@@ -83,7 +103,7 @@ Y = luminance; p1/p50/p99/max its percentiles over the picture; noise = temporal
 = % of pixels at or above 240/250; black = % at 5 or below.
 <!-- generated by uvc/dim_results.py from uvc/logs/dimtestresults/dim-sweep-run1.log -->
 
-### Camera at 0x00141000 (kind C, index 4; marker dark (100.9 -> 0.0))
+### Camera 5 (10 face), at 0x00141000 (kind C, index 4; marker dark (100.9 -> 0.0))
 
 | step | Y mean | p1/p50/p99/max | noise | snr | ge240 % | ge250 % | black % | fps |
 |---|---|---|---|---|---|---|---|---|
@@ -102,7 +122,7 @@ Y = luminance; p1/p50/p99/max its percentiles over the picture; noise = temporal
 | 10 ms gain 100 | 125.9 | 58/100/254/255 | 2.46 | 51.2 | 17.10 | 16.44 | 0.01 | 29.2 |
 | auto (after) | 101.4 | 46/78/255/255 | 1.71 | 59.3 | 6.02 | 4.39 | 0.01 | 29.3 |
 
-### Camera at 0x00142000 (kind C, index 5; marker dark (113.4 -> 0.7))
+### Camera 6 (10 lid), at 0x00142000 (kind C, index 5; marker dark (113.4 -> 0.7))
 
 | step | Y mean | p1/p50/p99/max | noise | snr | ge240 % | ge250 % | black % | fps |
 |---|---|---|---|---|---|---|---|---|
@@ -121,7 +141,7 @@ Y = luminance; p1/p50/p99/max its percentiles over the picture; noise = temporal
 | 10 ms gain 100 | 254.6 | 252/255/255/255 | 0.80 | 317.8 | 99.87 | 99.62 | 0.00 | 29.2 |
 | auto (after) | 108.1 | 1/100/254/255 | 8.79 | 12.3 | 3.65 | 2.49 | 4.07 | 29.3 |
 
-### Camera at 0x00143000 (kind C, index 6; marker dark (112.5 -> 0.2))
+### Camera 7 (10 home), at 0x00143000 (kind C, index 6; marker dark (112.5 -> 0.2))
 
 | step | Y mean | p1/p50/p99/max | noise | snr | ge240 % | ge250 % | black % | fps |
 |---|---|---|---|---|---|---|---|---|
@@ -140,7 +160,7 @@ Y = luminance; p1/p50/p99/max its percentiles over the picture; noise = temporal
 | 10 ms gain 100 | 151.3 | 29/141/254/255 | 5.77 | 26.2 | 21.31 | 17.28 | 0.17 | 29.3 |
 | auto (after) | 113.6 | 23/103/255/255 | 4.05 | 28.0 | 4.50 | 3.47 | 0.11 | 29.3 |
 
-### Camera at 0x00144000 (kind C, index 7; marker dark (129.8 -> 0.0))
+### Camera 8 (10 buddy), at 0x00144000 (kind C, index 7; marker dark (129.8 -> 0.0))
 
 | step | Y mean | p1/p50/p99/max | noise | snr | ge240 % | ge250 % | black % | fps |
 |---|---|---|---|---|---|---|---|---|
@@ -159,7 +179,7 @@ Y = luminance; p1/p50/p99/max its percentiles over the picture; noise = temporal
 | 10 ms gain 100 | 166.9 | 75/157/254/255 | 4.14 | 40.4 | 17.13 | 14.68 | 0.00 | 29.2 |
 | auto (after) | 121.7 | 57/116/226/255 | 2.74 | 44.4 | 0.60 | 0.38 | 0.00 | 29.3 |
 
-### Camera at 0x01141000 (kind C, index 0; marker dark (116.9 -> 0.0))
+### Camera 1 (9 face), at 0x01141000 (kind C, index 0; marker dark (116.9 -> 0.0))
 
 | step | Y mean | p1/p50/p99/max | noise | snr | ge240 % | ge250 % | black % | fps |
 |---|---|---|---|---|---|---|---|---|
@@ -178,7 +198,7 @@ Y = luminance; p1/p50/p99/max its percentiles over the picture; noise = temporal
 | 10 ms gain 100 | 154.8 | 100/149/253/255 | 2.62 | 59.1 | 3.73 | 3.20 | 0.00 | 29.3 |
 | auto (after) | 118.4 | 79/115/228/255 | 1.44 | 82.0 | 0.83 | 0.70 | 0.00 | 29.3 |
 
-### Camera at 0x01142000 (kind C, index 1; marker dark (117.0 -> 0.4))
+### Camera 2 (9 lid), at 0x01142000 (kind C, index 1; marker dark (117.0 -> 0.4))
 
 | step | Y mean | p1/p50/p99/max | noise | snr | ge240 % | ge250 % | black % | fps |
 |---|---|---|---|---|---|---|---|---|
@@ -197,7 +217,7 @@ Y = luminance; p1/p50/p99/max its percentiles over the picture; noise = temporal
 | 10 ms gain 100 | 254.7 | 252/255/255/255 | 0.17 | 1494.7 | 100.00 | 100.00 | 0.00 | 29.2 |
 | auto (after) | 111.4 | 14/107/251/255 | 5.84 | 19.1 | 1.54 | 1.07 | 0.13 | 29.3 |
 
-### Camera at 0x01143000 (kind C, index 2; marker dark (129.8 -> 1.2))
+### Camera 3 (9 home), at 0x01143000 (kind C, index 2; marker dark (129.8 -> 1.2))
 
 | step | Y mean | p1/p50/p99/max | noise | snr | ge240 % | ge250 % | black % | fps |
 |---|---|---|---|---|---|---|---|---|
@@ -216,7 +236,7 @@ Y = luminance; p1/p50/p99/max its percentiles over the picture; noise = temporal
 | 10 ms gain 100 | 154.3 | 31/139/255/255 | 4.94 | 31.2 | 29.91 | 27.06 | 0.14 | 29.3 |
 | auto (after) | 126.9 | 28/109/255/255 | 3.21 | 39.5 | 12.87 | 11.14 | 0.01 | 29.3 |
 
-### Camera at 0x01144000 (kind C, index 3; marker dark (129.0 -> 0.0))
+### Camera 4 (9 buddy), at 0x01144000 (kind C, index 3; marker dark (129.0 -> 0.0))
 
 | step | Y mean | p1/p50/p99/max | noise | snr | ge240 % | ge250 % | black % | fps |
 |---|---|---|---|---|---|---|---|---|
@@ -237,7 +257,7 @@ Y = luminance; p1/p50/p99/max its percentiles over the picture; noise = temporal
 
 ### Y mean, every step, per camera
 
-| step | 0x00141000 | 0x00142000 | 0x00143000 | 0x00144000 | 0x01141000 | 0x01142000 | 0x01143000 | 0x01144000 |
+| step | 5 (10 face) | 6 (10 lid) | 7 (10 home) | 8 (10 buddy) | 1 (9 face) | 2 (9 lid) | 3 (9 home) | 4 (9 buddy) |
 |---|---|---|---|---|---|---|---|---|
 | auto (before) | 100.2 | 110.7 | 116.8 | 123.6 | 116.5 | 112.8 | 125.6 | 129.3 |
 | 2 ms gain 0 | 4.7 | 155.3 | 5.6 | 2.2 | 1.2 | 164.9 | 14.0 | 3.4 |
@@ -288,7 +308,7 @@ Y = luminance; p1/p50/p99/max its percentiles over the picture; noise = temporal
 
 ### noise, every step, per camera
 
-| step | 0x00141000 | 0x00142000 | 0x00143000 | 0x00144000 | 0x01141000 | 0x01142000 | 0x01143000 | 0x01144000 |
+| step | 5 (10 face) | 6 (10 lid) | 7 (10 home) | 8 (10 buddy) | 1 (9 face) | 2 (9 lid) | 3 (9 home) | 4 (9 buddy) |
 |---|---|---|---|---|---|---|---|---|
 | auto (before) | 1.72 | 8.95 | 4.30 | 2.86 | 1.46 | 6.43 | 3.27 | 3.74 |
 | 2 ms gain 0 | 0.76 | 8.65 | 1.50 | 0.46 | 0.37 | 5.40 | 2.15 | 0.79 |
@@ -339,7 +359,7 @@ Y = luminance; p1/p50/p99/max its percentiles over the picture; noise = temporal
 
 ### black %, every step, per camera
 
-| step | 0x00141000 | 0x00142000 | 0x00143000 | 0x00144000 | 0x01141000 | 0x01142000 | 0x01143000 | 0x01144000 |
+| step | 5 (10 face) | 6 (10 lid) | 7 (10 home) | 8 (10 buddy) | 1 (9 face) | 2 (9 lid) | 3 (9 home) | 4 (9 buddy) |
 |---|---|---|---|---|---|---|---|---|
 | auto (before) | 0.02 | 3.77 | 0.11 | 0.00 | 0.00 | 0.12 | 0.01 | 0.00 |
 | 2 ms gain 0 | 83.33 | 1.27 | 79.61 | 86.33 | 96.74 | 0.03 | 71.50 | 79.93 |
@@ -390,7 +410,7 @@ Y = luminance; p1/p50/p99/max its percentiles over the picture; noise = temporal
 
 ### ge250 %, every step, per camera
 
-| step | 0x00141000 | 0x00142000 | 0x00143000 | 0x00144000 | 0x01141000 | 0x01142000 | 0x01143000 | 0x01144000 |
+| step | 5 (10 face) | 6 (10 lid) | 7 (10 home) | 8 (10 buddy) | 1 (9 face) | 2 (9 lid) | 3 (9 home) | 4 (9 buddy) |
 |---|---|---|---|---|---|---|---|---|
 | auto (before) | 4.05 | 2.65 | 3.55 | 0.42 | 0.66 | 1.11 | 10.59 | 0.91 |
 | 2 ms gain 0 | 0.00 | 10.00 | 0.22 | 0.00 | 0.00 | 9.69 | 1.50 | 0.00 |
