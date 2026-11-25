@@ -6,6 +6,23 @@ camera developer in `uvc/FRAME_DROPS.md`, and the tooling in `uvc/probe.py` and
 `uvc/frames_analysis.py`. The memory folder (`~/.claude/projects/.../memory`) is not writable
 in this session's permissions, so these notes are the persistent record.
 
+## CURRENT STATE (2026-11-24, end of day): standing by
+- **The lab rig is on loan to the camera developer again** (from 2026-11-24 ~17:05). Run no
+  camera script in any mode until the user hands it back explicitly.
+- **I am on stand-by** (the CLAUDE.md reserved-word rule) until the user releases me.
+- The user is setting up the **dim-light test on the deployment rig**, using
+  `uvc/DIM_LIGHT_TEST.md` (revised 2026-11-24, then frozen; repo
+  https://github.com/preinagel/ratrixcam.git, branch `uvc-prototype`).
+  - The operator sends the user these logs: `dim-usb-cameras.log`, `dim-all-cameras.log`,
+    `dim-sweep-run1.log`, possibly `dim-restore-run1.log`, and `dim-notes.txt`.
+  - When they arrive, analyse them into a NEW report (for example
+    `uvc/DIM_LIGHT_RESULTS.md`): measurements only, per camera and kind, never pooled, and
+    no usability judgement.
+- All lab cameras were restored and read back at their defaults after every run
+  (last: reopen-kill-alone-run1, 17:02).
+- Latest commit before stand-by: 00be520 (reopen-delay complete). The user pushes; I never
+  push.
+
 ## Frozen reports (user, 2026-11-20)
 - Branch `uvc-prototype` was pushed by the user (2026-11-20). The test results were exported
   to a documentation folder outside my scope.
