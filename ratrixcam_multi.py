@@ -33,11 +33,12 @@ from ratrixcam_utils import (
 
 SUPERVISOR_PASS = 1  # seconds between passes of the loop that counts the cameras and watches their processes
 # Seconds after a camera's process ended before it is launched again, counted by the clock and not
-# in passes, so that SUPERVISOR_PASS can change without changing it. A camera opened within a few
-# seconds of its release can deliver almost nothing for a while, and every launch costs the running
-# cameras frames (GitHub #52, #63), so a camera that went offline is given this long before its
-# relaunch.
-CAMERA_RELAUNCH_DELAY = 60
+# in passes, so that SUPERVISOR_PASS can change without changing it. A new process reopens a camera
+# without trouble from a second after a clean release, so the delay is only a brake on a camera
+# that dies again and again, each launch costing the running cameras frames (GitHub #52, #63): a
+# few seconds, so that a camera that dies at start-up is back after the give-up, this, and the
+# warm-up.
+CAMERA_RELAUNCH_DELAY = 5
 
 
 def run_without_handlers(

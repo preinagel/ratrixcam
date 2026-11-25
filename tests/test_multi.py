@@ -138,7 +138,7 @@ def test_an_unknown_count_launches_nothing(monkeypatch: pytest.MonkeyPatch, tmp_
 
 def test_the_exact_count_launches_the_cameras_and_a_dead_one_waits_its_delay(monkeypatch: pytest.MonkeyPatch, tmp_path: object, capsys: pytest.CaptureFixture[str]):
     assert supervise(monkeypatch, tmp_path, 1, 2.5) == [0]  # the stand-in dies at once; its relaunch waits the delay
-    assert "relaunched after 60 s" not in capsys.readouterr().out  # it was never seen alive: no offline line
+    assert "relaunched after 5 s" not in capsys.readouterr().out  # it was never seen alive: no offline line
     monkeypatch.setattr(multi, "CAMERA_RELAUNCH_DELAY", 0)
     assert supervise(monkeypatch, tmp_path, 1, 2.5) == [0, 0, 0]  # without a delay: a launch on every pass
 
