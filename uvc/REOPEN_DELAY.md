@@ -1,6 +1,6 @@
 # How long to wait before reopening a released camera (plan, 2026-11-20)
 
-Status: **arms 1 and 2 done (2026-11-24); arm 2 found an unplanned long stall (see Arm 2); arms 3-4 pending.** The plan
+Status: **arms 1 and 2 (and a kind C rerun) done (2026-11-24): no delay-dependent stall; kind C stops after ~0.8 s in about 6% of sessions under load, cleared by a new session; arms 3-4 pending.** The plan
 was written on 2026-11-20 while the rig was on loan; it was handed back on 2026-11-24. This
 file holds the results; the earlier reports (`REPORT.md`, `FRAME_DROPS.md`,
 `DIM_LIGHT_TEST.md`) are frozen.
@@ -245,3 +245,60 @@ B 173.4 -> 18.1; C 108.6 -> 10.5). No other control was written.
   release.
 - **Every 30 s load window is logged**, not just the minimum and median.
 - The offline test still passes (17 of 17).
+
+### Arm 2 rerun, kind C only, clean load (2026-11-24 15:44:56 to 16:16:41; `uvc/logs/reopen-short-load-C-run2.log`)
+
+`uvc/.venv/bin/python uvc/reopen_delay.py run --arm short --load --kinds C`, with the changed
+tool: the load starts after a 60 s rest, and identification runs in its own process.
+
+**The load was clean.** All seven load streams delivered in every 30 s window for the whole
+sweep (61 windows each):
+- index 0: 29.3-29.6 fps;
+- index 1: 30.2-30.6 fps;
+- index 2: 29.3-29.6 fps;
+- index 4: 29.1-29.8 fps;
+- index 5: 30.1-30.6 fps;
+- index 6: 29.0-29.4 fps;
+- index 7: 30.1-30.6 fps.
+
+There was no dead stream this time.
+
+**Kind C still had start-then-stop sessions: 3.** Each delivered 22-26 frames (about 0.8 s)
+and then nothing:
+- trial 3, first stream (opened 5 s after a release): 22 frames, then no normal stream
+  within 180 s (invalid trial);
+- trial 18, first stream: 22 frames, the same;
+- trial 21, reopen at a **2 s** delay: 26 frames, then none for the rest of the 60 s watch.
+
+As before, **the next new session after each one was normal** (trials 4, 19 and 22: 292-293
+frames in the first 10 s).
+
+| Kind C, clean load | 1 s | 2 s | 4 s | 8 s | 15 s | 30 s | 60 s |
+|---|---|---|---|---|---|---|---|
+| stalled reopens | 0/5 | **1/5** | 0/5 | 0/4 + 1 invalid | 0/5 | 0/4 + 1 invalid | 0/5 |
+
+**Identification** (own process, exited): index 3 = kind C at lab port 4, 110.4 -> 9.0,
+CONFIRMED. The marker was restored and read back at C's defaults (3 OK read-backs, no
+MISMATCH). No other control was written.
+
+### Kind C under load, arm 2 and the rerun together (measurements)
+
+- **Start-then-stop sessions: 8 of about 140 under load (5 + 3), against 0 of 70 alone
+  (arm 1).** Kinds A and B had none, alone or under load (0 of 140 sessions each).
+- **The rerun rules out the dead neighbouring stream as the cause:** all its load streams
+  were healthy, and the event still occurred.
+- **It is not delay-dependent in this data.** It occurred on reopens at 2, 15 and 30 s
+  after a release and on first streams 5 s after a release, and not in the 1, 4, 8 or 60 s
+  reopens. Waiting longer did not avoid it.
+- **A new session cleared it every time:** each of the 8 was followed, 5 s after its
+  release, by a normal session.
+- **The form is the same each time:** 18-26 frames (0.6-0.9 s), then no frame at all for as
+  long as the session was kept open (60 s or 180 s). This is the form of persist-C run 1 (32
+  frames, then none, camera alone, at 352x288). It is not the slow start the experiment was
+  designed for.
+- Session counts are approximate. The "first stream" of each trial (the stream before
+  release) is counted as a session, alongside the reopens.
+
+What this suggests for the recorder, not tested here: a server whose kind C camera stops
+this way would see failed reads, leave its loop and exit, and the supervisor's relaunch
+would open a new session. In every case here, a new session 5 s later was normal.
