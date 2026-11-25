@@ -14,6 +14,19 @@ reads the settings back to confirm.
 Total time: about 20 minutes to install, then about 2 minutes per camera (about 15 minutes
 for eight cameras).
 
+## If you were told these instructions have been updated
+
+If you have already done step 1 on this Mac, get the latest version of the instructions and
+the test code with this command:
+
+```
+cd ~/Desktop/ratrixcam-uvc && git pull
+```
+
+It should end with a summary of the changed files, or with `Already up to date.` Your log
+files and the Python environment from step 1d are kept. Then reopen this file to read the
+new version. If the command shows an error, stop and tell the rig owner.
+
 ## Before you start
 
 - **The recorder must not be running.** Stop the recording as you normally do and close its
@@ -148,13 +161,22 @@ begins with the date and time, then `selected`, a number, and `camera(s) of any 
 - **It does not:** press Ctrl-C once, wait for the prompt, run the safety restore in step 5,
   and tell the rig owner.
 
+**How long it runs:** about 1½ to 2 minutes per camera, so about 15 minutes for eight
+cameras (the lab run with eight cameras took 12 minutes). It ends by itself: the last lines
+are `final read-back, every target camera` followed by `OK` lines, and then the Terminal
+prompt comes back. You do not need to watch it the whole time, but stay nearby so you can
+answer the camera-permission question below and check the end. If it is still running after
+30 minutes, or nothing new has appeared in the Terminal for 5 minutes, press Ctrl-C once,
+run the safety restore in step 5, and tell the rig owner.
+
 While it runs:
 - The first time, macOS may ask whether Terminal may use the camera. Click Allow. If you
   clicked Don't Allow, stop and tell the rig owner.
-- Each camera's picture changes for about two seconds, so that the script can check which
-  camera it is talking to. In normal light it goes very dark; in very dim light it goes very
-  bright instead. Then the picture changes step by step through the exposures and gains.
-  This is expected.
+- Nothing appears on screen except text in the Terminal: the script shows no picture, and
+  there is nothing to open in a browser. Behind the scenes it changes each camera's
+  settings: for about two seconds it makes the image very dark (or, in very dim light, very
+  bright) to check which camera it is talking to, and then it steps through the exposures
+  and gains.
 - The log shows `WARNING: exposure 10 ms is NOT under 5 ms` for every camera. This is
   intended.
 - If another camera is present (M larger than N), the log shows `IDENTIFICATION FAILED` for

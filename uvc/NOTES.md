@@ -11,7 +11,7 @@ in this session's permissions, so these notes are the persistent record.
   camera script in any mode until the user hands it back explicitly.
 - **I am on stand-by** (the CLAUDE.md reserved-word rule) until the user releases me.
 - The user is setting up the **dim-light test on the deployment rig**, using
-  `uvc/DIM_LIGHT_TEST.md` (revised 2026-11-24, then frozen; repo
+  `uvc/DIM_LIGHT_TEST.md` (unfrozen 2026-11-25, mine to update; repo
   https://github.com/preinagel/ratrixcam.git, branch `uvc-prototype`).
   - The operator sends the user these logs: `dim-usb-cameras.log`, `dim-all-cameras.log`,
     `dim-sweep-run1.log`, possibly `dim-restore-run1.log`, and `dim-notes.txt`.
@@ -37,6 +37,14 @@ in this session's permissions, so these notes are the persistent record.
   A second authorised edit, the same day: the clone command now names the repository,
   https://github.com/preinagel/ratrixcam.git. The user also checked step 2b
   (system_profiler SPCameraDataType) on the lab Mac: it works as described.
+- **2026-11-25: `uvc/DIM_LIGHT_TEST.md` is permanently UNFROZEN** (user). It is mine to
+  update; operators get updates with `git pull` on the branch. Changes that day: an
+  "instructions have been updated → git pull" section at the top; step 4 says how long the
+  run takes and how it ends; step 4 no longer implies the operator can see a picture (there
+  is no display, and the probe serves none).
+- Open item: step 2a's grep (`Camera:|Product ID|Location ID`) prints lines for every USB
+  device, not just cameras (operator feedback, 2026-11-25). Fix the filter once the
+  deployment's `dim-usb-cameras.log` is available; do not guess the format.
 
 ## Rig on loan = no camera scripts at all (user, 2026-11-20)
 - Incident, 2026-11-20 15:53-15:57: while the rig was on loan to the developer, I ran an
