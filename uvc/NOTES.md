@@ -6,22 +6,23 @@ camera developer in `uvc/FRAME_DROPS.md`, and the tooling in `uvc/probe.py` and
 `uvc/frames_analysis.py`. The memory folder (`~/.claude/projects/.../memory`) is not writable
 in this session's permissions, so these notes are the persistent record.
 
-## CURRENT STATE (2026-11-24, end of day): standing by
-- **The lab rig is on loan to the camera developer again** (from 2026-11-24 ~17:05). Run no
-  camera script in any mode until the user hands it back explicitly.
-- **I am on stand-by** (the CLAUDE.md reserved-word rule) until the user releases me.
-- The user is setting up the **dim-light test on the deployment rig**, using
-  `uvc/DIM_LIGHT_TEST.md` (unfrozen 2026-11-25, mine to update; repo
-  https://github.com/preinagel/ratrixcam.git, branch `uvc-prototype`).
-  - The operator sends the user these logs: `dim-usb-cameras.log`, `dim-all-cameras.log`,
-    `dim-sweep-run1.log`, possibly `dim-restore-run1.log`, and `dim-notes.txt`.
-  - When they arrive, analyse them into a NEW report (for example
-    `uvc/DIM_LIGHT_RESULTS.md`): measurements only, per camera and kind, never pooled, and
-    no usability judgement.
-- All lab cameras were restored and read back at their defaults after every run
-  (last: reopen-kill-alone-run1, 17:02).
-- Latest commit before stand-by: 00be520 (reopen-delay complete). The user pushes; I never
-  push.
+## CURRENT STATE (2026-11-25)
+- **Git scope rule (user, 2026-11-25): never commit pictures, test results (deployment logs,
+  zips) or the user's comments.** Those belong in the lab's own documentation. Git reports
+  cover general findings: whether the code can do what is wanted, and what constraints,
+  conditions or calibrations that needs; anything specific to one rig only as a brief
+  example. The ignore rules in `uvc/.gitignore` keep `uvc/results/`, `uvc/logs/dim-2*/`,
+  `uvc/logs/dimtestresults/`, `uvc/logs/*.zip` and `uvc/logs/lab-docs/` out of git.
+- General findings report: `uvc/DIM_LIGHT_FINDINGS.md`. The detailed per-camera report on
+  the deployment runs is kept untracked at
+  `uvc/logs/lab-docs/DIM_LIGHT_RESULTS_deployment_2026-11-25.md` for the user's lab docs.
+- **The lab rig is on loan to the camera developer** (since 2026-11-24). Run no camera
+  script in any mode until the user hands it back explicitly.
+- Operator instructions: `uvc/DIM_LIGHT_TEST.md` (unfrozen; mine to update; repo
+  https://github.com/preinagel/ratrixcam.git, branch `uvc-prototype`). Deployment rigs are
+  offline (wifi only for git pull); files come back on a thumb drive; do not tell operators
+  how to transfer files.
+- The user pushes; I never push. Pushed up to 4662b4b as of 2026-11-25.
 
 ## Frozen reports (user, 2026-11-20)
 - Branch `uvc-prototype` was pushed by the user (2026-11-20). The test results were exported
@@ -224,34 +225,16 @@ B and C differ only by name string. B has an extra H.264 stream and no 800x600. 
 - `uvc/camera_config_5.json` is the probe's own config copy: all 8 entries at 640x480 @ 30
   (C entries moved from 352x288 to 640x480 at the critic's recommendation).
 
-## Dim-light deployment results (2026-11-25)
-- Received in `uvc/logs/dimtestresults/` (operator sent the whole logs folder; 33 files are
-  copies of lab logs, left untracked). Report: `uvc/DIM_LIGHT_RESULTS.md`, generated tables
-  via `uvc/dim_results.py` (log parser only).
-- Rig "mac 1 stations 9&10": 8 cameras, all kind C. Clean run, all restored. Station of each
-  camera unknown (asked the user).
-- Step 2a filter fixed (awk prints only camera blocks; checked on the deployment's USB log).
-  Step 6 now says to send only the listed files.
-
-## Dim-light test v2: results folder with pictures (drafted 2026-11-25, NOT yet lab-checked)
-- `probe.py dimsweep` now writes everything into `uvc/results/dim-YYYY-MM-DD-HHMMSS/`
-  (gitignored) and zips it to `uvc/results/<same>.zip` at the end, also on Ctrl-C/error:
-  dim-sweep.log (Tee of stdout/stderr), notes.txt (4 questions asked at the start;
-  `--no-notes` skips), usb-devices.txt and cameras.txt (system_profiler), and per camera
-  `index<N>-0x<loc>/` with PNG stills `0x<loc>_<kind>_{auto_before,auto_after,<E>ms_gain{0,50,100}}.png`,
-  `_auto_pair1/2.png` (two consecutive frames), `_auto_clip.avi` (3 s, OpenCV MJPEG writer
-  quality 90, re-encoded).
-- User's decisions: one still per setting, clip yes, zip yes, auto-named folder; no further
-  refinement unless it becomes a routine calibration step. Code reviewer's notes adopted:
-  PNG (lossless), auto-after still, self-describing file names; `--frames all` skipped.
-- User context: lid views see a shiny metal cage-floor grid (maybe litter) filling the FOV;
-  the user's guess for the lid cameras' high frame-to-frame variation is compression
-  artefacts. IR lamps are DC-driven, on 24/7, IR-pass filters: no flicker expected.
-- Offline test: `uvc/offline_tests/test_dim_outputs.py` (fake cv2; 14 checks pass).
-- Picture saving is wrapped (`picture()`): any error is logged as PICTURE NOT SAVED and the
-  sweep, restore and zip carry on (offline test: 18 checks). Deployment rigs are offline
-  (wifi only to git pull); files come back on a thumb drive; do not tell operators how to
-  transfer files.
-- The user may run v2 first on the deployment rig (2026-11-25), before any lab check.
-- Still needed: a lab check on hardware when the rig is handed back (real VideoWriter with
-  CAP_OPENCV_MJPEG + quality param, PNG sizes, zip size), then the user pushes.
+## Dim-light test v2 (2026-11-25)
+- `probe.py dimsweep` writes everything into `uvc/results/dim-YYYY-MM-DD-HHMMSS/` and zips
+  it at the end, also on Ctrl-C or an error: dim-sweep.log, notes.txt (4 questions at the
+  start; `--no-notes` skips), usb-devices.txt, cameras.txt, and per camera
+  `index<N>-0x<loc>/` with PNG stills (auto before/after, each exposure at gain 0/50/100),
+  two consecutive frames (`_auto_pair1/2.png`) and a 3 s clip (re-encoded MJPEG q90).
+  Picture errors are logged as PICTURE NOT SAVED and never stop the sweep or restore.
+- Ran cleanly on a deployment rig (8 kind C) on 2026-11-25; the real VideoWriter worked.
+  Offline test: `uvc/offline_tests/test_dim_outputs.py` (18 checks).
+- Analysis tools: `uvc/dim_results.py` (log -> tables), `uvc/pair_analysis.py` (frame pairs,
+  PNG decoded without OpenCV).
+- General findings in `uvc/DIM_LIGHT_FINDINGS.md`. Next useful run: with an animal in view,
+  and exposures under 2 ms for bright views (`--exposures 5 10 20 50`).

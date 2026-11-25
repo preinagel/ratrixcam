@@ -2,7 +2,7 @@
 """Summarise a `probe.py dimsweep` log into Markdown tables, per camera (never pooled).
 Reads the log only; opens no camera.
 
-    uvc/.venv/bin/python -I uvc/dim_results.py uvc/logs/dimtestresults/dim-sweep-run1.log
+    uvc/.venv/bin/python -I uvc/dim_results.py uvc/results/dim-YYYY-MM-DD-HHMMSS/dim-sweep.log
 """
 import re
 import sys

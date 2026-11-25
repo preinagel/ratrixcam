@@ -1,3 +1,7 @@
 .venv/
 __pycache__/
 results/
+logs/dimtestresults/
+logs/dim-2*/
+logs/*.zip
+logs/lab-docs/
