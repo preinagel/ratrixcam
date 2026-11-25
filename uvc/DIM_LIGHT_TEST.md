@@ -11,7 +11,7 @@ from these numbers.
 Every camera is put back to its own automatic settings at the end of its sweep. The script
 reads the settings back to confirm.
 
-Total time: about 20 minutes to install, then about 2 minutes per camera (about 16 minutes
+Total time: about 20 minutes to install, then about 2 minutes per camera (about 15 minutes
 for eight cameras).
 
 ## Before you start
@@ -24,6 +24,8 @@ for eight cameras).
 - Set the lights as they are during a recording. This test is about that light.
 - If possible, nothing should move in front of the cameras during the test. Motion makes the
   noise figures larger. If animals are present, that is fine, but write it down (see step 6).
+- Have a pen and paper ready: in step 2 you write down two numbers, N and M, which you need
+  in step 4.
 
 ## 1. Install (once per Mac)
 
@@ -64,7 +66,15 @@ cd ~/Desktop && git clone --branch uvc-prototype REPOSITORY-ADDRESS ratrixcam-uv
 
 (The rig owner fills in REPOSITORY-ADDRESS before handing these instructions over.)
 
-**1d. Make the script's Python environment** and install its one extra package, pyusb:
+If the folder `~/Desktop/ratrixcam-uvc` already exists from an earlier visit, update it
+instead of cloning:
+
+```
+cd ~/Desktop/ratrixcam-uvc && git pull
+```
+
+**1d. Make the script's Python environment** and install its one extra package, pyusb. Skip
+this if it was done on an earlier visit.
 
 ```
 cd ~/Desktop/ratrixcam-uvc && python3 -m venv --system-site-packages uvc/.venv && uvc/.venv/bin/pip install pyusb
@@ -75,14 +85,15 @@ OpenCV.
 
 ## 2. Find out which cameras this rig has
 
-This only lists what is plugged in. It does not open any camera.
+Neither command in this step opens a camera; they only list what is plugged in.
+
+**2a. The test cameras (kinds A, B and C):**
 
 ```
 cd ~/Desktop/ratrixcam-uvc && system_profiler SPUSBDataType 2>&1 | tee uvc/logs/dim-usb-cameras.log | grep -E "Camera:|Product ID|Location ID"
 ```
 
-Each camera shows as three lines: its name, its product id and its location. The camera
-kind is:
+Each camera shows as three lines: its name, its product id and its location. The kind is:
 
 | Name line | Product ID | Kind |
 |---|---|---|
@@ -90,11 +101,23 @@ kind is:
 | USB 2.0 Camera | 0x6366 | B |
 | USB Camera | 0x6366 | C |
 
-Count the cameras of kinds A, B and C together. That number is N. The script finds the same
-cameras by itself; its third line should say it selected N cameras. Any other camera listed
-(for example a webcam) is not part of the test and is never written to. It does take an
-index, though, so if one is listed, add `--count M` to the command in step 4, where M is
-the number of all cameras listed.
+**Write down N**: the number of cameras of kinds A, B and C together.
+
+**2b. Every camera macOS can open, including any webcam:**
+
+```
+cd ~/Desktop/ratrixcam-uvc && system_profiler SPCameraDataType 2>&1 | tee uvc/logs/dim-all-cameras.log | grep -E "Model ID|Unique ID"
+```
+
+Each camera shows as a "Model ID" line and a "Unique ID" line. **Write down M**: the number of
+"Model ID" lines.
+
+- **M equals N:** there is no other camera. Use the step 4 command as it is.
+- **M is larger than N:** there is another camera, such as a webcam. The test never writes to
+  it, but it takes one of the camera numbers, so in step 4 you use the second command, with
+  your M.
+- **The output looks different from this description, or shows nothing:** stop and tell the
+  rig owner.
 
 ## 3. Check that nothing else has the cameras
 
@@ -105,20 +128,39 @@ delete the folder**. Tell the rig owner.
 
 ## 4. Run the test
 
-This sweeps every camera in turn, indices 0 to N-1, and writes everything to one log file.
+This sweeps every camera in turn and writes everything to one log file.
+
+**If M equals N** (no other camera):
 
 ```
 cd ~/Desktop/ratrixcam-uvc && uvc/.venv/bin/python uvc/probe.py dimsweep 2>&1 | tee uvc/logs/dim-sweep-run1.log
 ```
 
+**If M is larger than N** (another camera is present): type your M in place of the `M` at the
+end of `--count M`:
+
+```
+cd ~/Desktop/ratrixcam-uvc && uvc/.venv/bin/python uvc/probe.py dimsweep --count M 2>&1 | tee uvc/logs/dim-sweep-run1.log
+```
+
+**First, check the third line.** Within a few seconds the test prints its third line, which
+begins with the date and time, then `selected`, a number, and `camera(s) of any target kind
+(A, B, C)`.
+- **The number equals your N:** carry on and let the test run.
+- **It does not:** press Ctrl-C once, wait for the prompt, run the safety restore in step 5,
+  and tell the rig owner.
+
+While it runs:
 - The first time, macOS may ask whether Terminal may use the camera. Click Allow. If you
   clicked Don't Allow, stop and tell the rig owner.
-- During the run, each camera's picture changes for about two seconds, so that the script
-  can check which camera it is talking to. In normal light it goes very dark; in very dim
-  light it goes very bright instead. Then the picture changes step by step through the
-  exposures and gains. This is expected.
+- Each camera's picture changes for about two seconds, so that the script can check which
+  camera it is talking to. In normal light it goes very dark; in very dim light it goes very
+  bright instead. Then the picture changes step by step through the exposures and gains.
+  This is expected.
 - The log shows `WARNING: exposure 10 ms is NOT under 5 ms` for every camera. This is
   intended.
+- If another camera is present (M larger than N), the log shows `IDENTIFICATION FAILED` for
+  that camera's number. This is expected: it is not a test camera and is skipped.
 - Do not touch the cameras or cables until the last line says `final read-back`.
 - If you have to stop the run early, press Ctrl-C once and wait for the prompt. The script
   puts the camera it was working on back to automatic by itself. Then run the safety
@@ -128,7 +170,7 @@ If you run it again, change `run1` to `run2` in the log name, so the first log i
 
 ## 5. Safety restore (only if a run was stopped early or ended with an error)
 
-This puts every target camera back to its own automatic settings and reads them back:
+This puts every test camera back to its own automatic settings and reads them back:
 
 ```
 cd ~/Desktop/ratrixcam-uvc && uvc/.venv/bin/python uvc/probe.py restore --kind all 2>&1 | tee uvc/logs/dim-restore-run1.log
@@ -141,12 +183,14 @@ Every camera should end with `OK` lines.
 Create a short note in `uvc/logs/dim-notes.txt` with:
 - the date and time;
 - the room and rig name;
+- N and M from step 2;
 - which lamps were on, and whether the IR filters and hoods were fitted as for recording;
 - whether animals or anything else moved in front of the cameras;
 - anything unusual, such as an error message or a camera that stayed dark.
 
 Send these files to the rig owner, all from `~/Desktop/ratrixcam-uvc/uvc/logs/`:
 - `dim-usb-cameras.log`;
+- `dim-all-cameras.log`;
 - `dim-sweep-run1.log` (and any later runs);
 - `dim-restore-run1.log`, if you ran it;
 - `dim-notes.txt`.

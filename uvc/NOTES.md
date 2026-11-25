@@ -13,6 +13,10 @@ in this session's permissions, so these notes are the persistent record.
   `uvc/DIM_LIGHT_TEST.md`, and the existing logs in `uvc/logs/`.** Any further output that
   needs documenting goes into a NEW report file under `uvc/`, never an edit to these.
 - This notes file is not a report; it stays mine to update.
+- Exception, 2026-11-24: the user authorised overwriting `uvc/DIM_LIGHT_TEST.md` with a
+  complete revised version (N/M camera counts, `--count M` command, third-line check, git
+  pull for an existing clone). The separate corrections file was removed. The file is
+  frozen again after that revision unless the user authorises another one.
 
 ## Rig on loan = no camera scripts at all (user, 2026-11-20)
 - Incident, 2026-11-20 15:53-15:57: while the rig was on loan to the developer, I ran an
