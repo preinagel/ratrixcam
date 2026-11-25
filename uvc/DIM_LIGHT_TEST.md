@@ -154,7 +154,7 @@ Neither command in this step opens a camera; they only list what is plugged in.
 **2a. The test cameras (kinds A, B and C):**
 
 ```
-cd ~/Desktop/ratrixcam-uvc && system_profiler SPUSBDataType 2>&1 | tee uvc/logs/dim-usb-cameras.log | grep -E "Camera:|Product ID|Location ID"
+cd ~/Desktop/ratrixcam-uvc && system_profiler SPUSBDataType 2>&1 | tee uvc/logs/dim-usb-cameras.log | awk '/Camera:/{c=1; print; next} c && /Product ID|Location ID/{print} /Location ID/{c=0}'
 ```
 
 Each camera shows as three lines: its name, its product id and its location. The kind is:
@@ -263,7 +263,8 @@ Create a short note in `uvc/logs/dim-notes.txt` with:
 - whether animals or anything else moved in front of the cameras;
 - anything unusual, such as an error message or a camera that stayed dark.
 
-Send these files to the requester, all from `~/Desktop/ratrixcam-uvc/uvc/logs/`:
+Send only these files to the requester, all from `~/Desktop/ratrixcam-uvc/uvc/logs/` (the
+folder also holds older lab logs that came with the code; they are not needed):
 - `dim-usb-cameras.log`;
 - `dim-all-cameras.log`;
 - `dim-sweep-run1.log` (and any later runs);

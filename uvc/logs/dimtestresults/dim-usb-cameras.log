@@ -1,0 +1,246 @@
+USB:
+
+    USB 3.1 Bus:
+
+      Host Controller Driver: AppleT8132USBXHCI
+
+        USB3 Gen2 Hub:
+
+          Product ID: 0x800c
+          Vendor ID: 0x05ac (Apple Inc.)
+          Version: 56.15
+          Serial Number: 7423J07
+          Speed: Up to 10 Gb/s
+          Manufacturer: Apple
+          Location ID: 0x02200000 / 1
+          Current Available (mA): 900
+          Current Required (mA): 0
+          Extra Operating Current (mA): 0
+          Built-In: Yes
+
+        USB2 Hub:
+
+          Product ID: 0x800b
+          Vendor ID: 0x05ac (Apple Inc.)
+          Version: 56.15
+          Serial Number: 7423J07
+          Speed: Up to 480 Mb/s
+          Manufacturer: Apple
+          Location ID: 0x02100000 / 2
+          Current Available (mA): 500
+          Current Required (mA): 0
+          Extra Operating Current (mA): 0
+          Built-In: Yes
+
+    USB 3.1 Bus:
+
+      Host Controller Driver: AppleT8132USBXHCI
+
+        USB3.1 Hub             :
+
+          Product ID: 0x0822
+          Vendor ID: 0x2109  (VIA Labs, Inc.)
+          Version: 8.b4
+          Speed: Up to 10 Gb/s
+          Manufacturer: VIA Labs, Inc.         
+          Location ID: 0x00200000 / 1
+          Current Available (mA): 900
+          Current Required (mA): 0
+          Extra Operating Current (mA): 0
+
+            USB3.2 Hub:
+
+              Product ID: 0x0411
+              Vendor ID: 0x0bda  (Realtek Semiconductor Corp.)
+              Version: 0.04
+              Speed: Up to 5 Gb/s
+              Manufacturer: Generic
+              Location ID: 0x00240000 / 4
+              Current Available (mA): 900
+              Current Required (mA): 0
+              Extra Operating Current (mA): 0
+
+        USB2.0 Hub             :
+
+          Product ID: 0x2822
+          Vendor ID: 0x2109  (VIA Labs, Inc.)
+          Version: 8.b4
+          Speed: Up to 480 Mb/s
+          Manufacturer: VIA Labs, Inc.         
+          Location ID: 0x00100000 / 2
+          Current Available (mA): 500
+          Current Required (mA): 0
+          Extra Operating Current (mA): 0
+
+            USB2.1 Hub:
+
+              Product ID: 0x5411
+              Vendor ID: 0x0bda  (Realtek Semiconductor Corp.)
+              Version: 0.04
+              Speed: Up to 480 Mb/s
+              Manufacturer: Generic
+              Location ID: 0x00140000 / 3
+              Current Available (mA): 500
+              Current Required (mA): 0
+              Extra Operating Current (mA): 0
+
+                USB Camera:
+
+                  Product ID: 0x6366
+                  Vendor ID: 0x0c45  (Sonix Technology Co., Ltd.)
+                  Version: 1.00
+                  Serial Number: SN0001
+                  Speed: Up to 480 Mb/s
+                  Manufacturer: Arducam Technology Co., Ltd.
+                  Location ID: 0x00144000 / 7
+                  Current Available (mA): 500
+                  Current Required (mA): 500
+                  Extra Operating Current (mA): 0
+
+                USB Camera:
+
+                  Product ID: 0x6366
+                  Vendor ID: 0x0c45  (Sonix Technology Co., Ltd.)
+                  Version: 1.00
+                  Serial Number: SN0001
+                  Speed: Up to 480 Mb/s
+                  Manufacturer: Arducam Technology Co., Ltd.
+                  Location ID: 0x00143000 / 8
+                  Current Available (mA): 500
+                  Current Required (mA): 500
+                  Extra Operating Current (mA): 0
+
+                USB Camera:
+
+                  Product ID: 0x6366
+                  Vendor ID: 0x0c45  (Sonix Technology Co., Ltd.)
+                  Version: 1.00
+                  Serial Number: SN0001
+                  Speed: Up to 480 Mb/s
+                  Manufacturer: Arducam Technology Co., Ltd.
+                  Location ID: 0x00142000 / 6
+                  Current Available (mA): 500
+                  Current Required (mA): 500
+                  Extra Operating Current (mA): 0
+
+                USB Camera:
+
+                  Product ID: 0x6366
+                  Vendor ID: 0x0c45  (Sonix Technology Co., Ltd.)
+                  Version: 1.00
+                  Serial Number: SN0001
+                  Speed: Up to 480 Mb/s
+                  Manufacturer: Arducam Technology Co., Ltd.
+                  Location ID: 0x00141000 / 5
+                  Current Available (mA): 500
+                  Current Required (mA): 500
+                  Extra Operating Current (mA): 0
+
+    USB 3.1 Bus:
+
+      Host Controller Driver: AppleT8132USBXHCI
+
+    USB 3.1 Bus:
+
+      Host Controller Driver: AppleT8132USBXHCI
+
+        USB3.1 Hub             :
+
+          Product ID: 0x0822
+          Vendor ID: 0x2109  (VIA Labs, Inc.)
+          Version: 8.b4
+          Speed: Up to 10 Gb/s
+          Manufacturer: VIA Labs, Inc.         
+          Location ID: 0x01200000 / 1
+          Current Available (mA): 900
+          Current Required (mA): 0
+          Extra Operating Current (mA): 0
+
+            USB3.2 Hub:
+
+              Product ID: 0x0411
+              Vendor ID: 0x0bda  (Realtek Semiconductor Corp.)
+              Version: 0.04
+              Speed: Up to 5 Gb/s
+              Manufacturer: Generic
+              Location ID: 0x01240000 / 4
+              Current Available (mA): 900
+              Current Required (mA): 0
+              Extra Operating Current (mA): 0
+
+        USB2.0 Hub             :
+
+          Product ID: 0x2822
+          Vendor ID: 0x2109  (VIA Labs, Inc.)
+          Version: 8.b4
+          Speed: Up to 480 Mb/s
+          Manufacturer: VIA Labs, Inc.         
+          Location ID: 0x01100000 / 2
+          Current Available (mA): 500
+          Current Required (mA): 0
+          Extra Operating Current (mA): 0
+
+            USB2.1 Hub:
+
+              Product ID: 0x5411
+              Vendor ID: 0x0bda  (Realtek Semiconductor Corp.)
+              Version: 0.04
+              Speed: Up to 480 Mb/s
+              Manufacturer: Generic
+              Location ID: 0x01140000 / 3
+              Current Available (mA): 500
+              Current Required (mA): 0
+              Extra Operating Current (mA): 0
+
+                USB Camera:
+
+                  Product ID: 0x6366
+                  Vendor ID: 0x0c45  (Sonix Technology Co., Ltd.)
+                  Version: 1.00
+                  Serial Number: SN0001
+                  Speed: Up to 480 Mb/s
+                  Manufacturer: Arducam Technology Co., Ltd.
+                  Location ID: 0x01144000 / 8
+                  Current Available (mA): 500
+                  Current Required (mA): 500
+                  Extra Operating Current (mA): 0
+
+                USB Camera:
+
+                  Product ID: 0x6366
+                  Vendor ID: 0x0c45  (Sonix Technology Co., Ltd.)
+                  Version: 1.00
+                  Serial Number: SN0001
+                  Speed: Up to 480 Mb/s
+                  Manufacturer: Arducam Technology Co., Ltd.
+                  Location ID: 0x01143000 / 7
+                  Current Available (mA): 500
+                  Current Required (mA): 500
+                  Extra Operating Current (mA): 0
+
+                USB Camera:
+
+                  Product ID: 0x6366
+                  Vendor ID: 0x0c45  (Sonix Technology Co., Ltd.)
+                  Version: 1.00
+                  Serial Number: SN0001
+                  Speed: Up to 480 Mb/s
+                  Manufacturer: Arducam Technology Co., Ltd.
+                  Location ID: 0x01142000 / 6
+                  Current Available (mA): 500
+                  Current Required (mA): 500
+                  Extra Operating Current (mA): 0
+
+                USB Camera:
+
+                  Product ID: 0x6366
+                  Vendor ID: 0x0c45  (Sonix Technology Co., Ltd.)
+                  Version: 1.00
+                  Serial Number: SN0001
+                  Speed: Up to 480 Mb/s
+                  Manufacturer: Arducam Technology Co., Ltd.
+                  Location ID: 0x01141000 / 5
+                  Current Available (mA): 500
+                  Current Required (mA): 500
+                  Extra Operating Current (mA): 0
+

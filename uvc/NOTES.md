@@ -223,3 +223,12 @@ B and C differ only by name string. B has an extra H.264 stream and no 800x600. 
     start, on kinds B and C (tested on kind A only).
 - `uvc/camera_config_5.json` is the probe's own config copy: all 8 entries at 640x480 @ 30
   (C entries moved from 352x288 to 640x480 at the critic's recommendation).
+
+## Dim-light deployment results (2026-11-25)
+- Received in `uvc/logs/dimtestresults/` (operator sent the whole logs folder; 33 files are
+  copies of lab logs, left untracked). Report: `uvc/DIM_LIGHT_RESULTS.md`, generated tables
+  via `uvc/dim_results.py` (log parser only).
+- Rig "mac 1 stations 9&10": 8 cameras, all kind C. Clean run, all restored. Station of each
+  camera unknown (asked the user).
+- Step 2a filter fixed (awk prints only camera blocks; checked on the deployment's USB log).
+  Step 6 now says to send only the listed files.
