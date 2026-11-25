@@ -17,6 +17,9 @@ in this session's permissions, so these notes are the persistent record.
   complete revised version (N/M camera counts, `--count M` command, third-line check, git
   pull for an existing clone). The separate corrections file was removed. The file is
   frozen again after that revision unless the user authorises another one.
+  A second authorised edit, the same day: the clone command now names the repository,
+  https://github.com/preinagel/ratrixcam.git. The user also checked step 2b
+  (system_profiler SPCameraDataType) on the lab Mac: it works as described.
 
 ## Rig on loan = no camera scripts at all (user, 2026-11-20)
 - Incident, 2026-11-20 15:53-15:57: while the rig was on loan to the developer, I ran an

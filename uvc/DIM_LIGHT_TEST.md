@@ -61,10 +61,8 @@ cd ~ && ls /opt/homebrew/lib/libusb-1.0.dylib /usr/local/lib/libusb-1.0.dylib 2>
 own folder, which it does not touch.
 
 ```
-cd ~/Desktop && git clone --branch uvc-prototype REPOSITORY-ADDRESS ratrixcam-uvc
+cd ~/Desktop && git clone --branch uvc-prototype https://github.com/preinagel/ratrixcam.git ratrixcam-uvc
 ```
-
-(The rig owner fills in REPOSITORY-ADDRESS before handing these instructions over.)
 
 If the folder `~/Desktop/ratrixcam-uvc` already exists from an earlier visit, update it
 instead of cloning:
