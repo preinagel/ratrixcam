@@ -202,6 +202,27 @@ check("interrupted run still zipped", os.path.exists(os.path.join(tmp, runs2[1])
 check("interrupted camera restored", restores == [0x01141000], restores)
 check("no notes asked with --no-notes", not os.path.exists(os.path.join(tmp, runs2[1], "notes.txt")))
 
+# 3. the real video writer refuses (e.g. an OpenCV without the params signature): the run
+#    carries on, logs it, and every other picture and the zip are still made
+restores.clear()
+time.sleep(1.1)
+
+
+def broken_writer(*_a, **_k):
+    raise TypeError("VideoWriter() signature not supported")
+
+
+cv2.VideoWriter = broken_writer
+probe.cmd_dimsweep(args(no_notes=True))
+runs3 = sorted(d for d in os.listdir(tmp) if os.path.isdir(os.path.join(tmp, d)))
+out3 = os.path.join(tmp, runs3[-1])
+log3 = open(os.path.join(out3, "dim-sweep.log")).read()
+check("writer failure is logged", "PICTURE NOT SAVED (record_clip): TypeError" in log3)
+check("sweep completed despite it", "final read-back" in log3 and restores == [0x01141000, 0x01142000], restores)
+have3 = set(os.listdir(os.path.join(out3, "index0-0x01141000")))
+check("other pictures still saved", len(have3) == 10 and not any(f.endswith(".avi") for f in have3), sorted(have3))
+check("zip still made", os.path.exists(out3 + ".zip"))
+
 print("\n" + ("ALL PASSED" if not failures else f"FAILED: {failures}"), file=sys.__stdout__)
 print(f"(temporary results in {tmp})", file=sys.__stdout__)
 sys.exit(1 if failures else 0)

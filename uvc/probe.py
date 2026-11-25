@@ -1062,6 +1062,15 @@ CLIP_SECONDS = 3.0          # one clip per camera, in auto, before the sweep
 CLIP_QUALITY = 90           # the clip is re-encoded as MJPEG at this quality (not bit-identical)
 
 
+def picture(fn, *a):
+    """Runs a picture-saving function; any error is logged and the sweep carries on, so a
+    picture problem can never stop the measurements or the restore (Ctrl-C still stops)."""
+    try:
+        fn(*a)
+    except Exception as e:  # noqa: BLE001
+        print(f"    PICTURE NOT SAVED ({fn.__name__}): {type(e).__name__}: {e}")
+
+
 def save_still(cv2, reader, path):
     """The latest decoded frame as a lossless PNG, full size, no overlay (a second lossy
     compression on top of the camera's MJPEG would blur the judgement). Prints the file name or why not."""
@@ -1163,9 +1172,9 @@ def sweep_index(cv2, args, devs):
             return None
         rows.append(("auto (before)", watch_quality(reader, "auto (before)", args.dwell * 2)))
         if pics:
-            save_still(cv2, reader, os.path.join(pics, f"{tag0}_auto_before.png"))
-            save_pair(cv2, reader, pics, f"{tag0}_auto")
-            record_clip(cv2, reader, os.path.join(pics, f"{tag0}_auto_clip.avi"), CLIP_SECONDS, args.fps or 30)
+            picture(save_still, cv2, reader, os.path.join(pics, f"{tag0}_auto_before.png"))
+            picture(save_pair, cv2, reader, pics, f"{tag0}_auto")
+            picture(record_clip, cv2, reader, os.path.join(pics, f"{tag0}_auto_clip.avi"), CLIP_SECONDS, args.fps or 30)
         gains = list(range(gmin, gmax + 1, args.step))
         if gains[-1] != gmax:
             gains.append(gmax)
@@ -1178,12 +1187,12 @@ def sweep_index(cv2, args, devs):
                 tag = f"{exposure / 10:g} ms, gain {g} (write {fmt(*w)}, read back {'ERR' if rb_err else rb})"
                 rows.append((f"{exposure / 10:g} ms gain {g}", watch_quality(reader, tag, args.dwell, settle=args.settle)))
                 if pics and g in STILL_GAINS:
-                    save_still(cv2, reader, os.path.join(pics, f"{tag0}_{exposure / 10:g}ms_gain{g}.png"))
+                    picture(save_still, cv2, reader, os.path.join(pics, f"{tag0}_{exposure / 10:g}ms_gain{g}.png"))
         restore_defaults(dev, lay)
         written = False
         rows.append(("auto (after)", watch_quality(reader, "auto (after)", args.dwell * 2, settle=1.0)))
         if pics:
-            save_still(cv2, reader, os.path.join(pics, f"{tag0}_auto_after.png"))
+            picture(save_still, cv2, reader, os.path.join(pics, f"{tag0}_auto_after.png"))
             n_files = len(os.listdir(pics))
             print(f"    pictures: {n_files} files in {os.path.basename(pics)}/")
     finally:

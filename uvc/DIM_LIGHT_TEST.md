@@ -269,22 +269,14 @@ Every camera should end with `OK` lines.
 
 ## 6. Send the results
 
-Send the requester **the zip file** named on the `RESULTS FILE TO SEND:` line. It is in the
-folder `~/Desktop/ratrixcam-uvc/uvc/results/`, with a name like
-`dim-2026-11-26-143000.zip`. To find it in Finder, run:
+Copy **the zip file** named on the `RESULTS FILE TO SEND:` line to the requester. It is in
+`~/Desktop/ratrixcam-uvc/uvc/results/`, with a name like `dim-2026-11-26-143000.zip`, and
+holds the log, the camera lists, your answers to the four questions and the pictures
+(expect roughly 100 to 200 MB for eight cameras).
 
-```
-cd ~/Desktop/ratrixcam-uvc && open uvc/results
-```
-
-Also send, if they exist:
-- `dim-restore.log` from the same folder, if you ran step 5;
-- in your message, anything unusual that happened during the run (an error message, a
-  camera that stayed dark, someone entering the room).
-
-The zip file holds the log, the camera lists, your answers to the four questions, and the
-pictures. Expect it to be roughly 100 to 200 MB for eight cameras; if it is too large for
-email, use a file-sharing link or a USB stick.
+Also copy `dim-restore.log` from the same folder if you ran step 5, and tell the requester
+about anything unusual during the run (an error message, a camera that stayed dark, someone
+entering the room).
 
 ## What the zip file contains (for the requester and the analysis team)
 

@@ -248,5 +248,10 @@ B and C differ only by name string. B has an extra H.264 stream and no 800x600. 
   the user's guess for the lid cameras' high frame-to-frame variation is compression
   artefacts. IR lamps are DC-driven, on 24/7, IR-pass filters: no flicker expected.
 - Offline test: `uvc/offline_tests/test_dim_outputs.py` (fake cv2; 14 checks pass).
+- Picture saving is wrapped (`picture()`): any error is logged as PICTURE NOT SAVED and the
+  sweep, restore and zip carry on (offline test: 18 checks). Deployment rigs are offline
+  (wifi only to git pull); files come back on a thumb drive; do not tell operators how to
+  transfer files.
+- The user may run v2 first on the deployment rig (2026-11-25), before any lab check.
 - Still needed: a lab check on hardware when the rig is handed back (real VideoWriter with
   CAP_OPENCV_MJPEG + quality param, PNG sizes, zip size), then the user pushes.
