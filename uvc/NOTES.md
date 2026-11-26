@@ -11,7 +11,10 @@ in this session's permissions, so these notes are the persistent record.
   zips) or the user's comments.** Those belong in the lab's own documentation. Git reports
   cover general findings: whether the code can do what is wanted, and what constraints,
   conditions or calibrations that needs; anything specific to one rig only as a brief
-  example. The ignore rules in `uvc/.gitignore` keep `uvc/results/`, `uvc/logs/dim-2*/`,
+  example. Committed data files and notes are written as documentation of testing (what was
+  tested, how, what it showed about the code), not as facts about a particular deployment
+  environment (user, 2026-11-25). Data already committed stays; no history rewrite.
+  The ignore rules in `uvc/.gitignore` keep `uvc/results/`, `uvc/logs/dim-2*/`,
   `uvc/logs/dimtestresults/`, `uvc/logs/*.zip` and `uvc/logs/lab-docs/` out of git.
 - General findings report: `uvc/DIM_LIGHT_FINDINGS.md`. The detailed per-camera report on
   the deployment runs is kept untracked at
